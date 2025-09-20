@@ -1,0 +1,90 @@
+import * as vscode from "vscode";
+import {
+  fetchSettingsCommand,
+  incorrectChoicesCommand,
+  testFetchCommand,
+} from "./commands/test-commands";
+import {
+  uriHandlerCommand,
+  signInCommand,
+  signOutCommand,
+  createAuthStatusBarItem,
+} from "./commands/auth-commands";
+import { registerSuggestionCommands } from "./commands/suggestion-commands";
+import { inlineCompletionProvider } from "./commands/completion-provider";
+import { checkUserSignIn } from "./services/auth-service";
+import {
+  registerClassSelectorCommand,
+  setupClassStatusBarItem,
+} from "./utils/userClass";
+import { CollabAgentPanelProvider } from "./views/CollabAgentPanel";
+
+/**
+ * Global extension context shared across the entire lifecycle of the VS Code extension.
+ * This context is used to store global state, manage subscriptions, and access workspace-specific configurations.
+ */
+export let globalContext: vscode.ExtensionContext;
+
+/**
+ * Cleanup handler invoked when the extension is deactivated.
+ *
+ * This function is called by the VS Code runtime when the extension is deactivated,
+ * such as when the user disables the extension or when VS Code is shutting down.
+ * It is used to perform any necessary cleanup, such as disposing resources or saving state.
+ */
+export async function activate(context: vscode.ExtensionContext) {
+  globalContext = context;
+
+  // Use both console.log and VS Code notifications for debugging
+  console.log("Collab Agent Activated");
+  vscode.window.showInformationMessage("Collab Agent: Extension activated!");
+
+  // Set context to show the panel
+  await vscode.commands.executeCommand('setContext', 'collabAgent.showPanel', true);
+
+  await checkUserSignIn();
+
+  const authButtonStatusBar = await setupClassStatusBarItem();
+  registerClassSelectorCommand(context, authButtonStatusBar);
+
+  const authStatusBar = createAuthStatusBarItem(context);
+  const suggestionCommands = registerSuggestionCommands();
+
+  // Register the Collab Agent panel provider
+  console.log("Registering CollabAgentPanelProvider...");
+  vscode.window.showInformationMessage("Collab Agent: Registering webview provider...");
+  
+  const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri);
+  const disposable = vscode.window.registerWebviewViewProvider(
+    'collabAgent.teamActivity',  // Use the exact string instead of static property
+    collabPanelProvider
+  );
+  context.subscriptions.push(disposable);
+  console.log("CollabAgentPanelProvider registered successfully");
+  vscode.window.showInformationMessage("Collab Agent: Webview provider registered!");
+
+  // Add a command to manually refresh the webview
+  const refreshCommand = vscode.commands.registerCommand('collabAgent.refreshPanel', () => {
+    vscode.commands.executeCommand('workbench.view.extension.collabAgent');
+  });
+  context.subscriptions.push(refreshCommand);
+
+  context.subscriptions.push(
+    ...suggestionCommands,
+    authStatusBar,
+    incorrectChoicesCommand,
+    signInCommand,
+    signOutCommand,
+    uriHandlerCommand,
+    testFetchCommand,
+    inlineCompletionProvider,
+    fetchSettingsCommand
+  );
+}
+/**
+ * Called when the extension is deactivated.
+ * Used for any necessary cleanup (currently logs deactivation to the console).
+ */
+export function deactivate() {
+  console.log("AI Extension Deactivated");
+}

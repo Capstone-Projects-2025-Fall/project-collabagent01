@@ -1,0 +1,15 @@
+{
+    "entryPoints": ["src"],
+    "out": "../server/docs/websiteDocs",
+    "tsconfig": "./tsconfig.json",
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "includeVersion": true,
+    "name": "CLOVER Website",
+    "plugin": ["typedoc-theme-hierarchy"],
+    "theme": "hierarchy",
+    "hideGenerator": true,
+    "entryPointStrategy": "expand",
+    "categorizeByGroup": true,
+    "defaultCategory": "Modules"
+}
