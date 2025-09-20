@@ -1,0 +1,15 @@
+{
+    "entryPoints": ["src"],
+    "out": "../server/docs/extensionDocs",
+    "tsconfig": "./tsconfig.json",
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "includeVersion": true,
+    "name": "CLOVER Extension",
+    "readme": "none",
+    "plugin": ["typedoc-theme-hierarchy"],
+    "theme": "hierarchy",
+    "hideGenerator": true,
+    "categorizeByGroup": true,
+    "entryPointStrategy": "expand",
+  }

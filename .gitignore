@@ -1,9 +1,19 @@
 # Generated files
 .docusaurus
 
-# Misc
-.DS_Store
+# Environment variables (IMPORTANT: Protects API keys and secrets)
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+server/.env
+website/.env
+
+# Allow example files (these should be committed)
+!*.env.example
+!server/.env.example
+!website/.env.example
+
+# Misc
+.DS_Store
