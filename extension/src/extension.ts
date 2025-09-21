@@ -42,7 +42,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // Set context to show the panel
   await vscode.commands.executeCommand('setContext', 'collabAgent.showPanel', true);
 
-  await checkUserSignIn();
+  checkUserSignIn();
 
   const authButtonStatusBar = await setupClassStatusBarItem();
   registerClassSelectorCommand(context, authButtonStatusBar);

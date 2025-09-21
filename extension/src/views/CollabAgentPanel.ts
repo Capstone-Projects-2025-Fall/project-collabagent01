@@ -1,13 +1,15 @@
 import * as vscode from 'vscode';
+import * as vsls from 'vsls';
 
 export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'collabAgent.teamActivity';
 
     private _view?: vscode.WebviewView;
+    private _liveShareApi?: vsls.LiveShare | null = null; 
 
     constructor(private readonly _extensionUri: vscode.Uri) {}
 
-    public resolveWebviewView(
+    public async resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
@@ -22,6 +24,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
         console.log("CollabAgentPanel: HTML set, webview should be ready");
+
+        await this.initializeLiveShare();
 
         // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(
@@ -43,16 +47,98 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         );
     }
 
+    private async initializeLiveShare(): Promise<boolean> {
+        try {
+            this._liveShareApi = await vsls.getApi();
+            if (this._liveShareApi) {
+                console.log('Live Share API initialized successfully.');
+                return true;
+            } else {
+                console.log('Live Share extension not available.');
+                return false;
+            }
+        } catch (error) {
+            console.error('Failed to initialize Live Share API:', error);
+            return false;
+        }
+    }
+
     private async startLiveShareSession() {
-        // We need to integrate with Live Share API Here!
-        vscode.window.showInformationMessage('Starting Live Share session...');
-        await vscode.commands.executeCommand('liveshare.start');
+        if (!this._liveShareApi) {
+            vscode.window.showErrorMessage('Live Share API not available. Please install Live Share extension.');
+            return;
+        }
+
+        try {
+            vscode.window.showInformationMessage('Starting Live Share session...');
+
+            // Start the live share session
+            const session = await this._liveShareApi.share();
+
+            if (session && session.toString()) {
+                const inviteLink = session.toString();
+                vscode.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
+
+                // UPdate the UI 
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'updateSessionStatus',
+                        status: 'hosting',
+                        link: inviteLink
+                    });
+                }
+            } else {
+                vscode.window.showErrorMessage('Failed to start Live Share session');
+            }
+        } catch (error) {
+            console.error('Error starting Live Share session:', error);
+            vscode.window.showErrorMessage('Error starting Live Share session: ' + error);
+        }
     }
 
     private async joinLiveShareSession() {
-        // We need to integrate with Live Share API Here!
-        vscode.window.showInformationMessage('Joining Live Share session...');
-        await vscode.commands.executeCommand('liveshare.join');
+        if (!this._liveShareApi) {
+            vscode.window.showErrorMessage('Live Share API not available. Please install Live Share extension.');
+            return;
+        }
+
+        try {
+            // Prompt user for invite link 
+            const inviteLink = await vscode.window.showInputBox({
+                prompt: 'Enter Live Share invite link',
+                placeHolder: 'https://prod.liveshare.vsengsaas.visualstudio.com/join?...',
+                validateInput: (value) => {
+                    if (!value || value.trim().length == 0) {
+                        return 'Please enter a valid invite link';
+                    }
+                    return null;
+                }
+            });
+
+            if (!inviteLink) {
+                return; // User cancelled 
+            }
+
+            vscode.window.showInformationMessage('Joining Live Share session...');
+
+            // Join the Live Share session
+            const inviteUri = vscode.Uri.parse(inviteLink.trim());
+            await this._liveShareApi.join(inviteUri);
+
+            vscode.window.showInformationMessage('Successfully joined Live Share session!');
+
+            // Update UI 
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateSessionStatus',
+                    status: 'joined',
+                    link: inviteLink
+                });
+            }
+        } catch (error) {
+            console.error('Error joining Live Share session:', error);
+            vscode.window.showErrorMessage('Error joining Live Share session: ' + error); 
+        }
     }
 
     private sendTeamMessage(message: string) {
@@ -78,6 +164,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    // @ts-ignore
     private _getHtmlForWebview(webview: vscode.Webview) {
         return `<!DOCTYPE html>
         <html lang="en">
@@ -237,6 +324,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         case 'updateActivity':
                             updateTeamActivity(message.activity);
                             break;
+                        case 'updateSessionStatus':
+                            updateSessionStatus(message.status, message.link);
+                            break;
                     }
                 });
                 
@@ -253,6 +343,17 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     // TODO: Update team activity display
                     console.log('Activity update:', activity);
                 }
+
+                function updateSessionStatus(status, link) {
+                    const statusDiv = document.getElementById('sessionStatus');
+                    if (status == 'hosting') {
+                        statusDiv.innerHTML = '<span class="status-indicator"></span>Hosting session: ' + link;
+                    } else if (status == 'joined') {
+                        statusDiv.innerHTML = '<span class="status-indicator"></span>Joined session';
+                    } else {
+                        statusDiv.innerHTML = 'No active session'; 
+                    }
+                }  
             </script>
         </body>
         </html>`;

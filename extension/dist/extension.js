@@ -5,6 +5,9 @@ var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
+var __commonJS = (cb, mod) => function __require() {
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
+};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -26,6 +29,160 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   mod
 ));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
+
+// node_modules/vsls/package.json
+var require_package = __commonJS({
+  "node_modules/vsls/package.json"(exports2, module2) {
+    module2.exports = {
+      name: "vsls",
+      displayName: "VS Live Share extension API",
+      description: "Enables VS Code extensions to access Live Share capabilities.",
+      version: "1.0.4753",
+      publisher: "ms-vsliveshare",
+      main: "vscode.js",
+      preview: true,
+      license: "SEE LICENSE IN LICENSE.txt",
+      homepage: "https://aka.ms/vsls",
+      bugs: {
+        url: "https://aka.ms/vsls-issues",
+        email: "vsls-feedback@microsoft.com"
+      },
+      author: {
+        name: "Microsoft"
+      },
+      keywords: [
+        "Live Share"
+      ],
+      categories: [
+        "Other"
+      ],
+      repository: {
+        url: "https://github.com/MicrosoftDocs/live-share"
+      },
+      dependencies: {
+        "@microsoft/servicehub-framework": "^2.6.74"
+      }
+    };
+  }
+});
+
+// node_modules/vsls/vscode.js
+var require_vscode = __commonJS({
+  "node_modules/vsls/vscode.js"(exports2) {
+    "use strict";
+    Object.defineProperty(exports2, "__esModule", { value: true });
+    var vscode14 = require("vscode");
+    var liveShareApiVersion = require_package().version;
+    exports2.extensionId = "ms-vsliveshare.vsliveshare";
+    async function getApi2(callingExtensionId) {
+      const liveshareExtension = vscode14.extensions.getExtension(exports2.extensionId);
+      if (!liveshareExtension) {
+        return null;
+      }
+      const extensionApi = liveshareExtension.isActive ? liveshareExtension.exports : await liveshareExtension.activate();
+      if (!extensionApi) {
+        return null;
+      }
+      if (!extensionApi.getApi)
+        return extensionApi.getApiAsync(liveShareApiVersion);
+      return extensionApi.getApi(liveShareApiVersion, callingExtensionId);
+    }
+    exports2.getApi = getApi2;
+    function getApiAsync() {
+      return getApi2();
+    }
+    exports2.getApiAsync = getApiAsync;
+    var PolicySetting;
+    (function(PolicySetting2) {
+      PolicySetting2["AllowGuestDebugControl"] = "allowGuestDebugControl";
+      PolicySetting2["AllowGuestTaskControl"] = "allowGuestTaskControl";
+      PolicySetting2["AutoShareServers"] = "autoShareServers";
+      PolicySetting2["AnonymousGuestApproval"] = "anonymousGuestApproval";
+      PolicySetting2["ConnectionMode"] = "connectionMode";
+      PolicySetting2["AllowedDomains"] = "allowedDomains";
+      PolicySetting2["AllowReadWriteTerminals"] = "allowReadWriteTerminals";
+    })(PolicySetting = exports2.PolicySetting || (exports2.PolicySetting = {}));
+    var Role;
+    (function(Role2) {
+      Role2[Role2["None"] = 0] = "None";
+      Role2[Role2["Host"] = 1] = "Host";
+      Role2[Role2["Guest"] = 2] = "Guest";
+    })(Role = exports2.Role || (exports2.Role = {}));
+    var Access;
+    (function(Access2) {
+      Access2[Access2["None"] = 0] = "None";
+      Access2[Access2["ReadOnly"] = 1] = "ReadOnly";
+      Access2[Access2["ReadWrite"] = 3] = "ReadWrite";
+      Access2[Access2["Owner"] = 255] = "Owner";
+    })(Access = exports2.Access || (exports2.Access = {}));
+    var View;
+    (function(View2) {
+      View2["Session"] = "liveshare.session";
+      View2["ExplorerSession"] = "liveshare.session.explorer";
+      View2["PlannedSessions"] = "liveshare.plannedSessions";
+      View2["Contacts"] = "liveshare.contacts";
+      View2["Help"] = "liveshare.help";
+    })(View = exports2.View || (exports2.View = {}));
+    var ViewItem;
+    (function(ViewItem2) {
+      ViewItem2["Participants"] = "participants";
+      ViewItem2["Servers"] = "servers";
+      ViewItem2["Terminals"] = "terminals";
+      ViewItem2["Comments"] = "comments";
+      ViewItem2["Chat"] = "chat";
+      ViewItem2["CurrentUser"] = "participants.currentuser";
+      ViewItem2["Guest"] = "participants.guest";
+      ViewItem2["FollowedGuest"] = "participants.guest.followed";
+      ViewItem2["Participant"] = "participants.participant";
+      ViewItem2["FollowedParticipant"] = "participants.participant.followed";
+      ViewItem2["GuestAnonymous"] = "participants.guest.anonymous";
+      ViewItem2["FollowedGuestAnonymous"] = "participants.guest.followed.anonymous";
+      ViewItem2["GuestElevated"] = "participants.guest.elevated";
+      ViewItem2["FollowedGuestElevated"] = "participants.guest.followed.elevated";
+      ViewItem2["GuestElevatedAnonymous"] = "participants.guest.elevated.anonymous";
+      ViewItem2["FollowedGuestElevatedAnonymous"] = "participants.guest.followed.elevated.anonymous";
+      ViewItem2["LocalServer"] = "servers.local";
+      ViewItem2["RemoteServer"] = "servers.remote";
+      ViewItem2["LocalTerminalReadOnly"] = "terminals.local.readonly";
+      ViewItem2["LocalTerminalReadWrite"] = "terminals.local.readwrite";
+      ViewItem2["RemoteTerminal"] = "terminals.remote";
+      ViewItem2["SuggestedContacts"] = "contacts.suggested";
+      ViewItem2["AvailableContacts"] = "contacts.available";
+      ViewItem2["ContactsProvider"] = "contacts.provider";
+      ViewItem2["SelfContact"] = "contacts.selfContact";
+      ViewItem2["Contact"] = "contacts.contact";
+      ViewItem2["ContactInvited"] = "contacts.contact.invited";
+      ViewItem2["ContactOffline"] = "contacts.contact.offline";
+      ViewItem2["RecentContact"] = "contacts.recentContact";
+      ViewItem2["RecentContactOffline"] = "contacts.recentContact.offline";
+      ViewItem2["RecentContactInvited"] = "contacts.recentContact.invited";
+      ViewItem2["NoContact"] = "contacts.noContact";
+      ViewItem2["RecentContacts"] = "contacts.RecentContacts";
+      ViewItem2["NoSuggestedContacts"] = "contacts.NoSuggestedUsers";
+      ViewItem2["NoRecentContacts"] = "contacts.NoRecentContacts";
+      ViewItem2["InvitedContact"] = "contacts.invited";
+      ViewItem2["SessionFeedbackQuestion"] = "help.sessionFeedback";
+      ViewItem2["ReportAProblem"] = "help.reportAProblem";
+      ViewItem2["TweetUsYourFeedback"] = "help.tweetUsYourFeedback";
+      ViewItem2["Survey"] = "help.survey";
+      ViewItem2["GoodFeedback"] = "help.goodFeedback";
+      ViewItem2["BadFeedback"] = "help.badFeedback";
+      ViewItem2["DontAskAgain"] = "help.dontAskAgain";
+      ViewItem2["Thankyou"] = "help.thankyou";
+      ViewItem2["MoreInfo"] = "help.moreinfo";
+      ViewItem2["ConfigureSettings"] = "help.configureSettings";
+      ViewItem2["Loading"] = "loading";
+      ViewItem2["Other"] = "other";
+    })(ViewItem = exports2.ViewItem || (exports2.ViewItem = {}));
+    var ActivityType = class {
+    };
+    exports2.ActivityType = ActivityType;
+    ActivityType.session = "session";
+    ActivityType.workspace = "workspace";
+    ActivityType.debug = "debug";
+    ActivityType.terminal = "terminal";
+  }
+});
 
 // src/extension.ts
 var extension_exports = {};
@@ -2327,22 +2484,24 @@ async function provideInlineCompletionItems(document, position, context, token) 
 
 // src/views/CollabAgentPanel.ts
 var vscode12 = __toESM(require("vscode"));
+var vsls = __toESM(require_vscode());
 var CollabAgentPanelProvider = class {
   constructor(_extensionUri) {
     this._extensionUri = _extensionUri;
   }
   static viewType = "collabAgent.teamActivity";
   _view;
-  resolveWebviewView(webviewView, context, _token) {
+  _liveShareApi = null;
+  async resolveWebviewView(webviewView, context, _token) {
     console.log("CollabAgentPanel: resolveWebviewView called");
     this._view = webviewView;
     webviewView.webview.options = {
-      // Allow scripts in the webview
       enableScripts: true,
       localResourceRoots: [this._extensionUri]
     };
     webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
     console.log("CollabAgentPanel: HTML set, webview should be ready");
+    await this.initializeLiveShare();
     webviewView.webview.onDidReceiveMessage(
       (message) => {
         switch (message.command) {
@@ -2361,13 +2520,81 @@ var CollabAgentPanelProvider = class {
       []
     );
   }
+  async initializeLiveShare() {
+    try {
+      this._liveShareApi = await vsls.getApi();
+      if (this._liveShareApi) {
+        console.log("Live Share API initialized successfully.");
+        return true;
+      } else {
+        console.log("Live Share extension not available.");
+        return false;
+      }
+    } catch (error) {
+      console.error("Failed to initialize Live Share API:", error);
+      return false;
+    }
+  }
   async startLiveShareSession() {
-    vscode12.window.showInformationMessage("Starting Live Share session...");
-    await vscode12.commands.executeCommand("liveshare.start");
+    if (!this._liveShareApi) {
+      vscode12.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
+      return;
+    }
+    try {
+      vscode12.window.showInformationMessage("Starting Live Share session...");
+      const session = await this._liveShareApi.share();
+      if (session && session.toString()) {
+        const inviteLink = session.toString();
+        vscode12.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
+        if (this._view) {
+          this._view.webview.postMessage({
+            command: "updateSessionStatus",
+            status: "hosting",
+            link: inviteLink
+          });
+        }
+      } else {
+        vscode12.window.showErrorMessage("Failed to start Live Share session");
+      }
+    } catch (error) {
+      console.error("Error starting Live Share session:", error);
+      vscode12.window.showErrorMessage("Error starting Live Share session: " + error);
+    }
   }
   async joinLiveShareSession() {
-    vscode12.window.showInformationMessage("Joining Live Share session...");
-    await vscode12.commands.executeCommand("liveshare.join");
+    if (!this._liveShareApi) {
+      vscode12.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
+      return;
+    }
+    try {
+      const inviteLink = await vscode12.window.showInputBox({
+        prompt: "Enter Live Share invite link",
+        placeHolder: "https://prod.liveshare.vsengsaas.visualstudio.com/join?...",
+        validateInput: (value) => {
+          if (!value || value.trim().length == 0) {
+            return "Please enter a valid invite link";
+          }
+          return null;
+        }
+      });
+      if (!inviteLink) {
+        return;
+      }
+      vscode12.window.showInformationMessage("Joining Live Share session...");
+      const inviteUri = vscode12.Uri.parse(inviteLink.trim());
+      await this._liveShareApi.join(inviteUri);
+      vscode12.window.showInformationMessage("Successfully joined Live Share session!");
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "updateSessionStatus",
+          status: "joined",
+          link: inviteLink
+        });
+      }
+    } catch (error) {
+      console.error("Error joining Live Share session:", error);
+      vscode12.window.showErrorMessage("Error joining Live Share session: " + error);
+    }
   }
   sendTeamMessage(message) {
     vscode12.window.showInformationMessage(`Team message: ${message}`);
@@ -2388,6 +2615,7 @@ var CollabAgentPanelProvider = class {
       });
     }
   }
+  // @ts-ignore
   _getHtmlForWebview(webview) {
     return `<!DOCTYPE html>
         <html lang="en">
@@ -2547,6 +2775,9 @@ var CollabAgentPanelProvider = class {
                         case 'updateActivity':
                             updateTeamActivity(message.activity);
                             break;
+                        case 'updateSessionStatus':
+                            updateSessionStatus(message.status, message.link);
+                            break;
                     }
                 });
                 
@@ -2563,6 +2794,17 @@ var CollabAgentPanelProvider = class {
                     // TODO: Update team activity display
                     console.log('Activity update:', activity);
                 }
+
+                function updateSessionStatus(status, link) {
+                    const statusDiv = document.getElementById('sessionStatus');
+                    if (status == 'hosting') {
+                        statusDiv.innerHTML = '<span class="status-indicator"></span>Hosting session: ' + link;
+                    } else if (status == 'joined') {
+                        statusDiv.innerHTML = '<span class="status-indicator"></span>Joined session';
+                    } else {
+                        statusDiv.innerHTML = 'No active session'; 
+                    }
+                }  
             </script>
         </body>
         </html>`;
@@ -2576,7 +2818,7 @@ async function activate(context) {
   console.log("Collab Agent Activated");
   vscode13.window.showInformationMessage("Collab Agent: Extension activated!");
   await vscode13.commands.executeCommand("setContext", "collabAgent.showPanel", true);
-  await checkUserSignIn();
+  checkUserSignIn();
   const authButtonStatusBar = await setupClassStatusBarItem();
   registerClassSelectorCommand(context, authButtonStatusBar);
   const authStatusBar = createAuthStatusBarItem(context);

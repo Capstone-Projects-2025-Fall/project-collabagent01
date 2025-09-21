@@ -102,7 +102,7 @@
         {
           "id": "collabAgent.teamActivity",
           "name": "Team Activity",
-          "icon": "$(organization)",
+          "icon": "$(people)",
           "type": "webview"
         }
       ]
@@ -147,6 +147,7 @@
   },
   "dependencies": {
     "axios": "^1.7.9",
-    "typedoc-theme-hierarchy": "^5.0.4"
+    "typedoc-theme-hierarchy": "^5.0.4",
+    "vsls": "^1.0.4753"
   }
 }
