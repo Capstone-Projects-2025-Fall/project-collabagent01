@@ -110,6 +110,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private handleSessionChange(sessionChangeEvent: any) {
         const session = sessionChangeEvent.session;
         console.log('handleSessionChange called with session:', session);
+        console.log('Session change event details:', {
+            changeType: sessionChangeEvent.changeType,
+            session: session ? {
+                id: session.id,
+                role: session.role,
+                peerNumber: session.peerNumber,
+                user: session.user
+            } : null
+        });
         
         if (session) {
             console.log('Session active:', {
@@ -130,10 +139,19 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const isHost = session.role === vsls.Role.Host;
             const sessionLink = session.uri?.toString() || '';
             
+            // Try to get participant count immediately
+            let participantCount = session.peerNumber || 1;
+            if (isHost && participantCount === 1) {
+                // For hosts, sometimes we need to wait a moment for participant count to update
+                setTimeout(() => {
+                    this.updateParticipantInfo();
+                }, 1000);
+            }
+            
             console.log('Sending updateSessionStatus message:', {
                 status: isHost ? 'hosting' : 'joined',
                 link: sessionLink,
-                participants: session.peerNumber || 1,
+                participants: participantCount,
                 role: session.role,
                 duration: this.getSessionDuration()
             });
@@ -143,7 +161,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     command: 'updateSessionStatus',
                     status: isHost ? 'hosting' : 'joined',
                     link: sessionLink,
-                    participants: session.peerNumber || 1,
+                    participants: participantCount,
                     role: session.role,
                     duration: this.getSessionDuration()
                 });
@@ -204,21 +222,66 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
         try {
             const session = this._liveShareApi.session;
-            const participantCount = session.peerNumber || 1;
+            
+            // Try to get participant count from different API properties
+            let participantCount = 1; // Start with at least 1 (self)
+            
+            if (session.peerNumber !== undefined) {
+                participantCount = session.peerNumber;
+            }
+            
+            // For hosts, try to get more accurate participant count
+            if (session.role === vsls.Role.Host) {
+                // Try to access peers collection if available
+                try {
+                    if ((session as any).peers && Array.isArray((session as any).peers)) {
+                        participantCount = (session as any).peers.length + 1; // +1 for host
+                        console.log('Host: Found peers array with length:', (session as any).peers.length);
+                    } else if ((session as any).peerCount !== undefined) {
+                        participantCount = (session as any).peerCount;
+                        console.log('Host: Using peerCount:', participantCount);
+                    } else {
+                        // Fallback: assume at least 2 if we're hosting and someone joined
+                        participantCount = Math.max(participantCount, 1);
+                        console.log('Host: Using fallback participant count:', participantCount);
+                    }
+                } catch (error) {
+                    console.log('Error accessing peer information:', error);
+                }
+            }
+            
             const currentDuration = this.getSessionDuration();
             
             console.log('updateParticipantInfo:', { 
                 participantCount, 
                 duration: currentDuration,
-                sessionStartTime: this.sessionStartTime 
+                sessionStartTime: this.sessionStartTime,
+                role: session.role === vsls.Role.Host ? 'Host' : 'Guest',
+                sessionId: session.id
             });
             
-            // Get more detailed participant info if available
-            const participants = [{
+            // Build participant list with available information
+            const participants = [];
+            
+            // Add self
+            participants.push({
                 name: session.user?.displayName || 'You',
                 email: session.user?.emailAddress || '',
                 role: session.role === vsls.Role.Host ? 'Host' : 'Guest'
-            }];
+            });
+            
+            // Try to add other participants if we can detect them
+            if (participantCount > 1) {
+                for (let i = 1; i < participantCount; i++) {
+                    participants.push({
+                        name: `Participant ${i + 1}`,
+                        email: '',
+                        role: session.role === vsls.Role.Host ? 'Guest' : 'Host'
+                    });
+                }
+            }
+
+            console.log('Sending participant update:', { participants, count: participantCount });
 
             if (this._view) {
                 this._view.webview.postMessage({
@@ -730,27 +793,29 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }
 
                 function updateParticipants(participants, count) {
-                    console.log('Updating participants:', participants, count);
+                    console.log('updateParticipants called with:', participants, count);
                     
-                    // Update participant list in Team Activity section
-                    const teamSection = document.querySelector('.team-activity');
-                    if (teamSection && participants) {
-                        let participantList = teamSection.querySelector('.participant-list');
-                        if (!participantList) {
-                            participantList = document.createElement('div');
-                            participantList.className = 'participant-list';
-                            teamSection.appendChild(participantList);
-                        }
+                    // Update the existing Team Activity section
+                    const teamActivityDiv = document.getElementById('teamActivity');
+                    if (teamActivityDiv && participants && participants.length > 0) {
+                        console.log('Updating team activity with participants:', participants);
                         
-                        participantList.innerHTML = \`
-                            <h4>Active Participants (\${count})</h4>
-                            \${participants.map(p => \`
-                                <div class="participant-item">
-                                    <span class="participant-name">\${p.name}</span>
-                                    <span class="participant-role">\${p.role}</span>
-                                </div>
-                            \`).join('')}
+                        teamActivityDiv.innerHTML = \`
+                            <div class="participant-list">
+                                <h4>Active Participants (\${count})</h4>
+                                \${participants.map((p, index) => \`
+                                    <div class="participant-item">
+                                        <span class="status-indicator active"></span>
+                                        <span class="participant-name">\${p.name}</span>
+                                        <span class="participant-role">\${p.role}</span>
+                                    </div>
+                                \`).join('')}
+                            </div>
                         \`;
+                        
+                        console.log('Team activity updated successfully');
+                    } else {
+                        console.log('No team activity div found or no participants:', { teamActivityDiv, participants });
                     }
                 }  
             </script>

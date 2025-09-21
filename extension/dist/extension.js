@@ -102,12 +102,12 @@ var require_vscode = __commonJS({
       PolicySetting2["AllowedDomains"] = "allowedDomains";
       PolicySetting2["AllowReadWriteTerminals"] = "allowReadWriteTerminals";
     })(PolicySetting = exports2.PolicySetting || (exports2.PolicySetting = {}));
-    var Role;
-    (function(Role2) {
-      Role2[Role2["None"] = 0] = "None";
-      Role2[Role2["Host"] = 1] = "Host";
-      Role2[Role2["Guest"] = 2] = "Guest";
-    })(Role = exports2.Role || (exports2.Role = {}));
+    var Role2;
+    (function(Role3) {
+      Role3[Role3["None"] = 0] = "None";
+      Role3[Role3["Host"] = 1] = "Host";
+      Role3[Role3["Guest"] = 2] = "Guest";
+    })(Role2 = exports2.Role || (exports2.Role = {}));
     var Access;
     (function(Access2) {
       Access2[Access2["None"] = 0] = "None";
@@ -2504,16 +2504,26 @@ var CollabAgentPanelProvider = class {
     await this.initializeLiveShare();
     webviewView.webview.onDidReceiveMessage(
       (message) => {
+        console.log("Received message from webview:", message);
         switch (message.command) {
           case "startLiveShare":
+            console.log("Handling startLiveShare command");
             this.startLiveShareSession();
             return;
           case "joinLiveShare":
+            console.log("Handling joinLiveShare command");
             this.joinLiveShareSession();
             return;
+          case "endLiveShare":
+            console.log("Handling endLiveShare command");
+            this.endLiveShareSession();
+            return;
           case "sendTeamMessage":
+            console.log("Handling sendTeamMessage command");
             this.sendTeamMessage(message.text);
             return;
+          default:
+            console.log("Unknown command received:", message.command);
         }
       },
       void 0,
@@ -2522,18 +2532,235 @@ var CollabAgentPanelProvider = class {
   }
   async initializeLiveShare() {
     try {
+      await new Promise((resolve) => setTimeout(resolve, 1e3));
       this._liveShareApi = await vsls.getApi();
       if (this._liveShareApi) {
         console.log("Live Share API initialized successfully.");
+        this.setupLiveShareEventListeners();
         return true;
       } else {
         console.log("Live Share extension not available.");
+        setTimeout(() => {
+          console.log("Retrying Live Share initialization...");
+          this.initializeLiveShare();
+        }, 3e3);
         return false;
       }
     } catch (error) {
       console.error("Failed to initialize Live Share API:", error);
+      setTimeout(() => {
+        console.log("Retrying Live Share initialization after error...");
+        this.initializeLiveShare();
+      }, 5e3);
       return false;
     }
+  }
+  setupLiveShareEventListeners() {
+    if (!this._liveShareApi) return;
+    try {
+      this._liveShareApi.onDidChangeSession((sessionChangeEvent) => {
+        console.log("Live Share session changed:", sessionChangeEvent);
+        this.handleSessionChange(sessionChangeEvent);
+      });
+      this.monitorSessionState();
+    } catch (error) {
+      console.error("Error setting up Live Share event listeners:", error);
+    }
+  }
+  handleSessionChange(sessionChangeEvent) {
+    const session = sessionChangeEvent.session;
+    console.log("handleSessionChange called with session:", session);
+    console.log("Session change event details:", {
+      changeType: sessionChangeEvent.changeType,
+      session: session ? {
+        id: session.id,
+        role: session.role,
+        peerNumber: session.peerNumber,
+        user: session.user
+      } : null
+    });
+    if (session) {
+      console.log("Session active:", {
+        id: session.id,
+        role: session.role,
+        uri: session.uri?.toString(),
+        peerNumber: session.peerNumber,
+        user: session.user
+      });
+      if (!this.sessionStartTime || sessionChangeEvent.changeType === "joined") {
+        this.sessionStartTime = /* @__PURE__ */ new Date();
+        console.log("Session start time set to:", this.sessionStartTime);
+      }
+      const isHost = session.role === vsls.Role.Host;
+      const sessionLink = session.uri?.toString() || "";
+      let participantCount = session.peerNumber || 1;
+      if (isHost && participantCount === 1) {
+        setTimeout(() => {
+          this.updateParticipantInfo();
+        }, 1e3);
+      }
+      console.log("Sending updateSessionStatus message:", {
+        status: isHost ? "hosting" : "joined",
+        link: sessionLink,
+        participants: participantCount,
+        role: session.role,
+        duration: this.getSessionDuration()
+      });
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "updateSessionStatus",
+          status: isHost ? "hosting" : "joined",
+          link: sessionLink,
+          participants: participantCount,
+          role: session.role,
+          duration: this.getSessionDuration()
+        });
+      }
+      this.startParticipantMonitoring();
+    } else {
+      console.log("Session ended - clearing session start time");
+      this.sessionStartTime = void 0;
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "updateSessionStatus",
+          status: "ended",
+          link: "",
+          participants: 0
+        });
+      }
+      this.stopParticipantMonitoring();
+    }
+  }
+  monitorSessionState() {
+    if (this._liveShareApi?.session) {
+      this.handleSessionChange({ session: this._liveShareApi.session });
+    }
+  }
+  participantMonitoringInterval;
+  sessionStartTime;
+  startParticipantMonitoring() {
+    this.stopParticipantMonitoring();
+    this.participantMonitoringInterval = setInterval(() => {
+      this.updateParticipantInfo();
+    }, 2e3);
+    this.updateParticipantInfo();
+  }
+  stopParticipantMonitoring() {
+    if (this.participantMonitoringInterval) {
+      clearInterval(this.participantMonitoringInterval);
+      this.participantMonitoringInterval = void 0;
+    }
+  }
+  async updateParticipantInfo() {
+    if (!this._liveShareApi?.session) {
+      console.log("updateParticipantInfo: No session available");
+      return;
+    }
+    try {
+      const session = this._liveShareApi.session;
+      let participantCount = 1;
+      if (session.peerNumber !== void 0) {
+        participantCount = session.peerNumber;
+      }
+      if (session.role === vsls.Role.Host) {
+        try {
+          if (session.peers && Array.isArray(session.peers)) {
+            participantCount = session.peers.length + 1;
+            console.log("Host: Found peers array with length:", session.peers.length);
+          } else if (session.peerCount !== void 0) {
+            participantCount = session.peerCount;
+            console.log("Host: Using peerCount:", participantCount);
+          } else {
+            participantCount = Math.max(participantCount, 1);
+            console.log("Host: Using fallback participant count:", participantCount);
+          }
+        } catch (error) {
+          console.log("Error accessing peer information:", error);
+        }
+      }
+      const currentDuration = this.getSessionDuration();
+      console.log("updateParticipantInfo:", {
+        participantCount,
+        duration: currentDuration,
+        sessionStartTime: this.sessionStartTime,
+        role: session.role === vsls.Role.Host ? "Host" : "Guest",
+        sessionId: session.id
+      });
+      const participants = [];
+      participants.push({
+        name: session.user?.displayName || "You",
+        email: session.user?.emailAddress || "",
+        role: session.role === vsls.Role.Host ? "Host" : "Guest"
+      });
+      if (participantCount > 1) {
+        for (let i = 1; i < participantCount; i++) {
+          participants.push({
+            name: `Participant ${i + 1}`,
+            email: "",
+            role: session.role === vsls.Role.Host ? "Guest" : "Host"
+          });
+        }
+      }
+      console.log("Sending participant update:", { participants, count: participantCount });
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "updateParticipants",
+          participants,
+          count: participantCount
+        });
+        const isHost = session.role === vsls.Role.Host;
+        this._view.webview.postMessage({
+          command: "updateSessionStatus",
+          status: isHost ? "hosting" : "joined",
+          link: "",
+          // Session link not available in participant monitoring
+          participants: participantCount,
+          role: session.role,
+          duration: currentDuration
+        });
+      }
+    } catch (error) {
+      console.error("Error updating participant info:", error);
+    }
+  }
+  async endLiveShareSession() {
+    try {
+      console.log("Attempting to end Live Share session...");
+      if (!this._liveShareApi) {
+        console.log("Live Share API not available");
+        vscode12.window.showWarningMessage("Live Share API not available.");
+        return;
+      }
+      if (!this._liveShareApi.session) {
+        console.log("No active session found");
+        vscode12.window.showWarningMessage("No active Live Share session to end.");
+        return;
+      }
+      console.log("Current session role:", this._liveShareApi.session.role);
+      console.log("Host role constant:", vsls.Role.Host);
+      if (this._liveShareApi.session.role !== vsls.Role.Host) {
+        vscode12.window.showWarningMessage("Only the session host can end the session.");
+        return;
+      }
+      console.log("Calling end() on Live Share API...");
+      await this._liveShareApi.end();
+      console.log("Live Share end() completed");
+      vscode12.window.showInformationMessage("Live Share session ended successfully.");
+    } catch (error) {
+      console.error("Error ending Live Share session:", error);
+      vscode12.window.showErrorMessage("Failed to end Live Share session: " + error);
+    }
+  }
+  getSessionDuration() {
+    if (!this.sessionStartTime) return "0m";
+    const now = /* @__PURE__ */ new Date();
+    const diffMs = now.getTime() - this.sessionStartTime.getTime();
+    const diffMins = Math.floor(diffMs / 6e4);
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours > 0) {
+      return `${diffHours}h ${diffMins % 60}m`;
+    }
+    return `${diffMins}m`;
   }
   async startLiveShareSession() {
     if (!this._liveShareApi) {
@@ -2631,6 +2858,104 @@ var CollabAgentPanelProvider = class {
                     background-color: var(--vscode-sideBar-background);
                     padding: 16px;
                     margin: 0;
+                }
+                
+                .status-indicator {
+                    display: inline-block;
+                    width: 8px;
+                    height: 8px;
+                    border-radius: 50%;
+                    background-color: var(--vscode-descriptionForeground);
+                    margin-right: 8px;
+                }
+                
+                .status-indicator.active {
+                    background-color: #4CAF50;
+                    animation: pulse 2s infinite;
+                }
+                
+                @keyframes pulse {
+                    0% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                    100% { opacity: 1; }
+                }
+                
+                .status-active {
+                    color: var(--vscode-textLink-foreground);
+                }
+                
+                .status-inactive {
+                    color: var(--vscode-descriptionForeground);
+                }
+                
+                .session-info {
+                    margin-top: 8px;
+                    font-size: 12px;
+                    color: var(--vscode-descriptionForeground);
+                }
+                
+                .session-link {
+                    margin-top: 4px;
+                    word-break: break-all;
+                }
+                
+                .session-link code {
+                    background-color: var(--vscode-textCodeBlock-background);
+                    padding: 2px 4px;
+                    border-radius: 2px;
+                    font-size: 11px;
+                }
+                
+                .participant-list {
+                    margin-top: 12px;
+                    padding: 8px;
+                    background-color: var(--vscode-textCodeBlock-background);
+                    border-radius: 4px;
+                }
+                
+                .participant-list h4 {
+                    margin: 0 0 8px 0;
+                    font-size: 12px;
+                    color: var(--vscode-textLink-foreground);
+                }
+                
+                .participant-item {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 4px 0;
+                    border-bottom: 1px solid var(--vscode-panel-border);
+                }
+                
+                .participant-item:last-child {
+                    border-bottom: none;
+                }
+                
+                .participant-name {
+                    font-weight: bold;
+                    font-size: 12px;
+                }
+                
+                .participant-role {
+                    font-size: 11px;
+                    color: var(--vscode-descriptionForeground);
+                    background-color: var(--vscode-badge-background);
+                    color: var(--vscode-badge-foreground);
+                    padding: 2px 6px;
+                    border-radius: 10px;
+                }
+                
+                .end-session-btn {
+                    background-color: var(--vscode-errorForeground);
+                    color: white;
+                    margin-top: 8px;
+                    font-size: 12px;
+                    padding: 6px 12px;
+                }
+                
+                .end-session-btn:hover {
+                    background-color: var(--vscode-errorForeground);
+                    opacity: 0.8;
                 }
                 
                 .section {
@@ -2776,7 +3101,10 @@ var CollabAgentPanelProvider = class {
                             updateTeamActivity(message.activity);
                             break;
                         case 'updateSessionStatus':
-                            updateSessionStatus(message.status, message.link);
+                            updateSessionStatus(message.status, message.link, message.participants, message.role);
+                            break;
+                        case 'updateParticipants':
+                            updateParticipants(message.participants, message.count);
                             break;
                     }
                 });
@@ -2795,19 +3123,95 @@ var CollabAgentPanelProvider = class {
                     console.log('Activity update:', activity);
                 }
 
-                function updateSessionStatus(status, link) {
+                function updateSessionStatus(status, link, participants, role, duration) {
                     const statusDiv = document.getElementById('sessionStatus');
-                    if (status == 'hosting') {
-                        statusDiv.innerHTML = '<span class="status-indicator"></span>Hosting session: ' + link;
-                    } else if (status == 'joined') {
-                        statusDiv.innerHTML = '<span class="status-indicator"></span>Joined session';
+                    const participantCount = participants || 1;
+                    const sessionDuration = duration || '0m';
+                    
+                    if (status === 'hosting') {
+                        statusDiv.innerHTML = \`
+                            <div class="status-active">
+                                <span class="status-indicator active"></span>
+                                <strong>Hosting Live Share Session</strong>
+                                <div class="session-info">
+                                    <div>Participants: \${participantCount}</div>
+                                    <div>Duration: \${sessionDuration}</div>
+                                    <div class="session-link">Link: <code>\${link}</code></div>
+                                    <button class="button end-session-btn" onclick="endSession()">End Session</button>
+                                </div>
+                            </div>
+                        \`;
+                    } else if (status === 'joined') {
+                        statusDiv.innerHTML = \`
+                            <div class="status-active">
+                                <span class="status-indicator active"></span>
+                                <strong>Joined Live Share Session</strong>
+                                <div class="session-info">
+                                    <div>Participants: \${participantCount}</div>
+                                    <div>Duration: \${sessionDuration}</div>
+                                    <div>Role: Guest</div>
+                                </div>
+                            </div>
+                        \`;
+                    } else if (status === 'ended') {
+                        statusDiv.innerHTML = \`
+                            <div class="status-inactive">
+                                <span class="status-indicator"></span>
+                                <strong>Session Ended</strong>
+                            </div>
+                        \`;
                     } else {
-                        statusDiv.innerHTML = 'No active session'; 
+                        statusDiv.innerHTML = \`
+                            <div class="status-inactive">
+                                <span class="status-indicator"></span>
+                                No active session
+                            </div>
+                        \`;
+                    }
+                }
+
+                function endSession() {
+                    console.log('End Session button clicked');
+                    vscode.postMessage({
+                        command: 'endLiveShare'
+                    });
+                    console.log('Sent endLiveShare message to extension');
+                }
+
+                function updateParticipants(participants, count) {
+                    console.log('updateParticipants called with:', participants, count);
+                    
+                    // Update the existing Team Activity section
+                    const teamActivityDiv = document.getElementById('teamActivity');
+                    if (teamActivityDiv && participants && participants.length > 0) {
+                        console.log('Updating team activity with participants:', participants);
+                        
+                        teamActivityDiv.innerHTML = \`
+                            <div class="participant-list">
+                                <h4>Active Participants (\${count})</h4>
+                                \${participants.map((p, index) => \`
+                                    <div class="participant-item">
+                                        <span class="status-indicator active"></span>
+                                        <span class="participant-name">\${p.name}</span>
+                                        <span class="participant-role">\${p.role}</span>
+                                    </div>
+                                \`).join('')}
+                            </div>
+                        \`;
+                        
+                        console.log('Team activity updated successfully');
+                    } else {
+                        console.log('No team activity div found or no participants:', { teamActivityDiv, participants });
                     }
                 }  
             </script>
         </body>
         </html>`;
+  }
+  dispose() {
+    this.stopParticipantMonitoring();
+    this._view = void 0;
+    this._liveShareApi = void 0;
   }
 };
 
