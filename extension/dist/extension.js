@@ -2592,6 +2592,12 @@ var CollabAgentPanelProvider = class {
         console.log("Session start time set to:", this.sessionStartTime);
       }
       const isHost = session.role === vsls.Role.Host;
+      let status = "joined";
+      if (isHost) {
+        status = "hosting";
+      } else if (session.role === vsls.Role.Guest) {
+        status = "joined";
+      }
       const sessionLink = session.uri?.toString() || "";
       let participantCount = session.peerNumber || 1;
       if (isHost && participantCount === 1) {
@@ -2600,16 +2606,17 @@ var CollabAgentPanelProvider = class {
         }, 1e3);
       }
       console.log("Sending updateSessionStatus message:", {
-        status: isHost ? "hosting" : "joined",
+        status,
         link: sessionLink,
         participants: participantCount,
         role: session.role,
-        duration: this.getSessionDuration()
+        duration: this.getSessionDuration(),
+        isHost
       });
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
-          status: isHost ? "hosting" : "joined",
+          status,
           link: sessionLink,
           participants: participantCount,
           role: session.role,
@@ -2633,7 +2640,31 @@ var CollabAgentPanelProvider = class {
   }
   monitorSessionState() {
     if (this._liveShareApi?.session) {
-      this.handleSessionChange({ session: this._liveShareApi.session });
+      const session = this._liveShareApi.session;
+      if (session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest)) {
+        console.log("Found existing active session:", session);
+        this.handleSessionChange({ session, changeType: "existing" });
+      } else {
+        console.log("Found invalid or inactive session, ignoring:", session);
+        if (this._view) {
+          this._view.webview.postMessage({
+            command: "updateSessionStatus",
+            status: "none",
+            link: "",
+            participants: 0
+          });
+        }
+      }
+    } else {
+      console.log("No existing session found");
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "updateSessionStatus",
+          status: "none",
+          link: "",
+          participants: 0
+        });
+      }
     }
   }
   participantMonitoringInterval;
@@ -2659,32 +2690,46 @@ var CollabAgentPanelProvider = class {
     try {
       const session = this._liveShareApi.session;
       let participantCount = 1;
-      if (session.peerNumber !== void 0) {
+      let detectionMethod = "fallback";
+      if (session.peerNumber !== void 0 && session.peerNumber > 0) {
         participantCount = session.peerNumber;
+        detectionMethod = "peerNumber";
       }
       if (session.role === vsls.Role.Host) {
         try {
-          if (session.peers && Array.isArray(session.peers)) {
-            participantCount = session.peers.length + 1;
-            console.log("Host: Found peers array with length:", session.peers.length);
-          } else if (session.peerCount !== void 0) {
-            participantCount = session.peerCount;
-            console.log("Host: Using peerCount:", participantCount);
-          } else {
-            participantCount = Math.max(participantCount, 1);
-            console.log("Host: Using fallback participant count:", participantCount);
+          const liveShareState = this._liveShareApi._liveshare;
+          if (liveShareState && liveShareState.session) {
+            const sessionPeers = liveShareState.session.peers;
+            if (sessionPeers && sessionPeers.length > 0) {
+              participantCount = sessionPeers.length + 1;
+              detectionMethod = "internal-peers";
+              console.log("Host: Found internal peers:", sessionPeers.length);
+            }
           }
         } catch (error) {
-          console.log("Error accessing peer information:", error);
+          console.log("Could not access internal Live Share state:", error);
+        }
+        if (participantCount === 1 && this.sessionStartTime) {
+          const sessionAge = Date.now() - this.sessionStartTime.getTime();
+          if (sessionAge > 1e4) {
+            console.log("Host: Session is old but showing 1 participant, checking for updates...");
+            const currentSession = this._liveShareApi.session;
+            if (currentSession && currentSession.peerNumber > participantCount) {
+              participantCount = currentSession.peerNumber;
+              detectionMethod = "refreshed-peer-count";
+            }
+          }
         }
       }
       const currentDuration = this.getSessionDuration();
       console.log("updateParticipantInfo:", {
         participantCount,
+        detectionMethod,
         duration: currentDuration,
         sessionStartTime: this.sessionStartTime,
         role: session.role === vsls.Role.Host ? "Host" : "Guest",
-        sessionId: session.id
+        sessionId: session.id,
+        rawPeerNumber: session.peerNumber
       });
       const participants = [];
       participants.push({
@@ -2695,13 +2740,13 @@ var CollabAgentPanelProvider = class {
       if (participantCount > 1) {
         for (let i = 1; i < participantCount; i++) {
           participants.push({
-            name: `Participant ${i + 1}`,
+            name: `Teammate ${i}`,
             email: "",
             role: session.role === vsls.Role.Host ? "Guest" : "Host"
           });
         }
       }
-      console.log("Sending participant update:", { participants, count: participantCount });
+      console.log("Sending participant update:", { participants, count: participantCount, method: detectionMethod });
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateParticipants",
@@ -2945,6 +2990,67 @@ var CollabAgentPanelProvider = class {
                     border-radius: 10px;
                 }
                 
+                .chat-input {
+                    width: 100%;
+                    box-sizing: border-box;
+                    padding: 8px 12px;
+                    border: 1px solid var(--vscode-input-border);
+                    border-radius: 4px;
+                    background-color: var(--vscode-input-background);
+                    color: var(--vscode-input-foreground);
+                    font-size: max(12px, min(14px, 2.5vw));
+                    font-family: var(--vscode-font-family);
+                    margin-top: 8px;
+                    outline: none;
+                    resize: none;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    white-space: nowrap;
+                }
+                
+                .chat-input:focus {
+                    border-color: var(--vscode-focusBorder);
+                    background-color: var(--vscode-input-background);
+                }
+                
+                .chat-input::placeholder {
+                    color: var(--vscode-input-placeholderForeground);
+                    font-size: max(11px, min(13px, 2.3vw));
+                }
+                
+                /* Responsive adjustments for different panel sizes */
+                @media (max-width: 250px) {
+                    .chat-input {
+                        font-size: 11px;
+                        padding: 6px 8px;
+                    }
+                    .chat-input::placeholder {
+                        font-size: 10px;
+                    }
+                }
+                
+                @media (min-width: 350px) {
+                    .chat-input {
+                        font-size: 13px;
+                    }
+                    .chat-input::placeholder {
+                        font-size: 12px;
+                    }
+                }
+                
+                .chat-messages {
+                    max-height: 200px;
+                    overflow-y: auto;
+                    margin-bottom: 8px;
+                    padding: 4px 0;
+                }
+                
+                .chat-message {
+                    margin-bottom: 8px;
+                    font-size: 12px;
+                    line-height: 1.4;
+                }
+                
                 .end-session-btn {
                     background-color: var(--vscode-errorForeground);
                     color: white;
@@ -2995,31 +3101,20 @@ var CollabAgentPanelProvider = class {
                     border-left: 3px solid var(--vscode-textLink-foreground);
                 }
                 
-                .chat-input {
-                    width: 100%;
-                    padding: 8px;
-                    border: 1px solid var(--vscode-input-border);
-                    background-color: var(--vscode-input-background);
-                    color: var(--vscode-input-foreground);
-                    border-radius: 4px;
-                    margin-top: 8px;
-                }
-                
                 .chat-messages {
                     max-height: 200px;
                     overflow-y: auto;
-                    margin-top: 8px;
+                    margin-bottom: 8px;
+                    padding: 4px 0;
                 }
                 
                 .chat-message {
-                    padding: 6px;
-                    margin: 4px 0;
-                    background-color: var(--vscode-textBlockQuote-background);
-                    border-radius: 4px;
+                    margin-bottom: 8px;
                     font-size: 12px;
+                    line-height: 1.4;
                 }
                 
-                .status-indicator {
+                .end-session-btn {
                     display: inline-block;
                     width: 8px;
                     height: 8px;
@@ -3161,6 +3256,7 @@ var CollabAgentPanelProvider = class {
                             </div>
                         \`;
                     } else {
+                        // Default: no active session (status === 'none' or anything else)
                         statusDiv.innerHTML = \`
                             <div class="status-inactive">
                                 <span class="status-indicator"></span>
