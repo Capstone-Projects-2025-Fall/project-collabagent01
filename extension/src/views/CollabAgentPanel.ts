@@ -92,7 +92,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
     private setupLiveShareEventListeners() {
         if (!this._liveShareApi) return;
-
         try {
             // Listen for session state changes
             this._liveShareApi.onDidChangeSession((sessionChangeEvent) => {
@@ -188,6 +187,18 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     link: '',
                     participants: 0
                 });
+                
+                // After showing "ended" briefly, switch to "none" to show "No active session"
+                setTimeout(() => {
+                    if (this._view) {
+                        this._view.webview.postMessage({
+                            command: 'updateSessionStatus',
+                            status: 'none',
+                            link: '',
+                            participants: 0
+                        });
+                    }
+                }, 2000); // Show "ended" for 2 seconds, then "No active session"
             }
             this.stopParticipantMonitoring();
         }
@@ -195,16 +206,25 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
     private monitorSessionState() {
         // Check current session state immediately
+        console.log('monitorSessionState: Checking session state...');
+        console.log('monitorSessionState: _liveShareApi exists:', !!this._liveShareApi);
+        console.log('monitorSessionState: _liveShareApi.session exists:', !!this._liveShareApi?.session);
+        
         if (this._liveShareApi?.session) {
             // Only process if it's an active, valid session
             const session = this._liveShareApi.session;
+            console.log('monitorSessionState: Session details:', {
+                id: session.id,
+                role: session.role,
+                isValid: !!(session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest))
+            });
             
             // Validate that this is actually an active session
             if (session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest)) {
                 console.log('Found existing active session:', session);
                 this.handleSessionChange({ session: session, changeType: 'existing' });
             } else {
-                console.log('Found invalid or inactive session, ignoring:', session);
+                console.log('Found invalid or inactive session, clearing UI state');
                 // Clear any invalid session state
                 if (this._view) {
                     this._view.webview.postMessage({
@@ -216,7 +236,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }
             }
         } else {
-            console.log('No existing session found');
+            console.log('No existing session found, clearing UI state');
             // Ensure UI shows no session
             if (this._view) {
                 this._view.webview.postMessage({
@@ -226,6 +246,38 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     participants: 0
                 });
             }
+        }
+        
+        // Set up periodic monitoring to catch session state changes
+        // that might not trigger the event listener
+        setInterval(() => {
+            this.periodicSessionCheck();
+        }, 5000); // Check every 5 seconds
+    }
+    
+    private periodicSessionCheck() {
+        if (!this._liveShareApi) return;
+        
+        const hasSession = !!this._liveShareApi.session;
+        const hasValidSession = hasSession && 
+            this._liveShareApi.session.id && 
+            (this._liveShareApi.session.role === vsls.Role.Host || this._liveShareApi.session.role === vsls.Role.Guest);
+        
+        console.log('periodicSessionCheck:', { hasSession, hasValidSession, sessionId: this._liveShareApi.session?.id });
+        
+        // If we don't have a valid session but the UI might be showing one, clear it
+        if (!hasValidSession && this._view) {
+            console.log('periodicSessionCheck: No valid session, ensuring UI shows none');
+            this._view.webview.postMessage({
+                command: 'updateSessionStatus',
+                status: 'none',
+                link: '',
+                participants: 0
+            });
+            
+            // Also clear any session-related state
+            this.sessionStartTime = undefined;
+            this.stopParticipantMonitoring();
         }
     }
 
@@ -271,36 +323,34 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 detectionMethod = 'peerNumber';
             }
             
-            // Method 2: For hosts, check if we have any connected peers
+            // Method 2: For hosts, try to get real participant information
             if (session.role === vsls.Role.Host) {
                 try {
-                    // Try to access the Live Share internal state
-                    const liveShareState = (this._liveShareApi as any)._liveshare;
-                    if (liveShareState && liveShareState.session) {
-                        const sessionPeers = liveShareState.session.peers;
-                        if (sessionPeers && sessionPeers.length > 0) {
-                            participantCount = sessionPeers.length + 1; // +1 for host
-                            detectionMethod = 'internal-peers';
-                            console.log('Host: Found internal peers:', sessionPeers.length);
+                    // Use VS Code Live Share command to get participants
+                    const liveShareExtension = vscode.extensions.getExtension('ms-vsliveshare.vsliveshare');
+                    if (liveShareExtension && liveShareExtension.isActive) {
+                        // Try to get participant count from Live Share extension
+                        const participants = await vscode.commands.executeCommand('liveshare.participants.list');
+                        if (participants && Array.isArray(participants) && participants.length > 0) {
+                            participantCount = participants.length + 1; // +1 for host
+                            detectionMethod = 'liveshare-command';
+                            console.log('Host: Found participants via command:', participants.length);
                         }
                     }
                 } catch (error) {
-                    console.log('Could not access internal Live Share state:', error);
+                    console.log('Could not get participants via command:', error);
                 }
                 
-                // Method 3: If we're hosting and someone joined recently, assume 2+ participants
+                // Fallback: Check if session indicates multiple users
                 if (participantCount === 1 && this.sessionStartTime) {
                     const sessionAge = Date.now() - this.sessionStartTime.getTime();
-                    // If session is older than 10 seconds and we're still showing 1 participant,
-                    // it might be a detection issue - try to force refresh
-                    if (sessionAge > 10000) {
-                        console.log('Host: Session is old but showing 1 participant, checking for updates...');
-                        // Try to get updated session info
-                        const currentSession = this._liveShareApi.session;
-                        if (currentSession && currentSession.peerNumber > participantCount) {
-                            participantCount = currentSession.peerNumber;
-                            detectionMethod = 'refreshed-peer-count';
-                        }
+                    // If session is older than 5 seconds, periodically check for updates
+                    if (sessionAge > 5000) {
+                        console.log('Host: Checking for delayed participant detection...');
+                        // Force a session refresh
+                        setTimeout(() => {
+                            this.updateParticipantInfo();
+                        }, 2000);
                     }
                 }
             }
@@ -391,6 +441,20 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             // End the session
             await this._liveShareApi.end();
             console.log('Live Share end() completed');
+            
+            // Immediately clear the UI state
+            this.sessionStartTime = undefined;
+            this.stopParticipantMonitoring();
+            
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateSessionStatus',
+                    status: 'none',
+                    link: '',
+                    participants: 0
+                });
+            }
+            
             vscode.window.showInformationMessage('Live Share session ended successfully.');
         } catch (error) {
             console.error('Error ending Live Share session:', error);
@@ -678,19 +742,23 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }
                 
                 .end-session-btn {
-                    background-color: var(--vscode-errorForeground);
-                    color: white;
+                    background-color: var(--vscode-errorForeground) !important;
+                    color: white !important;
                     margin-top: 8px;
                     font-size: 12px;
                     padding: 6px 12px;
+                    border: none !important;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    width: auto !important;
+                    height: auto !important;
+                    display: inline-block !important;
                 }
-                
+
                 .end-session-btn:hover {
-                    background-color: var(--vscode-errorForeground);
+                    background-color: var(--vscode-errorForeground) !important;
                     opacity: 0.8;
-                }
-                
-                .section {
+                }                .section {
                     margin-bottom: 20px;
                     padding: 12px;
                     border: 1px solid var(--vscode-panel-border);
@@ -740,7 +808,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     line-height: 1.4;
                 }
                 
-                .end-session-btn {
+                .status-indicator {
                     display: inline-block;
                     width: 8px;
                     height: 8px;

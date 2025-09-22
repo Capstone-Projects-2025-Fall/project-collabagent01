@@ -2634,18 +2634,36 @@ var CollabAgentPanelProvider = class {
           link: "",
           participants: 0
         });
+        setTimeout(() => {
+          if (this._view) {
+            this._view.webview.postMessage({
+              command: "updateSessionStatus",
+              status: "none",
+              link: "",
+              participants: 0
+            });
+          }
+        }, 2e3);
       }
       this.stopParticipantMonitoring();
     }
   }
   monitorSessionState() {
+    console.log("monitorSessionState: Checking session state...");
+    console.log("monitorSessionState: _liveShareApi exists:", !!this._liveShareApi);
+    console.log("monitorSessionState: _liveShareApi.session exists:", !!this._liveShareApi?.session);
     if (this._liveShareApi?.session) {
       const session = this._liveShareApi.session;
+      console.log("monitorSessionState: Session details:", {
+        id: session.id,
+        role: session.role,
+        isValid: !!(session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest))
+      });
       if (session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest)) {
         console.log("Found existing active session:", session);
         this.handleSessionChange({ session, changeType: "existing" });
       } else {
-        console.log("Found invalid or inactive session, ignoring:", session);
+        console.log("Found invalid or inactive session, clearing UI state");
         if (this._view) {
           this._view.webview.postMessage({
             command: "updateSessionStatus",
@@ -2656,7 +2674,7 @@ var CollabAgentPanelProvider = class {
         }
       }
     } else {
-      console.log("No existing session found");
+      console.log("No existing session found, clearing UI state");
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
@@ -2665,6 +2683,26 @@ var CollabAgentPanelProvider = class {
           participants: 0
         });
       }
+    }
+    setInterval(() => {
+      this.periodicSessionCheck();
+    }, 5e3);
+  }
+  periodicSessionCheck() {
+    if (!this._liveShareApi) return;
+    const hasSession = !!this._liveShareApi.session;
+    const hasValidSession = hasSession && this._liveShareApi.session.id && (this._liveShareApi.session.role === vsls.Role.Host || this._liveShareApi.session.role === vsls.Role.Guest);
+    console.log("periodicSessionCheck:", { hasSession, hasValidSession, sessionId: this._liveShareApi.session?.id });
+    if (!hasValidSession && this._view) {
+      console.log("periodicSessionCheck: No valid session, ensuring UI shows none");
+      this._view.webview.postMessage({
+        command: "updateSessionStatus",
+        status: "none",
+        link: "",
+        participants: 0
+      });
+      this.sessionStartTime = void 0;
+      this.stopParticipantMonitoring();
     }
   }
   participantMonitoringInterval;
@@ -2697,27 +2735,25 @@ var CollabAgentPanelProvider = class {
       }
       if (session.role === vsls.Role.Host) {
         try {
-          const liveShareState = this._liveShareApi._liveshare;
-          if (liveShareState && liveShareState.session) {
-            const sessionPeers = liveShareState.session.peers;
-            if (sessionPeers && sessionPeers.length > 0) {
-              participantCount = sessionPeers.length + 1;
-              detectionMethod = "internal-peers";
-              console.log("Host: Found internal peers:", sessionPeers.length);
+          const liveShareExtension = vscode12.extensions.getExtension("ms-vsliveshare.vsliveshare");
+          if (liveShareExtension && liveShareExtension.isActive) {
+            const participants2 = await vscode12.commands.executeCommand("liveshare.participants.list");
+            if (participants2 && Array.isArray(participants2) && participants2.length > 0) {
+              participantCount = participants2.length + 1;
+              detectionMethod = "liveshare-command";
+              console.log("Host: Found participants via command:", participants2.length);
             }
           }
         } catch (error) {
-          console.log("Could not access internal Live Share state:", error);
+          console.log("Could not get participants via command:", error);
         }
         if (participantCount === 1 && this.sessionStartTime) {
           const sessionAge = Date.now() - this.sessionStartTime.getTime();
-          if (sessionAge > 1e4) {
-            console.log("Host: Session is old but showing 1 participant, checking for updates...");
-            const currentSession = this._liveShareApi.session;
-            if (currentSession && currentSession.peerNumber > participantCount) {
-              participantCount = currentSession.peerNumber;
-              detectionMethod = "refreshed-peer-count";
-            }
+          if (sessionAge > 5e3) {
+            console.log("Host: Checking for delayed participant detection...");
+            setTimeout(() => {
+              this.updateParticipantInfo();
+            }, 2e3);
           }
         }
       }
@@ -2790,6 +2826,16 @@ var CollabAgentPanelProvider = class {
       console.log("Calling end() on Live Share API...");
       await this._liveShareApi.end();
       console.log("Live Share end() completed");
+      this.sessionStartTime = void 0;
+      this.stopParticipantMonitoring();
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "updateSessionStatus",
+          status: "none",
+          link: "",
+          participants: 0
+        });
+      }
       vscode12.window.showInformationMessage("Live Share session ended successfully.");
     } catch (error) {
       console.error("Error ending Live Share session:", error);
@@ -3052,19 +3098,23 @@ var CollabAgentPanelProvider = class {
                 }
                 
                 .end-session-btn {
-                    background-color: var(--vscode-errorForeground);
-                    color: white;
+                    background-color: var(--vscode-errorForeground) !important;
+                    color: white !important;
                     margin-top: 8px;
                     font-size: 12px;
                     padding: 6px 12px;
+                    border: none !important;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    width: auto !important;
+                    height: auto !important;
+                    display: inline-block !important;
                 }
-                
+
                 .end-session-btn:hover {
-                    background-color: var(--vscode-errorForeground);
+                    background-color: var(--vscode-errorForeground) !important;
                     opacity: 0.8;
-                }
-                
-                .section {
+                }                .section {
                     margin-bottom: 20px;
                     padding: 12px;
                     border: 1px solid var(--vscode-panel-border);
@@ -3114,7 +3164,7 @@ var CollabAgentPanelProvider = class {
                     line-height: 1.4;
                 }
                 
-                .end-session-btn {
+                .status-indicator {
                     display: inline-block;
                     width: 8px;
                     height: 8px;
