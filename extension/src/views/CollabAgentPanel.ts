@@ -91,7 +91,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private setupLiveShareEventListeners() {
-        if (!this._liveShareApi) return;
+        if (!this._liveShareApi) {
+            return;
+        }
         try {
             // Listen for session state changes
             this._liveShareApi.onDidChangeSession((sessionChangeEvent) => {
@@ -256,7 +258,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
     
     private periodicSessionCheck() {
-        if (!this._liveShareApi) return;
+        if (!this._liveShareApi) {
+            return;
+        }
         
         const hasSession = !!this._liveShareApi.session;
         const hasValidSession = hasSession && 
@@ -463,7 +467,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private getSessionDuration(): string {
-        if (!this.sessionStartTime) return '0m';
+        if (!this.sessionStartTime) {
+            return '0m';
+        }
         
         const now = new Date();
         const diffMs = now.getTime() - this.sessionStartTime.getTime();
@@ -521,7 +527,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 prompt: 'Enter Live Share invite link',
                 placeHolder: 'https://prod.liveshare.vsengsaas.visualstudio.com/join?...',
                 validateInput: (value) => {
-                    if (!value || value.trim().length == 0) {
+                    if (!value || value.trim().length === 0) {
                         return 'Please enter a valid invite link';
                     }
                     return null;

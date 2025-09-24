@@ -1,3 +1,7 @@
+// Jest environment declarations for TypeScript
+declare const jest: any;
+declare const module: any;
+
 class Position {
   constructor(public line: number, public character: number) {}
 }
@@ -12,8 +16,8 @@ export class InlineCompletionItem {
 
 // __mocks__/vscode.ts
 const vscode = {
-  Position: jest.fn((line, character) => new Position(line, character)),
-  Range: jest.fn((startLine, startCharacter, endLine, endCharacter) => {
+  Position: jest.fn((line: any, character: any) => new Position(line, character)),
+  Range: jest.fn((startLine: any, startCharacter: any, endLine: any, endCharacter: any) => {
     return new CustomRange(
       new Position(startLine, startCharacter),
       new Position(endLine, endCharacter)
@@ -30,6 +34,7 @@ const vscode = {
     showWarningMessage: jest.fn(),
     createOutputChannel: jest.fn(),
     registerUriHandler: jest.fn(),
+    registerWebviewViewProvider: jest.fn(() => ({ dispose: jest.fn() })),
     createStatusBarItem: jest.fn(() => ({
       show: jest.fn(),
       hide: jest.fn(),
@@ -41,20 +46,25 @@ const vscode = {
       alignment: 1,
     })),
   },
+  env: {
+    openExternal: jest.fn(),
+  },
   StatusBarAlignment: { Left: 1, Right: 2 },
-  ThemeColor: jest.fn(function (themeColor) {
-    this.themeColor = themeColor;
-  }),
+  ThemeColor: jest.fn((themeColor: any) => ({ themeColor })),
   languages: {
-    registerInlineCompletionItemProvider: jest.fn(() => ({
-      dispose: jest.fn(),
-    })),
+    registerInlineCompletionItemProvider: jest.fn(() => ({ dispose: jest.fn() })),
   },
   workspace: {
     getConfiguration: jest.fn(),
+    onDidChangeTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
   },
   Uri: {
-    parse: jest.fn(),
+    parse: jest.fn((value: string) => ({
+      toString: () => value,
+      fsPath: value,
+      path: value,
+      scheme: value.split(":")[0] || "",
+    })),
   },
   ExtensionContext: jest.fn(),
   // Add other VS Code APIs you use

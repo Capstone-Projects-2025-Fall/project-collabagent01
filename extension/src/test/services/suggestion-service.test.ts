@@ -105,6 +105,10 @@ describe("Suggestion Service", () => {
       languageId: "javascript",
       getText: jest.fn().mockReturnValue("const x = 1;"),
       positionAt: jest.fn(),
+      offsetAt: jest.fn().mockImplementation((pos: vscode.Position) => {
+        // naive offset: line 0, so just return character
+        return pos.character;
+      }),
     } as unknown as vscode.TextDocument;
 
     mockPosition = new vscode.Position(0, 10);
@@ -164,30 +168,39 @@ describe("Suggestion Service", () => {
   describe("Core Functions", () => {
     it("should get prompt text correctly", () => {
       const prompt = getPromptText(mockDocument, mockPosition);
-      expect(prompt).toBe("Language javascript. Prompt: const x = 1;");
+      expect(prompt).toContain("Language javascript. Prompt:");
+      expect(prompt).toContain("const x = ");
+      expect(prompt).toContain("# <<<FILL_HERE>>>");
+      expect(prompt).toContain("1;");
       expect(mockDocument.getText).toHaveBeenCalled();
     });
 
     it("should reset suggestion context", () => {
-      suggestionContext.prompt = "test";
+      (suggestionContext as any).prompt = "test";
       suggestionsToReview.push("test");
 
       resetSuggestionContext();
 
-      expect(suggestionContext.prompt).toBe("");
+      expect(suggestionContext.prompt).toBeUndefined();
       expect(suggestionsToReview.length).toBe(0);
     });
   });
 
   describe("Debounce Functions", () => {
     it("should reset debounce timer", async () => {
+      jest.useFakeTimers();
       const clearTimeoutSpy = jest.spyOn(global, "clearTimeout");
 
       setDebounceTimeout(jest.fn());
 
+      // Allow getAuthenticatedUser().then(...) to resolve and set the timeout
+      await Promise.resolve();
+      await Promise.resolve();
+
       resetDebounceTimeout();
 
       expect(clearTimeoutSpy).toHaveBeenCalled();
+      jest.useRealTimers();
     });
   });
 

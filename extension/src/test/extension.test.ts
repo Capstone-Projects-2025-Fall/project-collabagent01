@@ -5,6 +5,7 @@ import { activate, deactivate } from "../extension";
 jest.mock("vscode", () => ({
   commands: {
     registerCommand: jest.fn(() => ({ dispose: jest.fn() })),
+    executeCommand: jest.fn(),
   },
   window: {
     createStatusBarItem: jest.fn(() => ({
@@ -12,7 +13,11 @@ jest.mock("vscode", () => ({
       hide: jest.fn(),
     })),
     registerUriHandler: jest.fn(() => ({ dispose: jest.fn() })), // Added this
+    registerWebviewViewProvider: jest.fn(() => ({ dispose: jest.fn() })),
     showInformationMessage: jest.fn(),
+  },
+  languages: {
+    registerInlineCompletionItemProvider: jest.fn(() => ({ dispose: jest.fn() })),
   },
   env: {
     openExternal: jest.fn(),

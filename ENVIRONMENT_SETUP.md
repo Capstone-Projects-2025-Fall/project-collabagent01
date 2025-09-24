@@ -11,12 +11,7 @@ This project requires environment variables to be configured for proper operatio
    # Then edit .env with your actual values
    ```
 
-2. **Website Environment Variables:**
-   ```bash
-   cd website
-   cp .env.example .env
-   # Then edit .env with your actual values
-   ```
+2. (Removed) Website Environment Variables: The website app has been deprecated in this repo. No website `.env` is required.
 
 ## Required API Keys
 
@@ -30,7 +25,7 @@ This project requires environment variables to be configured for proper operatio
 2. Select your project
 3. Go to Settings → API
 4. Copy the Project URL and anon/service keys
-5. Add them to both `server/.env` and `website/.env`
+5. Add them to `server/.env` only (the website app is not used)
 
 ## Security Note
 

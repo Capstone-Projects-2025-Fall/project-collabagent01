@@ -2556,7 +2556,9 @@ var CollabAgentPanelProvider = class {
     }
   }
   setupLiveShareEventListeners() {
-    if (!this._liveShareApi) return;
+    if (!this._liveShareApi) {
+      return;
+    }
     try {
       this._liveShareApi.onDidChangeSession((sessionChangeEvent) => {
         console.log("Live Share session changed:", sessionChangeEvent);
@@ -2689,7 +2691,9 @@ var CollabAgentPanelProvider = class {
     }, 5e3);
   }
   periodicSessionCheck() {
-    if (!this._liveShareApi) return;
+    if (!this._liveShareApi) {
+      return;
+    }
     const hasSession = !!this._liveShareApi.session;
     const hasValidSession = hasSession && this._liveShareApi.session.id && (this._liveShareApi.session.role === vsls.Role.Host || this._liveShareApi.session.role === vsls.Role.Guest);
     console.log("periodicSessionCheck:", { hasSession, hasValidSession, sessionId: this._liveShareApi.session?.id });
@@ -2843,7 +2847,9 @@ var CollabAgentPanelProvider = class {
     }
   }
   getSessionDuration() {
-    if (!this.sessionStartTime) return "0m";
+    if (!this.sessionStartTime) {
+      return "0m";
+    }
     const now = /* @__PURE__ */ new Date();
     const diffMs = now.getTime() - this.sessionStartTime.getTime();
     const diffMins = Math.floor(diffMs / 6e4);
@@ -2889,7 +2895,7 @@ var CollabAgentPanelProvider = class {
         prompt: "Enter Live Share invite link",
         placeHolder: "https://prod.liveshare.vsengsaas.visualstudio.com/join?...",
         validateInput: (value) => {
-          if (!value || value.trim().length == 0) {
+          if (!value || value.trim().length === 0) {
             return "Please enter a valid invite link";
           }
           return null;

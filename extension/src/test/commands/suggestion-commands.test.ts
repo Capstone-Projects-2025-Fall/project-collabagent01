@@ -6,9 +6,17 @@ jest.mock("vscode", () => ({
   window: {
     activeTextEditor: {},
     showInformationMessage: jest.fn(),
+    registerUriHandler: jest.fn(() => ({ dispose: jest.fn() })),
+    registerWebviewViewProvider: jest.fn(() => ({ dispose: jest.fn() })),
   },
   Disposable: {
     from: jest.fn(),
+  },
+  workspace: {
+    onDidChangeTextDocument: jest.fn(() => ({ dispose: jest.fn() })),
+  },
+  languages: {
+    registerInlineCompletionItemProvider: jest.fn(() => ({ dispose: jest.fn() })),
   },
 }));
 
@@ -67,13 +75,13 @@ describe("Suggestion Commands", () => {
   describe("acceptSuggestion", () => {
     it("should do nothing if no active editor", async () => {
       (vscode.window as any).activeTextEditor = undefined;
-      await mockCommandCallbacks["clover.acceptInlineSuggestion"]();
+  await mockCommandCallbacks["collabAgent.acceptInlineSuggestion"]();
       expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
     });
 
     it("should show information message when suspended", async () => {
       (isSuspended as any) = true;
-      await mockCommandCallbacks["clover.acceptInlineSuggestion"]();
+  await mockCommandCallbacks["collabAgent.acceptInlineSuggestion"]();
       expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
         "Please hover over the suggestions and select the correct one manually",
         { modal: false }
@@ -82,7 +90,7 @@ describe("Suggestion Commands", () => {
     });
 
     it("should commit suggestion and log event when not suspended", async () => {
-      await mockCommandCallbacks["clover.acceptInlineSuggestion"]();
+  await mockCommandCallbacks["collabAgent.acceptInlineSuggestion"]();
       expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
         "editor.action.inlineSuggest.commit"
       );
@@ -96,10 +104,8 @@ describe("Suggestion Commands", () => {
         prompt: "test",
         suggestions: [],
       };
-      await mockCommandCallbacks["clover.acceptInlineSuggestion"]();
+  await mockCommandCallbacks["collabAgent.acceptInlineSuggestion"]();
       expect(handleBuggedSuggestionReview).toHaveBeenCalledWith(
-        "test",
-        [],
         suggestionContext
       );
     });
@@ -108,12 +114,12 @@ describe("Suggestion Commands", () => {
   describe("rejectSuggestion", () => {
     it("should do nothing if no active editor", async () => {
       (vscode.window as any).activeTextEditor = undefined;
-      await mockCommandCallbacks["clover.rejectInlineSuggestion"]();
+  await mockCommandCallbacks["collabAgent.rejectInlineSuggestion"]();
       expect(vscode.commands.executeCommand).not.toHaveBeenCalled();
     });
 
     it("should hide suggestion and log event", async () => {
-      await mockCommandCallbacks["clover.rejectInlineSuggestion"]();
+  await mockCommandCallbacks["collabAgent.rejectInlineSuggestion"]();
       expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
         "editor.action.inlineSuggest.hide"
       );
@@ -145,9 +151,9 @@ describe("Suggestion Commands", () => {
       await mockCommandCallbacks["clover.suggestionSelected"](choice);
       expect(logSuggestionEvent).toHaveBeenCalledWith(false, suggestionContext);
       expect(handleIncorrectSuggestionSelection).toHaveBeenCalledWith(
-        "example",
         "wrong code",
-        "right code"
+        "right code",
+        "example"
       );
     });
   });

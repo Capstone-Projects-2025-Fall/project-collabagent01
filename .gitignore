@@ -8,12 +8,11 @@
 .env.test.local
 .env.production.local
 server/.env
-website/.env
 
 # Allow example files (these should be committed)
 !*.env.example
 !server/.env.example
-!website/.env.example
+# (website/.env.example removed as website app is no longer used)
 
 # Misc
 .DS_Store

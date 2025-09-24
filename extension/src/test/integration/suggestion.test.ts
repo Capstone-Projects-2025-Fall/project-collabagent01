@@ -26,6 +26,7 @@ describe("#1 Context-Aware Code Suggestions", () => {
   const mockDocument = {
     getText: jest.fn().mockReturnValue("console.log('Hello');"),
     languageId: "javascript",
+    offsetAt: jest.fn().mockImplementation((pos: vscode.Position) => pos.character),
   } as unknown as vscode.TextDocument;
 
   const mockPosition = new vscode.Position(0, 20);

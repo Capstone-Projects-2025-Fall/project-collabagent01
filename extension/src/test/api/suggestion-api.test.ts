@@ -55,6 +55,7 @@ describe("Suggestion API", () => {
           prompt: "test prompt",
           vendor: "google",
           model: "gemini-2.0-flash",
+          isIntervened: false,
         }),
       });
       expect(mockTrackEvent).toHaveBeenCalledWith(
@@ -62,7 +63,9 @@ describe("Suggestion API", () => {
           event: LogEvent.MODEL_GENERATE,
           timeLapse: expect.any(Number),
           metadata: expect.objectContaining({
-            prompt: "test prompt",
+            suggestions: ["suggestion1", "suggestion2"],
+            vendor: "google",
+            model: "gemini-2.0-flash",
           }),
         })
       );
