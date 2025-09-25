@@ -44,6 +44,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         console.log('Handling endLiveShare command');
                         this.endLiveShareSession();
                         return;
+                    case 'leaveLiveShare':
+                        console.log('Handling leaveLiveShare command');
+                        this.leaveLiveShareSession();
+                        return;
                     case 'sendTeamMessage':
                         console.log('Handling sendTeamMessage command');
                         this.sendTeamMessage(message.text);
@@ -466,6 +470,55 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    private async leaveLiveShareSession() {
+        try {
+            console.log('Attempting to leave Live Share session...');
+            
+            if (!this._liveShareApi) {
+                console.log('Live Share API not available');
+                vscode.window.showWarningMessage('Live Share API not available.');
+                return;
+            }
+
+            if (!this._liveShareApi.session) {
+                console.log('No active session found');
+                vscode.window.showWarningMessage('No active Live Share session to leave.');
+                return;
+            }
+
+            const session = this._liveShareApi.session;
+            console.log('Current session role:', session.role);
+            
+            if (session.role === vsls.Role.Host) {
+                vscode.window.showWarningMessage('Hosts cannot leave their own session. Use "End Session" instead.');
+                return;
+            }
+
+            console.log('Calling end() on Live Share API to leave session...');
+            // For guests, end() will leave the session
+            await this._liveShareApi.end();
+            console.log('Live Share leave completed');
+            
+            // Clear the UI state
+            this.sessionStartTime = undefined;
+            this.stopParticipantMonitoring();
+            
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateSessionStatus',
+                    status: 'none',
+                    link: '',
+                    participants: 0
+                });
+            }
+            
+            vscode.window.showInformationMessage('Successfully left the Live Share session.');
+        } catch (error) {
+            console.error('Error leaving Live Share session:', error);
+            vscode.window.showErrorMessage('Failed to leave Live Share session: ' + error);
+        }
+    }
+
     private getSessionDuration(): string {
         if (!this.sessionStartTime) {
             return '0m';
@@ -764,7 +817,28 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .end-session-btn:hover {
                     background-color: var(--vscode-errorForeground) !important;
                     opacity: 0.8;
-                }                .section {
+                }
+
+                .leave-session-btn {
+                    background-color: var(--vscode-charts-orange) !important;
+                    color: white !important;
+                    margin-top: 8px;
+                    font-size: 12px;
+                    padding: 6px 12px;
+                    border: none !important;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    width: auto !important;
+                    height: auto !important;
+                    display: inline-block !important;
+                }
+
+                .leave-session-btn:hover {
+                    background-color: var(--vscode-charts-orange) !important;
+                    opacity: 0.8;
+                }
+
+                .section {
                     margin-bottom: 20px;
                     padding: 12px;
                     border: 1px solid var(--vscode-panel-border);
@@ -945,6 +1019,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                     <div>Participants: \${participantCount}</div>
                                     <div>Duration: \${sessionDuration}</div>
                                     <div>Role: Guest</div>
+                                    <button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button>
                                 </div>
                             </div>
                         \`;
@@ -972,6 +1047,14 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         command: 'endLiveShare'
                     });
                     console.log('Sent endLiveShare message to extension');
+                }
+
+                function leaveSession() {
+                    console.log('Leave Session button clicked');
+                    vscode.postMessage({
+                        command: 'leaveLiveShare'
+                    });
+                    console.log('Sent leaveLiveShare message to extension');
                 }
 
                 function updateParticipants(participants, count) {
