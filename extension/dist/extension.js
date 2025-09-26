@@ -2843,11 +2843,21 @@ var CollabAgentPanelProvider = class {
           link: "",
           participants: 0
         });
+        this._view.webview.postMessage({
+          command: "resetButtonState",
+          buttonType: "end"
+        });
       }
       vscode12.window.showInformationMessage("Live Share session ended successfully.");
     } catch (error) {
       console.error("Error ending Live Share session:", error);
       vscode12.window.showErrorMessage("Failed to end Live Share session: " + error);
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "resetButtonState",
+          buttonType: "end"
+        });
+      }
     }
   }
   async leaveLiveShareSession() {
@@ -2881,11 +2891,21 @@ var CollabAgentPanelProvider = class {
           link: "",
           participants: 0
         });
+        this._view.webview.postMessage({
+          command: "resetButtonState",
+          buttonType: "leave"
+        });
       }
       vscode12.window.showInformationMessage("Successfully left the Live Share session.");
     } catch (error) {
       console.error("Error leaving Live Share session:", error);
       vscode12.window.showErrorMessage("Failed to leave Live Share session: " + error);
+      if (this._view) {
+        this._view.webview.postMessage({
+          command: "resetButtonState",
+          buttonType: "leave"
+        });
+      }
     }
   }
   getSessionDuration() {
@@ -3183,6 +3203,23 @@ var CollabAgentPanelProvider = class {
                     opacity: 0.8;
                 }
 
+                .end-session-btn:disabled,
+                .leave-session-btn:disabled {
+                    opacity: 0.6 !important;
+                    cursor: not-allowed !important;
+                    pointer-events: none !important;
+                }
+
+                .agent-heading {
+                    font-size: 24px;
+                    font-weight: bold;
+                    text-align: center;
+                    color: var(--vscode-textLink-foreground);
+                    margin-bottom: 20px;
+                    padding: 10px 0;
+                    letter-spacing: 2px;
+                }
+
                 .section {
                     margin-bottom: 20px;
                     padding: 12px;
@@ -3245,13 +3282,39 @@ var CollabAgentPanelProvider = class {
                 .offline {
                     background-color: var(--vscode-charts-red);
                 }
+                
+                .loading {
+                    background-color: var(--vscode-charts-orange);
+                    animation: pulse 1.5s ease-in-out infinite;
+                }
+                
+                @keyframes pulse {
+                    0% { opacity: 1; }
+                    50% { opacity: 0.5; }
+                    100% { opacity: 1; }
+                }
+                
+                .agent-heading {
+                    text-align: center;
+                    font-size: 24px;
+                    font-weight: bold;
+                    margin-bottom: 20px;
+                    padding: 16px 0;
+                    color: var(--vscode-textLink-foreground);
+                    text-transform: uppercase;
+                    letter-spacing: 2px;
+                }
             </style>
         </head>
         <body>
+            <div class="agent-heading">AGENT</div>
+            
             <div class="section">
                 <div class="section-title">\u{1F680} Live Share Session</div>
-                <button class="button" onclick="startLiveShare()">Start Session</button>
-                <button class="button" onclick="joinLiveShare()">Join Session</button>
+                <div id="sessionButtons">
+                    <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
+                    <button class="button" id="joinSessionBtn" onclick="joinLiveShare()">Join Session</button>
+                </div>
                 <div id="sessionStatus">No active session</div>
             </div>
             
@@ -3277,6 +3340,8 @@ var CollabAgentPanelProvider = class {
 
             <script>
                 const vscode = acquireVsCodeApi();
+                let isEndingSession = false; // Flag to track if session is being ended
+                let endingSessionTimer = null; // Timer to extend protection window
                 
                 function startLiveShare() {
                     vscode.postMessage({
@@ -3320,6 +3385,9 @@ var CollabAgentPanelProvider = class {
                         case 'updateParticipants':
                             updateParticipants(message.participants, message.count);
                             break;
+                        case 'resetButtonState':
+                            resetButtonState(message.buttonType);
+                            break;
                     }
                 });
                 
@@ -3339,10 +3407,22 @@ var CollabAgentPanelProvider = class {
 
                 function updateSessionStatus(status, link, participants, role, duration) {
                     const statusDiv = document.getElementById('sessionStatus');
+                    const sessionButtons = document.getElementById('sessionButtons');
                     const participantCount = participants || 1;
                     const sessionDuration = duration || '0m';
                     
+                    console.log('Status update received:', status, 'isEndingSession:', isEndingSession);
+                    
+                    // If we're ending the session, ignore 'joined' status updates to prevent flickering
+                    if (isEndingSession && status === 'joined') {
+                        console.log('Ignoring joined status during session ending process');
+                        return;
+                    }
+                    
                     if (status === 'hosting') {
+                        // Hide Start/Join buttons when hosting
+                        if (sessionButtons) sessionButtons.style.display = 'none';
+                        
                         statusDiv.innerHTML = \`
                             <div class="status-active">
                                 <span class="status-indicator active"></span>
@@ -3356,6 +3436,9 @@ var CollabAgentPanelProvider = class {
                             </div>
                         \`;
                     } else if (status === 'joined') {
+                        // Hide Start/Join buttons when joined as guest
+                        if (sessionButtons) sessionButtons.style.display = 'none';
+                        
                         statusDiv.innerHTML = \`
                             <div class="status-active">
                                 <span class="status-indicator active"></span>
@@ -3369,25 +3452,107 @@ var CollabAgentPanelProvider = class {
                             </div>
                         \`;
                     } else if (status === 'ended') {
+                        // Don't reset the ending flag immediately - use timer to prevent delayed 'joined' updates
+                        console.log('Session ended - starting extended protection timer');
+                        
+                        // Clear any existing timer
+                        if (endingSessionTimer) {
+                            clearTimeout(endingSessionTimer);
+                        }
+                        
+                        // Show loading state during cleanup
                         statusDiv.innerHTML = \`
                             <div class="status-inactive">
-                                <span class="status-indicator"></span>
-                                <strong>Session Ended</strong>
+                                <span class="status-indicator loading"></span>
+                                <strong>Cleaning up session...</strong>
+                                <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 4px;">
+                                    Session controls will be available shortly
+                                </div>
                             </div>
                         \`;
+                        
+                        // Set extended timer to reset the flag after delayed updates settle
+                        endingSessionTimer = setTimeout(() => {
+                            console.log('Extended protection period ended - resetting isEndingSession flag');
+                            isEndingSession = false;
+                            endingSessionTimer = null;
+                            
+                            // Show Start/Join buttons when cleanup is complete
+                            if (sessionButtons) sessionButtons.style.display = 'block';
+                            
+                            // Update to final state
+                            statusDiv.innerHTML = \`
+                                <div class="status-inactive">
+                                    <span class="status-indicator"></span>
+                                    No active session
+                                </div>
+                            \`;
+                        }, 8000); // 8 second protection window
                     } else {
                         // Default: no active session (status === 'none' or anything else)
-                        statusDiv.innerHTML = \`
-                            <div class="status-inactive">
-                                <span class="status-indicator"></span>
-                                No active session
-                            </div>
-                        \`;
+                        // Only reset the ending flag if we're not in an active ending process
+                        if (!isEndingSession) {
+                            console.log('No active session - normal state');
+                            
+                            // Clear any existing timer if we're definitely back to no session
+                            if (endingSessionTimer) {
+                                clearTimeout(endingSessionTimer);
+                                endingSessionTimer = null;
+                            }
+                            
+                            // Show Start/Join buttons when no active session
+                            if (sessionButtons) sessionButtons.style.display = 'block';
+                            
+                            statusDiv.innerHTML = \`
+                                <div class="status-inactive">
+                                    <span class="status-indicator"></span>
+                                    No active session
+                                </div>
+                            \`;
+                        } else {
+                            console.log('No active session during ending process - showing cleanup state');
+                            
+                            // Show cleanup message if we're in ending process
+                            statusDiv.innerHTML = \`
+                                <div class="status-inactive">
+                                    <span class="status-indicator loading"></span>
+                                    <strong>Cleaning up session...</strong>
+                                    <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 4px;">
+                                        Session controls will be available shortly
+                                    </div>
+                                </div>
+                            \`;
+                        }
                     }
                 }
 
                 function endSession() {
                     console.log('End Session button clicked');
+                    
+                    // Set flag to prevent flickering during session end
+                    isEndingSession = true;
+                    
+                    // Update button to show loading state
+                    const button = document.querySelector('.end-session-btn');
+                    if (button) {
+                        button.textContent = 'Ending...';
+                        button.disabled = true;
+                        button.style.opacity = '0.6';
+                        button.style.cursor = 'not-allowed';
+                    }
+                    
+                    // Set timeout to reset button and flag if operation takes too long
+                    setTimeout(() => {
+                        resetButtonState('end');
+                        // Clear any existing timer and reset flag as final safeguard
+                        if (endingSessionTimer) {
+                            clearTimeout(endingSessionTimer);
+                            endingSessionTimer = null;
+                        }
+                        isEndingSession = false;
+                        console.log('Timeout safeguard triggered - resetting all ending session state');
+                    }, 15000); // 15 second timeout (longer than protection window)
+                    
                     vscode.postMessage({
                         command: 'endLiveShare'
                     });
@@ -3396,10 +3561,45 @@ var CollabAgentPanelProvider = class {
 
                 function leaveSession() {
                     console.log('Leave Session button clicked');
+                    
+                    // Update button to show loading state
+                    const button = document.querySelector('.leave-session-btn');
+                    if (button) {
+                        button.textContent = 'Leaving...';
+                        button.disabled = true;
+                        button.style.opacity = '0.6';
+                        button.style.cursor = 'not-allowed';
+                    }
+                    
+                    // Set timeout to reset button if operation takes too long
+                    setTimeout(() => {
+                        resetButtonState('leave');
+                    }, 10000); // 10 second timeout
+                    
                     vscode.postMessage({
                         command: 'leaveLiveShare'
                     });
                     console.log('Sent leaveLiveShare message to extension');
+                }
+
+                function resetButtonState(buttonType) {
+                    if (buttonType === 'end') {
+                        const button = document.querySelector('.end-session-btn');
+                        if (button) {
+                            button.textContent = 'End Session';
+                            button.disabled = false;
+                            button.style.opacity = '1';
+                            button.style.cursor = 'pointer';
+                        }
+                    } else if (buttonType === 'leave') {
+                        const button = document.querySelector('.leave-session-btn');
+                        if (button) {
+                            button.textContent = 'Leave Session';
+                            button.disabled = false;
+                            button.style.opacity = '1';
+                            button.style.cursor = 'pointer';
+                        }
+                    }
                 }
 
                 function updateParticipants(participants, count) {
