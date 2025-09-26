@@ -7,7 +7,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
     private _liveShareApi?: vsls.LiveShare | null = null; 
 
-    constructor(private readonly _extensionUri: vscode.Uri) {}
+    constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
+    // You can store _context for later use
+}
+
 
     public async resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -654,6 +657,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             });
         }
     }
+
 
     public updateTeamActivity(activity: any) {
         if (this._view) {
