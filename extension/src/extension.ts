@@ -54,7 +54,7 @@ export async function activate(context: vscode.ExtensionContext) {
   console.log("Registering CollabAgentPanelProvider...");
   vscode.window.showInformationMessage("Collab Agent: Registering webview provider...");
   
-  const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri);
+  const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
   const disposable = vscode.window.registerWebviewViewProvider(
     'collabAgent.teamActivity',  // Use the exact string instead of static property
     collabPanelProvider

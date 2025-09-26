@@ -2486,8 +2486,9 @@ async function provideInlineCompletionItems(document, position, context, token) 
 var vscode12 = __toESM(require("vscode"));
 var vsls = __toESM(require_vscode());
 var CollabAgentPanelProvider = class {
-  constructor(_extensionUri) {
+  constructor(_extensionUri, _context) {
     this._extensionUri = _extensionUri;
+    this._context = _context;
   }
   static viewType = "collabAgent.teamActivity";
   _view;
@@ -3653,7 +3654,7 @@ async function activate(context) {
   const suggestionCommands = registerSuggestionCommands();
   console.log("Registering CollabAgentPanelProvider...");
   vscode13.window.showInformationMessage("Collab Agent: Registering webview provider...");
-  const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri);
+  const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
   const disposable = vscode13.window.registerWebviewViewProvider(
     "collabAgent.teamActivity",
     // Use the exact string instead of static property
