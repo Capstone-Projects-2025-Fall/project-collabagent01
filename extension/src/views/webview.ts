@@ -21,16 +21,18 @@ export function showLoginWebview(context: vscode.ExtensionContext) {
 
     panel.webview.html = getWebviewContent();
 
-    panel.webview.onDidReceiveMessage(async (message) => {
-        if (message === 'auth-success') {
-            await context.globalState.update('supabaseSession', message.data);
-            vscode.window.showInformationMessage('Logged in as ${message.data.user.email}!');
-            panel.dispose();
-        }
-    },
-    undefined,
-    context.subscriptions
-
+    panel.webview.onDidReceiveMessage(
+        async (message) => {
+            if (message.type === 'auth-success') {
+                await context.globalState.update('supabaseSession', message.data);
+                vscode.window.showInformationMessage(`Logged in as ${message.data.email}!`);
+                panel.dispose();
+            } else if (message.type === 'auth-error') {
+                vscode.window.showErrorMessage(`Login failed: ${message.error}`);
+            }
+        },
+        undefined,
+        context.subscriptions
     );
        /**
      * Returns the HTML content for the login Webview.
@@ -42,6 +44,7 @@ export function showLoginWebview(context: vscode.ExtensionContext) {
      *
      * @returns The complete HTML markup as a string.
      */
+    
     function getWebviewContent(): string {
         return `
         <!DOCTYPE html>
