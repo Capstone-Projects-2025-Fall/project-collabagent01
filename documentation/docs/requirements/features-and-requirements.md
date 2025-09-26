@@ -5,20 +5,54 @@ sidebar_position: 4
 # Features and Requirements
 ## Functional Requirements
 
-
-● Users must download the extension and create an account
-
-● Users can then start a session where they will be able to send an invite link to team members
+**● Extension Setup & Authentication**
   
-● Each team member who wants to join the session must also have the extension downloaded and account set up
+  -◦ Users must download the CollabAgent extension and create an account
+  
+  -◦  Users must be signed in to start or join collaboration sessions
 
-● Team members then clicks join a session and input the invite link which opens up the hosts project
 
-● The IDE must support real-time code synchronization so that changes made by one team member are immediately visible to all others.
+<br />
+● Collaboration Session Management
 
-● The IDE will have a sidebar with Agent Bot that:
-  a) Guesses what a user is currently doing in their IDE and notifies rest of the teammates once approved by the user
-  b) Allows teammates to manually edit the bots description about their current task before sharing it with the rest of the team members
+  -◦ Users can start a session, give it a name, and send an invite link to team members
+    
+  -◦ The extension generates a unique invite link
+    
+  -◦ Team members can then click join a session and input the invite link which opens up the hosts project
+    
+  -◦ The host can end the session, which disconnects all participants
+
+
+<br />
+● Real-Time Code Synchronization
+
+  -◦ The IDE must support real-time synchronization (all edits appear instantly across team members’ editors)
+    
+  -◦ Multiple team members can edit the same file simultaneously without conflicts
+    
+  -◦ Notifications should appear when teammates open, edit, or closes a file ("Nick opened components/Login.js")
+    
+<br />
+● Agent Bot Activity Monitoring
+
+  -◦ The Agent sidebar must include a Team Activity Feed showing (Files that get opened/closed with timestamps and a small summary of the 
+     &nbsp;&nbsp;&nbsp;&nbsp;changes made in a opened file)
+
+ <br />
+● Manual Task Status Updates
+
+  -◦ A input field must be available for status updates so users can manually broadcast their current task through the Agent bot
+  
+  -◦ The bot should prompt the user to update their status if they start editing a new file
+  
+<br />
+● Smart Task Detection
+
+  -◦ Agent bot must analyze file activity and be able to guess what a user is currently doing based on filenames, edits, and code context
+  
+  -◦ Users must be able to confirm, dismiss, or edit the suggested task
+  
     
 ## Nonfunctional Requirements
 
@@ -31,3 +65,5 @@ sidebar_position: 4
 ● Agent's task detection should be accurate and clear
 
 ● The application must protect user data and code files
+
+● Activity logs and status updates must be consistent across all participants
