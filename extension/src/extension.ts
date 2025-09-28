@@ -57,14 +57,13 @@ export async function activate(context: vscode.ExtensionContext) {
   
   const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
   const disposable = vscode.window.registerWebviewViewProvider(
-    'collabAgent.teamActivity',  // Use the exact string instead of static property
+    'collabAgent.teamActivity',
     collabPanelProvider
   );
   context.subscriptions.push(disposable);
   console.log("CollabAgentPanelProvider registered successfully");
   vscode.window.showInformationMessage("Collab Agent: Webview provider registered!");
 
-  // Add a command to manually refresh the webview
   const refreshCommand = vscode.commands.registerCommand('collabAgent.refreshPanel', () => {
     vscode.commands.executeCommand('workbench.view.extension.collabAgent');
   });
@@ -78,26 +77,37 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Listen for file creation events (guests)
     vscode.workspace.onDidCreateFiles(async (event) => {
-      for (const file of event.files) {
-        // Notify host and other guests
-        service.notify('fileCreated', { path: file.path });
+      if (service) {
+        for (const file of event.files) {
+          // Notify host and other guests
+          service.notify('fileCreated', { path: file.path });
+        }
       }
     });
 
     // Listen for fileCreated notifications (host/guests)
-    service.onNotify('fileCreated', async (args) => {
-      try {
-        const sharedUri = vsls.Uri.parse(args.path);
-        const localUri = await liveShare.convertSharedUriToLocal(sharedUri);
-        // Refresh file tree or open the new file
-        // You may want to call a function here to update your UI
-        vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
-        // Optionally, show a notification
-        vscode.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
-      } catch (err) {
-        console.error('Error converting shared URI:', err);
-      }
-    });
+    if (service) {
+      service.onNotify('fileCreated', async (args: any) => {
+        try {
+          if (args && typeof args.path === 'string') {
+            const sharedUri = vscode.Uri.parse(args.path);
+            let localUri = sharedUri;
+            if (liveShare.convertSharedUriToLocal) {
+              const converted = await liveShare.convertSharedUriToLocal(sharedUri);
+              if (converted) {
+                localUri = converted;
+              }
+            }
+            vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
+            vscode.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
+          } else {
+            console.warn('fileCreated notification received without valid path:', args);
+          }
+        } catch (err) {
+          console.error('Error converting shared URI:', err);
+        }
+      });
+    }
   }
 
   context.subscriptions.push(
