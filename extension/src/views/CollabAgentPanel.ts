@@ -567,8 +567,25 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private async startLiveShareSession() {
+        // Check if a folder is open before starting session
+        if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+            vscode.window.showErrorMessage('Please open a project folder before starting a Live Share session.');
+            return;
+        }
+
         if (!this._liveShareApi) {
             vscode.window.showErrorMessage('Live Share API not available. Please install Live Share extension.');
+            return;
+        }
+
+         const confirm = await vscode.window.showWarningMessage(
+        'Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.',
+        { modal: true },
+        'OK'
+        );
+
+        if (confirm !== 'OK') {
+            // User cancelled, don’t start session
             return;
         }
 
@@ -582,7 +599,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 const inviteLink = session.toString();
                 vscode.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
 
-                // UPdate the UI 
+                // Warn host about folder changes ending session
+                vscode.window.showWarningMessage(
+                    'Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.',
+                    { modal: true }
+                );
+
+                // Update the UI
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'updateSessionStatus',

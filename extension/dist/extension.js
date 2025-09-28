@@ -74,7 +74,7 @@ var require_vscode = __commonJS({
     var vscode14 = require("vscode");
     var liveShareApiVersion = require_package().version;
     exports2.extensionId = "ms-vsliveshare.vsliveshare";
-    async function getApi2(callingExtensionId) {
+    async function getApi3(callingExtensionId) {
       const liveshareExtension = vscode14.extensions.getExtension(exports2.extensionId);
       if (!liveshareExtension) {
         return null;
@@ -87,9 +87,9 @@ var require_vscode = __commonJS({
         return extensionApi.getApiAsync(liveShareApiVersion);
       return extensionApi.getApi(liveShareApiVersion, callingExtensionId);
     }
-    exports2.getApi = getApi2;
+    exports2.getApi = getApi3;
     function getApiAsync() {
-      return getApi2();
+      return getApi3();
     }
     exports2.getApiAsync = getApiAsync;
     var PolicySetting;
@@ -193,6 +193,7 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 var vscode13 = __toESM(require("vscode"));
+var vsls2 = __toESM(require_vscode());
 
 // src/commands/test-commands.ts
 var vscode4 = __toESM(require("vscode"));
@@ -2923,8 +2924,20 @@ var CollabAgentPanelProvider = class {
     return `${diffMins}m`;
   }
   async startLiveShareSession() {
+    if (!vscode12.workspace.workspaceFolders || vscode12.workspace.workspaceFolders.length === 0) {
+      vscode12.window.showErrorMessage("Please open a project folder before starting a Live Share session.");
+      return;
+    }
     if (!this._liveShareApi) {
       vscode12.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
+      return;
+    }
+    const confirm = await vscode12.window.showWarningMessage(
+      "Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.",
+      { modal: true },
+      "OK"
+    );
+    if (confirm !== "OK") {
       return;
     }
     try {
@@ -2933,6 +2946,10 @@ var CollabAgentPanelProvider = class {
       if (session && session.toString()) {
         const inviteLink = session.toString();
         vscode12.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
+        vscode12.window.showWarningMessage(
+          "Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.",
+          { modal: true }
+        );
         if (this._view) {
           this._view.webview.postMessage({
             command: "updateSessionStatus",
@@ -3657,7 +3674,6 @@ async function activate(context) {
   const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
   const disposable = vscode13.window.registerWebviewViewProvider(
     "collabAgent.teamActivity",
-    // Use the exact string instead of static property
     collabPanelProvider
   );
   context.subscriptions.push(disposable);
@@ -3667,6 +3683,39 @@ async function activate(context) {
     vscode13.commands.executeCommand("workbench.view.extension.collabAgent");
   });
   context.subscriptions.push(refreshCommand);
+  const liveShare = await vsls2.getApi();
+  if (liveShare) {
+    const service = await liveShare.getSharedService("collabagent");
+    vscode13.workspace.onDidCreateFiles(async (event) => {
+      if (service) {
+        for (const file of event.files) {
+          service.notify("fileCreated", { path: file.path });
+        }
+      }
+    });
+    if (service) {
+      service.onNotify("fileCreated", async (args) => {
+        try {
+          if (args && typeof args.path === "string") {
+            const sharedUri = vscode13.Uri.parse(args.path);
+            let localUri = sharedUri;
+            if (liveShare.convertSharedUriToLocal) {
+              const converted = await liveShare.convertSharedUriToLocal(sharedUri);
+              if (converted) {
+                localUri = converted;
+              }
+            }
+            vscode13.commands.executeCommand("workbench.files.action.refreshFilesExplorer");
+            vscode13.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
+          } else {
+            console.warn("fileCreated notification received without valid path:", args);
+          }
+        } catch (err) {
+          console.error("Error converting shared URI:", err);
+        }
+      });
+    }
+  }
   context.subscriptions.push(
     ...suggestionCommands,
     authStatusBar,
