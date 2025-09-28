@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import * as vsls from 'vsls';
 import {
   fetchSettingsCommand,
   incorrectChoicesCommand,
@@ -68,6 +69,36 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.executeCommand('workbench.view.extension.collabAgent');
   });
   context.subscriptions.push(refreshCommand);
+
+  // Live Share file creation sync
+  const liveShare = await vsls.getApi();
+  if (liveShare) {
+    // Set up shared service for file creation notifications
+    const service = await liveShare.getSharedService('collabagent');
+
+    // Listen for file creation events (guests)
+    vscode.workspace.onDidCreateFiles(async (event) => {
+      for (const file of event.files) {
+        // Notify host and other guests
+        service.notify('fileCreated', { path: file.path });
+      }
+    });
+
+    // Listen for fileCreated notifications (host/guests)
+    service.onNotify('fileCreated', async (args) => {
+      try {
+        const sharedUri = vsls.Uri.parse(args.path);
+        const localUri = await liveShare.convertSharedUriToLocal(sharedUri);
+        // Refresh file tree or open the new file
+        // You may want to call a function here to update your UI
+        vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
+        // Optionally, show a notification
+        vscode.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
+      } catch (err) {
+        console.error('Error converting shared URI:', err);
+      }
+    });
+  }
 
   context.subscriptions.push(
     ...suggestionCommands,
