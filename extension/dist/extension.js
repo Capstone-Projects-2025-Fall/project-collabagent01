@@ -2642,6 +2642,11 @@ var CollabAgentPanelProvider = class {
           link: "",
           participants: 0
         });
+        this._view.webview.postMessage({
+          command: "updateParticipants",
+          participants: [],
+          count: 0
+        });
         setTimeout(() => {
           if (this._view) {
             this._view.webview.postMessage({
@@ -2710,6 +2715,11 @@ var CollabAgentPanelProvider = class {
         status: "none",
         link: "",
         participants: 0
+      });
+      this._view.webview.postMessage({
+        command: "updateParticipants",
+        participants: [],
+        count: 0
       });
       this.sessionStartTime = void 0;
       this.stopParticipantMonitoring();
@@ -2844,6 +2854,11 @@ var CollabAgentPanelProvider = class {
           status: "none",
           link: "",
           participants: 0
+        });
+        this._view.webview.postMessage({
+          command: "updateParticipants",
+          participants: [],
+          count: 0
         });
         this._view.webview.postMessage({
           command: "resetButtonState",
@@ -3643,7 +3658,15 @@ var CollabAgentPanelProvider = class {
                         
                         console.log('Team activity updated successfully');
                     } else {
-                        console.log('No team activity div found or no participants:', { teamActivityDiv, participants });
+                        if (teamActivityDiv) {
+                            teamActivityDiv.innerHTML = \`
+                                <div class="activity-item">
+                                    <span class="status-indicator"></span>
+                                    <strong>You:</strong> Ready to collaborate
+                                </div>
+                            \`;
+                        }
+                        console.log('No team activity div found or no participants:');
                     }
                 }  
             </script>

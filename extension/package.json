@@ -115,7 +115,7 @@
         {
           "id": "collabAgent",
           "title": "Collab Agent",
-          "icon": "$(people)"
+          "icon": "$(organization)"
         }
       ]
     }

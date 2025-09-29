@@ -196,6 +196,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     link: '',
                     participants: 0
                 });
+
+                this._view.webview.postMessage({
+                    command: 'updateParticipants',
+                    participants: [],
+                    count: 0
+                });
                 
                 // After showing "ended" briefly, switch to "none" to show "No active session"
                 setTimeout(() => {
@@ -285,6 +291,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 link: '',
                 participants: 0
             });
+
+            this._view.webview.postMessage({
+                command: 'updateParticipants',
+                participants: [],
+                count: 0
+            });
             
             // Also clear any session-related state
             this.sessionStartTime = undefined;
@@ -324,58 +336,19 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         try {
             const session = this._liveShareApi.session;
             
-            // Get participant count - try multiple approaches
-            let participantCount = 1; // Start with at least 1 (self)
-            let detectionMethod = 'fallback';
-            
-            // Method 1: Check peerNumber
-            if (session.peerNumber !== undefined && session.peerNumber > 0) {
-                participantCount = session.peerNumber;
-                detectionMethod = 'peerNumber';
-            }
-            
-            // Method 2: For hosts, try to get real participant information
-            if (session.role === vsls.Role.Host) {
-                try {
-                    // Use VS Code Live Share command to get participants
-                    const liveShareExtension = vscode.extensions.getExtension('ms-vsliveshare.vsliveshare');
-                    if (liveShareExtension && liveShareExtension.isActive) {
-                        // Try to get participant count from Live Share extension
-                        const participants = await vscode.commands.executeCommand('liveshare.participants.list');
-                        if (participants && Array.isArray(participants) && participants.length > 0) {
-                            participantCount = participants.length + 1; // +1 for host
-                            detectionMethod = 'liveshare-command';
-                            console.log('Host: Found participants via command:', participants.length);
-                        }
-                    }
-                } catch (error) {
-                    console.log('Could not get participants via command:', error);
-                }
-                
-                // Fallback: Check if session indicates multiple users
-                if (participantCount === 1 && this.sessionStartTime) {
-                    const sessionAge = Date.now() - this.sessionStartTime.getTime();
-                    // If session is older than 5 seconds, periodically check for updates
-                    if (sessionAge > 5000) {
-                        console.log('Host: Checking for delayed participant detection...');
-                        // Force a session refresh
-                        setTimeout(() => {
-                            this.updateParticipantInfo();
-                        }, 2000);
-                    }
-                }
-            }
+            // Get actual peers from the API
+            let peers = this._liveShareApi.peers || [];
+            let participantCount = peers.length + 1; // +1 for self (host or guest)
             
             const currentDuration = this.getSessionDuration();
             
             console.log('updateParticipantInfo:', { 
                 participantCount, 
-                detectionMethod,
+                peersCount: peers.length,
                 duration: currentDuration,
                 sessionStartTime: this.sessionStartTime,
                 role: session.role === vsls.Role.Host ? 'Host' : 'Guest',
                 sessionId: session.id,
-                rawPeerNumber: session.peerNumber
             });
             
             // Build participant list with available information
@@ -399,7 +372,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }
             }
 
-            console.log('Sending participant update:', { participants, count: participantCount, method: detectionMethod });
+            console.log('Sending participant update:', { participants, count: participantCount});
 
             if (this._view) {
                 this._view.webview.postMessage({
@@ -463,6 +436,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     status: 'none',
                     link: '',
                     participants: 0
+                });
+
+                this._view.webview.postMessage({
+                    command: 'updateParticipants',
+                    participants: [],
+                    count: 0
                 });
                 
                 // Reset button state
@@ -1315,7 +1294,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         
                         console.log('Team activity updated successfully');
                     } else {
-                        console.log('No team activity div found or no participants:', { teamActivityDiv, participants });
+                        if (teamActivityDiv) {
+                            teamActivityDiv.innerHTML = \`
+                                <div class="activity-item">
+                                    <span class="status-indicator"></span>
+                                    <strong>You:</strong> Ready to collaborate
+                                </div>
+                            \`;
+                        }
+                        console.log('No team activity div found or no participants:');
                     }
                 }  
             </script>
