@@ -2487,6 +2487,7 @@ async function provideInlineCompletionItems(document, position, context, token) 
 var vscode12 = __toESM(require("vscode"));
 var vsls = __toESM(require_vscode());
 var CollabAgentPanelProvider = class {
+  // Use loose typing to avoid dependency on specific vsls type defs
   constructor(_extensionUri, _context) {
     this._extensionUri = _extensionUri;
     this._context = _context;
@@ -2494,6 +2495,9 @@ var CollabAgentPanelProvider = class {
   static viewType = "collabAgent.teamActivity";
   _view;
   _liveShareApi = null;
+  // Shared service name for propagating host session metadata (e.g., start time)
+  _sharedServiceName = "collabAgentSessionInfo";
+  _sharedService;
   async resolveWebviewView(webviewView, context, _token) {
     console.log("CollabAgentPanel: resolveWebviewView called");
     this._view = webviewView;
@@ -2595,9 +2599,14 @@ var CollabAgentPanelProvider = class {
         peerNumber: session.peerNumber,
         user: session.user
       });
-      if (!this.sessionStartTime || sessionChangeEvent.changeType === "joined") {
+      if (!this.sessionStartTime || ["joined", "started", "start", "starting"].includes(String(sessionChangeEvent.changeType).toLowerCase())) {
         this.sessionStartTime = /* @__PURE__ */ new Date();
-        console.log("Session start time set to:", this.sessionStartTime);
+        console.log("Session start time set to (local clock):", this.sessionStartTime, "changeType:", sessionChangeEvent.changeType);
+      }
+      if (session.role === vsls.Role.Host) {
+        this.registerSessionInfoServiceIfHost();
+      } else if (session.role === vsls.Role.Guest && !this._requestedHostStartTime) {
+        this.requestHostSessionStartTime();
       }
       const isHost = session.role === vsls.Role.Host;
       let status = "joined";
@@ -2635,6 +2644,7 @@ var CollabAgentPanelProvider = class {
     } else {
       console.log("Session ended - clearing session start time");
       this.sessionStartTime = void 0;
+      this.stopDurationUpdater();
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
@@ -2727,6 +2737,10 @@ var CollabAgentPanelProvider = class {
   }
   participantMonitoringInterval;
   sessionStartTime;
+  _requestedHostStartTime = false;
+  // guard to avoid repeated requests as guest
+  _durationUpdateInterval;
+  // interval to push duration updates
   startParticipantMonitoring() {
     this.stopParticipantMonitoring();
     this.participantMonitoringInterval = setInterval(() => {
@@ -2747,45 +2761,16 @@ var CollabAgentPanelProvider = class {
     }
     try {
       const session = this._liveShareApi.session;
-      let participantCount = 1;
-      let detectionMethod = "fallback";
-      if (session.peerNumber !== void 0 && session.peerNumber > 0) {
-        participantCount = session.peerNumber;
-        detectionMethod = "peerNumber";
-      }
-      if (session.role === vsls.Role.Host) {
-        try {
-          const liveShareExtension = vscode12.extensions.getExtension("ms-vsliveshare.vsliveshare");
-          if (liveShareExtension && liveShareExtension.isActive) {
-            const participants2 = await vscode12.commands.executeCommand("liveshare.participants.list");
-            if (participants2 && Array.isArray(participants2) && participants2.length > 0) {
-              participantCount = participants2.length + 1;
-              detectionMethod = "liveshare-command";
-              console.log("Host: Found participants via command:", participants2.length);
-            }
-          }
-        } catch (error) {
-          console.log("Could not get participants via command:", error);
-        }
-        if (participantCount === 1 && this.sessionStartTime) {
-          const sessionAge = Date.now() - this.sessionStartTime.getTime();
-          if (sessionAge > 5e3) {
-            console.log("Host: Checking for delayed participant detection...");
-            setTimeout(() => {
-              this.updateParticipantInfo();
-            }, 2e3);
-          }
-        }
-      }
+      let peers = this._liveShareApi.peers || [];
+      let participantCount = peers.length + 1;
       const currentDuration = this.getSessionDuration();
       console.log("updateParticipantInfo:", {
         participantCount,
-        detectionMethod,
+        peersCount: peers.length,
         duration: currentDuration,
         sessionStartTime: this.sessionStartTime,
         role: session.role === vsls.Role.Host ? "Host" : "Guest",
-        sessionId: session.id,
-        rawPeerNumber: session.peerNumber
+        sessionId: session.id
       });
       const participants = [];
       participants.push({
@@ -2802,7 +2787,7 @@ var CollabAgentPanelProvider = class {
           });
         }
       }
-      console.log("Sending participant update:", { participants, count: participantCount, method: detectionMethod });
+      console.log("Sending participant update:", { participants, count: participantCount });
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateParticipants",
@@ -2848,6 +2833,7 @@ var CollabAgentPanelProvider = class {
       console.log("Live Share end() completed");
       this.sessionStartTime = void 0;
       this.stopParticipantMonitoring();
+      this.stopDurationUpdater();
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
@@ -2901,6 +2887,7 @@ var CollabAgentPanelProvider = class {
       console.log("Live Share leave completed");
       this.sessionStartTime = void 0;
       this.stopParticipantMonitoring();
+      this.stopDurationUpdater();
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
@@ -2961,6 +2948,12 @@ var CollabAgentPanelProvider = class {
       if (session && session.toString()) {
         const inviteLink = session.toString();
         vscode12.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
+        if (!this.sessionStartTime) {
+          this.sessionStartTime = /* @__PURE__ */ new Date();
+          console.log("Host sessionStartTime initialized at startLiveShareSession():", this.sessionStartTime);
+        }
+        this.registerSessionInfoServiceIfHost();
+        this.startDurationUpdater();
         vscode12.window.showWarningMessage(
           "Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.",
           { modal: true }
@@ -3003,6 +2996,8 @@ var CollabAgentPanelProvider = class {
       const inviteUri = vscode12.Uri.parse(inviteLink.trim());
       await this._liveShareApi.join(inviteUri);
       vscode12.window.showInformationMessage("Successfully joined Live Share session!");
+      this.requestHostSessionStartTime();
+      this.startDurationUpdater();
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
@@ -3413,7 +3408,8 @@ var CollabAgentPanelProvider = class {
                             updateTeamActivity(message.activity);
                             break;
                         case 'updateSessionStatus':
-                            updateSessionStatus(message.status, message.link, message.participants, message.role);
+                            // Pass duration so the panel can update elapsed time
+                            updateSessionStatus(message.status, message.link, message.participants, message.role, message.duration);
                             break;
                         case 'updateParticipants':
                             updateParticipants(message.participants, message.count);
@@ -3443,6 +3439,10 @@ var CollabAgentPanelProvider = class {
                     const sessionButtons = document.getElementById('sessionButtons');
                     const participantCount = participants || 1;
                     const sessionDuration = duration || '0m';
+                    // Keep last non-empty link so periodic updates that omit link don't clear it
+                    if (!window.__collabAgentLastLink) { window.__collabAgentLastLink = ''; }
+                    if (link && link.trim().length > 0) { window.__collabAgentLastLink = link; }
+                    const effectiveLink = window.__collabAgentLastLink;
                     
                     console.log('Status update received:', status, 'isEndingSession:', isEndingSession);
                     
@@ -3455,35 +3455,50 @@ var CollabAgentPanelProvider = class {
                     if (status === 'hosting') {
                         // Hide Start/Join buttons when hosting
                         if (sessionButtons) sessionButtons.style.display = 'none';
-                        
-                        statusDiv.innerHTML = \`
-                            <div class="status-active">
-                                <span class="status-indicator active"></span>
-                                <strong>Hosting Live Share Session</strong>
-                                <div class="session-info">
-                                    <div>Participants: \${participantCount}</div>
-                                    <div>Duration: \${sessionDuration}</div>
-                                    <div class="session-link">Link: <code>\${link}</code></div>
-                                    <button class="button end-session-btn" onclick="endSession()">End Session</button>
+                        // If already rendered hosting block, just patch duration & participant count for smoother updates
+                        const existingDuration = statusDiv.querySelector && statusDiv.querySelector('[data-collab-duration]');
+                        const existingParticipants = statusDiv.querySelector && statusDiv.querySelector('[data-collab-participants]');
+                        const existingLink = statusDiv.querySelector && statusDiv.querySelector('[data-collab-link] code');
+                        if (existingDuration && existingParticipants && existingLink && statusDiv.innerHTML.includes('Hosting Live Share Session')) {
+                            existingDuration.textContent = sessionDuration;
+                            existingParticipants.textContent = participantCount;
+                            if (effectiveLink) { existingLink.textContent = effectiveLink; }
+                        } else {
+                            statusDiv.innerHTML = \`
+                                <div class="status-active">
+                                    <span class="status-indicator active"></span>
+                                    <strong>Hosting Live Share Session</strong>
+                                    <div class="session-info">
+                                        <div>Participants: <span data-collab-participants>\${participantCount}</span></div>
+                                        <div>Duration: <span data-collab-duration>\${sessionDuration}</span></div>
+                                        <div class="session-link" data-collab-link>Link: <code>\${effectiveLink}</code></div>
+                                        <button class="button end-session-btn" onclick="endSession()">End Session</button>
+                                    </div>
                                 </div>
-                            </div>
-                        \`;
+                            \`;
+                        }
                     } else if (status === 'joined') {
                         // Hide Start/Join buttons when joined as guest
                         if (sessionButtons) sessionButtons.style.display = 'none';
-                        
-                        statusDiv.innerHTML = \`
-                            <div class="status-active">
-                                <span class="status-indicator active"></span>
-                                <strong>Joined Live Share Session</strong>
-                                <div class="session-info">
-                                    <div>Participants: \${participantCount}</div>
-                                    <div>Duration: \${sessionDuration}</div>
-                                    <div>Role: Guest</div>
-                                    <button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button>
+                        const existingDuration = statusDiv.querySelector && statusDiv.querySelector('[data-collab-duration]');
+                        const existingParticipants = statusDiv.querySelector && statusDiv.querySelector('[data-collab-participants]');
+                        if (existingDuration && existingParticipants && statusDiv.innerHTML.includes('Joined Live Share Session')) {
+                            existingDuration.textContent = sessionDuration;
+                            existingParticipants.textContent = participantCount;
+                        } else {
+                            statusDiv.innerHTML = \`
+                                <div class="status-active">
+                                    <span class="status-indicator active"></span>
+                                    <strong>Joined Live Share Session</strong>
+                                    <div class="session-info">
+                                        <div>Participants: <span data-collab-participants>\${participantCount}</span></div>
+                                        <div>Duration: <span data-collab-duration>\${sessionDuration}</span></div>
+                                        <div>Role: Guest</div>
+                                        <button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button>
+                                    </div>
                                 </div>
-                            </div>
-                        \`;
+                            \`;
+                        }
                     } else if (status === 'ended') {
                         // Don't reset the ending flag immediately - use timer to prevent delayed 'joined' updates
                         console.log('Session ended - starting extended protection timer');
@@ -3677,6 +3692,94 @@ var CollabAgentPanelProvider = class {
     this.stopParticipantMonitoring();
     this._view = void 0;
     this._liveShareApi = void 0;
+  }
+  // --- Shared session start time support ---
+  async registerSessionInfoServiceIfHost() {
+    try {
+      if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) {
+        return;
+      }
+      if (this._sharedService) {
+        return;
+      }
+      const anyApi = this._liveShareApi;
+      if (typeof anyApi.registerService === "function") {
+        this._sharedService = await anyApi.registerService(this._sharedServiceName);
+        if (this._sharedService && typeof this._sharedService.onRequest === "function") {
+          this._sharedService.onRequest("getSessionInfo", async () => {
+            return { startTime: this.sessionStartTime ? this.sessionStartTime.toISOString() : (/* @__PURE__ */ new Date()).toISOString() };
+          });
+          console.log("Registered collabAgent session info shared service.");
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to register session info service (non-fatal):", err);
+    }
+  }
+  async requestHostSessionStartTime() {
+    if (this._requestedHostStartTime) {
+      return;
+    }
+    this._requestedHostStartTime = true;
+    try {
+      if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Guest) {
+        return;
+      }
+      const anyApi = this._liveShareApi;
+      if (typeof anyApi.getSharedService === "function") {
+        const proxy = await anyApi.getSharedService(this._sharedServiceName);
+        if (proxy && proxy.isServiceAvailable && typeof proxy.request === "function") {
+          const info = await proxy.request("getSessionInfo");
+          if (info && info.startTime) {
+            const hostStart = new Date(info.startTime);
+            if (!isNaN(hostStart.getTime())) {
+              if (!this.sessionStartTime || hostStart.getTime() < this.sessionStartTime.getTime()) {
+                this.sessionStartTime = hostStart;
+                console.log("Guest updated sessionStartTime from host shared service:", this.sessionStartTime);
+              }
+            }
+          }
+        } else {
+          console.log("Shared service not yet available; will retry shortly");
+          setTimeout(() => {
+            this._requestedHostStartTime = false;
+            this.requestHostSessionStartTime();
+          }, 3e3);
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to obtain host session start time (will fallback to local join time):", err);
+    }
+  }
+  startDurationUpdater() {
+    this.stopDurationUpdater();
+    if (!this._liveShareApi || !this._liveShareApi.session) {
+      return;
+    }
+    this._durationUpdateInterval = setInterval(() => {
+      if (!this._liveShareApi || !this._liveShareApi.session) {
+        this.stopDurationUpdater();
+        return;
+      }
+      if (this.sessionStartTime && this._view) {
+        const session = this._liveShareApi.session;
+        this._view.webview.postMessage({
+          command: "updateSessionStatus",
+          status: session.role === vsls.Role.Host ? "hosting" : "joined",
+          link: "",
+          // omit link in periodic duration updates to avoid type issues
+          participants: session.peerNumber || 1,
+          role: session.role,
+          duration: this.getSessionDuration()
+        });
+      }
+    }, 3e4);
+  }
+  stopDurationUpdater() {
+    if (this._durationUpdateInterval) {
+      clearInterval(this._durationUpdateInterval);
+      this._durationUpdateInterval = void 0;
+    }
   }
 };
 
