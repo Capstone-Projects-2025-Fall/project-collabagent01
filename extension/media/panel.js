@@ -1,23 +1,250 @@
-(function(){
- const vscode = acquireVsCodeApi();
- let isEndingSession = false;
- let endingSessionTimer = null;
- window.__collabAgentLastLink = '';
- function post(cmd,obj={}){ vscode.postMessage({command:cmd, ...obj}); }
- window.startLiveShare = ()=>post('startLiveShare');
- window.joinLiveShare = ()=>post('joinLiveShare');
- window.handleChatInput = (e)=>{ if(e.key==='Enter'){ const v=e.target.value.trim(); if(v){ post('sendTeamMessage',{text:v}); e.target.value=''; } } };
- window.endSession = function(){ isEndingSession=true; const b=document.querySelector('.end-session-btn'); if(b){ b.textContent='Ending...'; b.disabled=true; b.style.opacity='0.6'; } setTimeout(()=>{ resetButtonState('end'); if(endingSessionTimer){ clearTimeout(endingSessionTimer); endingSessionTimer=null;} isEndingSession=false;},15000); post('endLiveShare'); };
- window.leaveSession = function(){ const b=document.querySelector('.leave-session-btn'); if(b){ b.textContent='Leaving...'; b.disabled=true; b.style.opacity='0.6'; } setTimeout(()=>resetButtonState('leave'),10000); post('leaveLiveShare'); };
- function addChatMessage(sender,text,timestamp){ const box=document.getElementById('chatMessages'); if(!box) return; const div=document.createElement('div'); div.className='chat-message'; div.innerHTML=`<strong>${sender}:</strong> ${text} <small>(${timestamp})</small>`; box.appendChild(div); box.scrollTop=box.scrollHeight; }
- function updateTeamActivity(a){ console.log('Activity update:',a); }
- function updateSessionStatus(status,link,participants,role,duration){ const statusDiv=document.getElementById('sessionStatus'); const btns=document.getElementById('sessionButtons'); if(!statusDiv) return; const participantCount=participants||1; const sessionDuration=duration||'0m'; if(link && link.trim()) window.__collabAgentLastLink=link; const effectiveLink=window.__collabAgentLastLink; if(isEndingSession && status==='joined'){ return; }
- if(status==='hosting'){ if(btns) btns.style.display='none'; const existingDuration=statusDiv.querySelector('[data-collab-duration]'); const existingParticipants=statusDiv.querySelector('[data-collab-participants]'); const existingLink=statusDiv.querySelector('[data-collab-link] code'); if(existingDuration && existingParticipants && existingLink && statusDiv.innerHTML.includes('Hosting Live Share Session')){ existingDuration.textContent=sessionDuration; existingParticipants.textContent=participantCount; if(effectiveLink) existingLink.textContent=effectiveLink; } else { statusDiv.innerHTML=`<div class="status-active"><span class="status-indicator active"></span><strong>Hosting Live Share Session</strong><div class="session-info"><div>Participants: <span data-collab-participants>${participantCount}</span></div><div>Duration: <span data-collab-duration>${sessionDuration}</span></div><div class="session-link" data-collab-link>Link: <code>${effectiveLink}</code></div><button class="button end-session-btn" onclick="endSession()">End Session</button></div></div>`; } }
- else if(status==='joined'){ if(btns) btns.style.display='none'; const existingDuration=statusDiv.querySelector('[data-collab-duration]'); const existingParticipants=statusDiv.querySelector('[data-collab-participants]'); if(existingDuration && existingParticipants && statusDiv.innerHTML.includes('Joined Live Share Session')){ existingDuration.textContent=sessionDuration; existingParticipants.textContent=participantCount; } else { statusDiv.innerHTML=`<div class="status-active"><span class="status-indicator active"></span><strong>Joined Live Share Session</strong><div class="session-info"><div>Participants: <span data-collab-participants>${participantCount}</span></div><div>Duration: <span data-collab-duration>${sessionDuration}</span></div><div>Role: Guest</div><button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button></div></div>`; } }
- else if(status==='ended'){ if(endingSessionTimer) clearTimeout(endingSessionTimer); statusDiv.innerHTML=`<div class="status-inactive"><span class="status-indicator loading"></span><strong>Cleaning up session...</strong><div style="font-size:12px; color:var(--vscode-descriptionForeground); margin-top:4px;">Session controls will be available shortly</div></div>`; endingSessionTimer=setTimeout(()=>{ isEndingSession=false; endingSessionTimer=null; if(btns) btns.style.display='block'; statusDiv.innerHTML=`<div class="status-inactive"><span class="status-indicator"></span>No active session</div>`; },8000); }
- else { if(!isEndingSession){ if(endingSessionTimer){ clearTimeout(endingSessionTimer); endingSessionTimer=null; } if(btns) btns.style.display='block'; statusDiv.innerHTML=`<div class="status-inactive"><span class="status-indicator"></span>No active session</div>`; } }
- }
- function resetButtonState(type){ const sel= type==='end'?'.end-session-btn':'.leave-session-btn'; const b=document.querySelector(sel); if(b){ b.textContent= type==='end'?'End Session':'Leave Session'; b.disabled=false; b.style.opacity='1'; b.style.cursor='pointer'; } }
- function updateParticipants(participants,count){ const div=document.getElementById('teamActivity'); if(!div) return; if(participants && participants.length){ div.innerHTML=`<div class="participant-list"><h4>Active Participants (${count})</h4>${participants.map(p=>`<div class="participant-item"><span class="status-indicator active"></span><span class="participant-name">${p.name}</span><span class="participant-role">${p.role}</span></div>`).join('')}</div>`; } else { div.innerHTML=`<div class="activity-item"><span class="status-indicator"></span><strong>You:</strong> Ready to collaborate</div>`; } }
- window.addEventListener('message', e=>{ const m=e.data; switch(m.command){ case 'addMessage': addChatMessage(m.sender,m.message,m.timestamp); break; case 'updateActivity': updateTeamActivity(m.activity); break; case 'updateSessionStatus': updateSessionStatus(m.status,m.link,m.participants,m.role,m.duration); break; case 'updateParticipants': updateParticipants(m.participants,m.count); break; case 'resetButtonState': resetButtonState(m.buttonType); break; } });
+(function () {
+	const vscode = acquireVsCodeApi();
+
+	let isEndingSession = false;
+	let endingSessionTimer = null;
+	window.__collabAgentLastLink = '';
+
+	function post(command, payload = {}) {
+		vscode.postMessage({ command, ...payload });
+	}
+
+	window.startLiveShare = () => post('startLiveShare');
+	window.joinLiveShare = () => post('joinLiveShare');
+
+	window.handleChatInput = (e) => {
+		if (e.key === 'Enter') {
+			const value = e.target.value.trim();
+			if (value) {
+				post('sendTeamMessage', { text: value });
+				e.target.value = '';
+			}
+		}
+	};
+
+	window.endSession = function () {
+		isEndingSession = true;
+		const btn = document.querySelector('.end-session-btn');
+		if (btn) {
+			btn.textContent = 'Ending...';
+			btn.disabled = true;
+			btn.style.opacity = '0.6';
+		}
+		setTimeout(() => {
+			resetButtonState('end');
+			if (endingSessionTimer) {
+				clearTimeout(endingSessionTimer);
+				endingSessionTimer = null;
+			}
+			isEndingSession = false;
+		}, 15000);
+		post('endLiveShare');
+	};
+
+	window.leaveSession = function () {
+		const btn = document.querySelector('.leave-session-btn');
+		if (btn) {
+			btn.textContent = 'Leaving...';
+			btn.disabled = true;
+			btn.style.opacity = '0.6';
+		}
+		setTimeout(() => resetButtonState('leave'), 10000);
+		post('leaveLiveShare');
+	};
+
+	function addChatMessage(sender, text, timestamp) {
+		const box = document.getElementById('chatMessages');
+		if (!box) return;
+		const div = document.createElement('div');
+		div.className = 'chat-message';
+		div.innerHTML = `<strong>${sender}:</strong> ${text} <small>(${timestamp})</small>`;
+		box.appendChild(div);
+		box.scrollTop = box.scrollHeight;
+	}
+
+	function updateTeamActivity(activity) {
+		console.log('Activity update:', activity);
+	}
+
+	function updateSessionStatus(status, link, participants, role, duration) {
+		const statusDiv = document.getElementById('sessionStatus');
+		const btns = document.getElementById('sessionButtons');
+		const chatInput = document.getElementById('chatInput');
+		if (!statusDiv) return;
+
+		const participantCount = participants || 1;
+		const sessionDuration = duration || '0m';
+
+		if (link && link.trim()) {
+			window.__collabAgentLastLink = link;
+		}
+		const effectiveLink = window.__collabAgentLastLink;
+
+		if (isEndingSession && status === 'joined') {
+			return;
+		}
+
+		if (chatInput) {
+			if (status === 'hosting' || status === 'joined') {
+				chatInput.disabled = false;
+				if (chatInput.placeholder.indexOf('Start or join') === 0) {
+					chatInput.placeholder = 'Type a message to your team...';
+				}
+			} else {
+				chatInput.disabled = true;
+				chatInput.placeholder = 'Start or join a session to chat';
+			}
+		}
+
+		if (status === 'loading') {
+			if (btns) btns.style.display = 'block';
+			statusDiv.innerHTML = `
+				<div class="status-inactive">
+					<span class="status-indicator loading"></span>
+					Loading session status...
+				</div>`;
+			return;
+		}
+
+		if (status === 'hosting') {
+			if (btns) btns.style.display = 'none';
+			const existingDuration = statusDiv.querySelector('[data-collab-duration]');
+			const existingParticipants = statusDiv.querySelector('[data-collab-participants]');
+			const existingLink = statusDiv.querySelector('[data-collab-link] code');
+			const already = existingDuration && existingParticipants && existingLink && statusDiv.innerHTML.includes('Hosting Live Share Session');
+			if (already) {
+				existingDuration.textContent = sessionDuration;
+				existingParticipants.textContent = participantCount;
+				if (effectiveLink) existingLink.textContent = effectiveLink;
+			} else {
+				statusDiv.innerHTML = `
+					<div class="status-active">
+						<span class="status-indicator active"></span>
+						<strong>Hosting Live Share Session</strong>
+						<div class="session-info">
+							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
+							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
+							<div class="session-link" data-collab-link>Link: <code>${effectiveLink}</code></div>
+							<button class="button end-session-btn" onclick="endSession()">End Session</button>
+						</div>
+					</div>`;
+			}
+			return;
+		}
+
+		if (status === 'joined') {
+			if (btns) btns.style.display = 'none';
+			const existingDuration = statusDiv.querySelector('[data-collab-duration]');
+			const existingParticipants = statusDiv.querySelector('[data-collab-participants]');
+			const already = existingDuration && existingParticipants && statusDiv.innerHTML.includes('Joined Live Share Session');
+			if (already) {
+				existingDuration.textContent = sessionDuration;
+				existingParticipants.textContent = participantCount;
+			} else {
+				statusDiv.innerHTML = `
+					<div class="status-active">
+						<span class="status-indicator active"></span>
+						<strong>Joined Live Share Session</strong>
+						<div class="session-info">
+							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
+							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
+							<div>Role: Guest</div>
+							<button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button>
+						</div>
+					</div>`;
+			}
+			return;
+		}
+
+		if (status === 'ended') {
+			if (endingSessionTimer) clearTimeout(endingSessionTimer);
+			statusDiv.innerHTML = `
+				<div class="status-inactive">
+					<span class="status-indicator loading"></span>
+					<strong>Cleaning up session...</strong>
+					<div style="font-size:12px; color:var(--vscode-descriptionForeground); margin-top:4px;">Session controls will be available shortly</div>
+				</div>`;
+			endingSessionTimer = setTimeout(() => {
+				isEndingSession = false;
+				endingSessionTimer = null;
+				if (btns) btns.style.display = 'block';
+				statusDiv.innerHTML = `
+					<div class="status-inactive">
+						<span class="status-indicator"></span>
+						No active session
+					</div>`;
+			}, 8000);
+			return;
+		}
+
+		if (!isEndingSession) {
+			if (endingSessionTimer) {
+				clearTimeout(endingSessionTimer);
+				endingSessionTimer = null;
+			}
+			if (btns) btns.style.display = 'block';
+			statusDiv.innerHTML = `
+				<div class="status-inactive">
+					<span class="status-indicator"></span>
+					No active session
+				</div>`;
+		}
+	}
+
+	function resetButtonState(type) {
+		const selector = type === 'end' ? '.end-session-btn' : '.leave-session-btn';
+		const btn = document.querySelector(selector);
+		if (btn) {
+			btn.textContent = type === 'end' ? 'End Session' : 'Leave Session';
+			btn.disabled = false;
+			btn.style.opacity = '1';
+			btn.style.cursor = 'pointer';
+		}
+	}
+
+	function updateParticipants(participants, count) {
+		const container = document.getElementById('teamActivity');
+		if (!container) return;
+		if (participants && participants.length) {
+			const items = participants.map(p => (
+				`<div class="participant-item">` +
+				`<span class="status-indicator active"></span>` +
+				`<span class="participant-name">${p.name}</span>` +
+				`<span class="participant-role">${p.role}</span>` +
+				`</div>`
+			)).join('');
+			container.innerHTML = `
+				<div class="participant-list">
+					<h4>Active Participants (${count})</h4>
+					${items}
+				</div>`;
+		} else {
+			container.innerHTML = `
+				<div class="activity-item">
+					<span class="status-indicator"></span>
+					<strong>You:</strong> Ready to collaborate
+				</div>`;
+		}
+	}
+
+	window.addEventListener('message', (e) => {
+		const m = e.data;
+		switch (m.command) {
+			case 'addMessage':
+				addChatMessage(m.sender, m.message, m.timestamp);
+				break;
+			case 'updateActivity':
+				updateTeamActivity(m.activity);
+				break;
+			case 'updateSessionStatus':
+				updateSessionStatus(m.status, m.link, m.participants, m.role, m.duration);
+				break;
+			case 'updateParticipants':
+				updateParticipants(m.participants, m.count);
+				break;
+			case 'resetButtonState':
+				resetButtonState(m.buttonType);
+				break;
+		}
+	});
 })();

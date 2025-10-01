@@ -3032,49 +3032,6 @@ var CollabAgentPanelProvider = class {
       });
     }
   }
-  // @ts-ignore
-  _getHtmlForWebview(webview) {
-    const scriptUri = webview.asWebviewUri(vscode12.Uri.joinPath(this._extensionUri, "media", "panel.js"));
-    const styleUri = webview.asWebviewUri(vscode12.Uri.joinPath(this._extensionUri, "media", "panel.css"));
-    const nonce = Date.now().toString();
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Collab Agent</title>
-<link href="${styleUri}" rel="stylesheet" />
-</head>
-<body>
-  <div class="agent-heading">AGENT</div>
-  <div class="section">
-    <div class="section-title">\u{1F680} Live Share Session</div>
-    <div id="sessionButtons">
-      <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
-      <button class="button" id="joinSessionBtn" onclick="joinLiveShare()">Join Session</button>
-    </div>
-    <div id="sessionStatus">No active session</div>
-  </div>
-  <div class="section">
-    <div class="section-title">\u{1F465} Team Activity</div>
-    <div id="teamActivity">
-      <div class="activity-item">
-        <span class="status-indicator"></span>
-        <strong>You:</strong> Ready to collaborate
-      </div>
-    </div>
-  </div>
-  <div class="section">
-    <div class="section-title">\u{1F4AC} Team Chat</div>
-    <div id="chatMessages" class="chat-messages">
-      <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
-    </div>
-    <input type="text" id="chatInput" class="chat-input" placeholder="Type a message to your team..." onkeypress="handleChatInput(event)" />
-  </div>
-  <script nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
-  }
   dispose() {
     this.stopParticipantMonitoring();
     this._view = void 0;
@@ -3173,6 +3130,49 @@ var CollabAgentPanelProvider = class {
       clearInterval(this._durationUpdateInterval);
       this._durationUpdateInterval = void 0;
     }
+  }
+  // @ts-ignore
+  _getHtmlForWebview(webview) {
+    const scriptUri = webview.asWebviewUri(vscode12.Uri.joinPath(this._extensionUri, "media", "panel.js"));
+    const styleUri = webview.asWebviewUri(vscode12.Uri.joinPath(this._extensionUri, "media", "panel.css"));
+    const nonce = Date.now().toString();
+    return `<!DOCTYPE html>
+        <html lang="en">
+        <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Collab Agent</title>
+        <link href="${styleUri}" rel="stylesheet" />
+        </head>
+        <body>
+        <div class="agent-heading">AGENT</div>
+        <div class="section">
+            <div class="section-title">\u{1F680} Live Share Session</div>
+            <div id="sessionButtons">
+            <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
+            <button class="button" id="joinSessionBtn" onclick="joinLiveShare()">Join Session</button>
+            </div>
+            <div id="sessionStatus">No active session</div>
+        </div>
+        <div class="section">
+            <div class="section-title">\u{1F465} Team Activity</div>
+            <div id="teamActivity">
+            <div class="activity-item">
+                <span class="status-indicator"></span>
+                <strong>You:</strong> Ready to collaborate
+            </div>
+            </div>
+        </div>
+        <div class="section">
+            <div class="section-title">\u{1F4AC} Team Chat</div>
+            <div id="chatMessages" class="chat-messages">
+            <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
+            </div>
+            <input type="text" id="chatInput" class="chat-input" placeholder="Type a message to your team..." onkeypress="handleChatInput(event)" />
+        </div>
+        <script nonce="${nonce}" src="${scriptUri}"></script>
+        </body>
+        </html>`;
   }
 };
 

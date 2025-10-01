@@ -9,6 +9,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     // Shared service name for propagating host session metadata (e.g., start time)
     private readonly _sharedServiceName = 'collabAgentSessionInfo';
     private _sharedService: any | undefined; // Use loose typing to avoid dependency on specific vsls type defs
+    private _sessionLink: string | undefined; // Persist session link for consistent display
+    private _initialSessionCheckDone = false; // Helps avoid flicker by showing loading state first
 
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
     // You can store _context for later use
@@ -163,15 +165,14 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 status = 'joined';
             }
             
-            const sessionLink = session.uri?.toString() || '';
-            
-            // Try to get participant count immediately
-            let participantCount = session.peerNumber || 1;
+            const sessionLink = session.uri?.toString() || this._sessionLink || '';
+            if (sessionLink) {
+                this._sessionLink = sessionLink;
+            }
+            // Prefer peers array for current participants to avoid cumulative peerNumber inflation
+            let participantCount = (this._liveShareApi?.peers?.length || 0) + 1; // +1 self
             if (isHost && participantCount === 1) {
-                // For hosts, sometimes we need to wait a moment for participant count to update
-                setTimeout(() => {
-                    this.updateParticipantInfo();
-                }, 1000);
+                setTimeout(() => this.updateParticipantInfo(), 1000);
             }
             
             console.log('Sending updateSessionStatus message:', {
@@ -262,18 +263,29 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }
             }
         } else {
-            console.log('No existing session found, clearing UI state');
-            // Ensure UI shows no session
+            console.log('No existing session found on initial check; show loading');
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
-                    // Use 'ended' first so the webview shows the cleaning/loading screen immediately
-                    status: 'ended',
+                    status: 'loading',
                     link: '',
                     participants: 0
                 });
             }
+            setTimeout(() => {
+                if (!this._liveShareApi?.session && !this._initialSessionCheckDone) {
+                    if (this._view) {
+                        this._view.webview.postMessage({
+                            command: 'updateSessionStatus',
+                            status: 'none',
+                            link: '',
+                            participants: 0
+                        });
+                    }
+                }
+            }, 1500);
         }
+        this._initialSessionCheckDone = true;
         
         // Set up periodic monitoring to catch session state changes
         // that might not trigger the event listener
@@ -367,7 +379,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             });
             
             // Build participant list with available information
-            const participants = [];
+            const participants: any[] = [];
             
             // Add self
             participants.push({
@@ -395,13 +407,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     participants: participants,
                     count: participantCount
                 });
-                
-                // Also update session status with current duration
                 const isHost = session.role === vsls.Role.Host;
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
                     status: isHost ? 'hosting' : 'joined',
-                    link: '', // Session link not available in participant monitoring
+                    link: this._sessionLink || '',
                     participants: participantCount,
                     role: session.role,
                     duration: currentDuration
@@ -588,11 +598,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         try {
             vscode.window.showInformationMessage('Starting Live Share session...');
 
-            // Start the live share session
             const session = await this._liveShareApi.share();
 
             if (session && session.toString()) {
                 const inviteLink = session.toString();
+                this._sessionLink = inviteLink;
                 vscode.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
                 // Record start time immediately for host so duration begins updating
                 if (!this.sessionStartTime) {
@@ -655,7 +665,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             // Join the Live Share session
             const inviteUri = vscode.Uri.parse(inviteLink.trim());
             await this._liveShareApi.join(inviteUri);
-
+            this._sessionLink = inviteLink;
             vscode.window.showInformationMessage('Successfully joined Live Share session!');
             // As guest, immediately attempt to fetch host start time
             this.requestHostSessionStartTime();
@@ -676,9 +686,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private sendTeamMessage(message: string) {
-        // Implement team messaging
+        if (!this._liveShareApi?.session) {
+            vscode.window.showWarningMessage('Start or join a Live Share session to use team chat.');
+            return;
+        }
         vscode.window.showInformationMessage(`Team message: ${message}`);
-
         if (this._view) {
             this._view.webview.postMessage({
                 command: 'addMessage',
@@ -755,6 +767,17 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                             if (!this.sessionStartTime || hostStart.getTime() < this.sessionStartTime.getTime()) {
                                 this.sessionStartTime = hostStart;
                                 console.log('Guest updated sessionStartTime from host shared service:', this.sessionStartTime);
+                                if (this._liveShareApi?.session && this._view) {
+                                    const s = this._liveShareApi.session;
+                                    this._view.webview.postMessage({
+                                        command: 'updateSessionStatus',
+                                        status: s.role === vsls.Role.Host ? 'hosting' : 'joined',
+                                        link: this._sessionLink || '',
+                                        participants: (this._liveShareApi.peers?.length || 0) + 1,
+                                        role: s.role,
+                                        duration: this.getSessionDuration()
+                                    });
+                                }
                             }
                         }
                         // Success - reset retry counter
@@ -792,8 +815,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
                     status: session.role === vsls.Role.Host ? 'hosting' : 'joined',
-                    link: '', // omit link in periodic duration updates to avoid type issues
-                    participants: session.peerNumber || 1,
+                    link: this._sessionLink || '',
+                    participants: (this._liveShareApi.peers?.length || 0) + 1,
                     role: session.role,
                     duration: this.getSessionDuration()
                 });
@@ -828,7 +851,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
             <button class="button" id="joinSessionBtn" onclick="joinLiveShare()">Join Session</button>
             </div>
-            <div id="sessionStatus">No active session</div>
+            <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
         </div>
         <div class="section">
             <div class="section-title">👥 Team Activity</div>
@@ -844,7 +867,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             <div id="chatMessages" class="chat-messages">
             <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
             </div>
-            <input type="text" id="chatInput" class="chat-input" placeholder="Type a message to your team..." onkeypress="handleChatInput(event)" />
+            <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
         </div>
         <script nonce="${nonce}" src="${scriptUri}"></script>
         </body>
