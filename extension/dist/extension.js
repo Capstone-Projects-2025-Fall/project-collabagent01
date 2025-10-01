@@ -2701,7 +2701,8 @@ var CollabAgentPanelProvider = class {
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
-          status: "none",
+          // Use 'ended' first so the webview shows the cleaning/loading screen immediately
+          status: "ended",
           link: "",
           participants: 0
         });
@@ -2741,6 +2742,8 @@ var CollabAgentPanelProvider = class {
   // guard to avoid repeated requests as guest
   _durationUpdateInterval;
   // interval to push duration updates
+  _hostStartTimeRetryCount = 0;
+  // retry attempts for fetching host session start time
   startParticipantMonitoring() {
     this.stopParticipantMonitoring();
     this.participantMonitoringInterval = setInterval(() => {
@@ -2837,7 +2840,7 @@ var CollabAgentPanelProvider = class {
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
-          status: "none",
+          status: "ended",
           link: "",
           participants: 0
         });
@@ -3031,662 +3034,46 @@ var CollabAgentPanelProvider = class {
   }
   // @ts-ignore
   _getHtmlForWebview(webview) {
+    const scriptUri = webview.asWebviewUri(vscode12.Uri.joinPath(this._extensionUri, "media", "panel.js"));
+    const styleUri = webview.asWebviewUri(vscode12.Uri.joinPath(this._extensionUri, "media", "panel.css"));
+    const nonce = Date.now().toString();
     return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Collab Agent</title>
-            <style>
-                body {
-                    font-family: var(--vscode-font-family);
-                    font-size: var(--vscode-font-size);
-                    color: var(--vscode-foreground);
-                    background-color: var(--vscode-sideBar-background);
-                    padding: 16px;
-                    margin: 0;
-                }
-                
-                .status-indicator {
-                    display: inline-block;
-                    width: 8px;
-                    height: 8px;
-                    border-radius: 50%;
-                    background-color: var(--vscode-descriptionForeground);
-                    margin-right: 8px;
-                }
-                
-                .status-indicator.active {
-                    background-color: #4CAF50;
-                    animation: pulse 2s infinite;
-                }
-                
-                @keyframes pulse {
-                    0% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                    100% { opacity: 1; }
-                }
-                
-                .status-active {
-                    color: var(--vscode-textLink-foreground);
-                }
-                
-                .status-inactive {
-                    color: var(--vscode-descriptionForeground);
-                }
-                
-                .session-info {
-                    margin-top: 8px;
-                    font-size: 12px;
-                    color: var(--vscode-descriptionForeground);
-                }
-                
-                .session-link {
-                    margin-top: 4px;
-                    word-break: break-all;
-                }
-                
-                .session-link code {
-                    background-color: var(--vscode-textCodeBlock-background);
-                    padding: 2px 4px;
-                    border-radius: 2px;
-                    font-size: 11px;
-                }
-                
-                .participant-list {
-                    margin-top: 12px;
-                    padding: 8px;
-                    background-color: var(--vscode-textCodeBlock-background);
-                    border-radius: 4px;
-                }
-                
-                .participant-list h4 {
-                    margin: 0 0 8px 0;
-                    font-size: 12px;
-                    color: var(--vscode-textLink-foreground);
-                }
-                
-                .participant-item {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 4px 0;
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                }
-                
-                .participant-item:last-child {
-                    border-bottom: none;
-                }
-                
-                .participant-name {
-                    font-weight: bold;
-                    font-size: 12px;
-                }
-                
-                .participant-role {
-                    font-size: 11px;
-                    color: var(--vscode-descriptionForeground);
-                    background-color: var(--vscode-badge-background);
-                    color: var(--vscode-badge-foreground);
-                    padding: 2px 6px;
-                    border-radius: 10px;
-                }
-                
-                .chat-input {
-                    width: 100%;
-                    box-sizing: border-box;
-                    padding: 8px 12px;
-                    border: 1px solid var(--vscode-input-border);
-                    border-radius: 4px;
-                    background-color: var(--vscode-input-background);
-                    color: var(--vscode-input-foreground);
-                    font-size: max(12px, min(14px, 2.5vw));
-                    font-family: var(--vscode-font-family);
-                    margin-top: 8px;
-                    outline: none;
-                    resize: none;
-                    overflow: hidden;
-                    text-overflow: ellipsis;
-                    white-space: nowrap;
-                }
-                
-                .chat-input:focus {
-                    border-color: var(--vscode-focusBorder);
-                    background-color: var(--vscode-input-background);
-                }
-                
-                .chat-input::placeholder {
-                    color: var(--vscode-input-placeholderForeground);
-                    font-size: max(11px, min(13px, 2.3vw));
-                }
-                
-                /* Responsive adjustments for different panel sizes */
-                @media (max-width: 250px) {
-                    .chat-input {
-                        font-size: 11px;
-                        padding: 6px 8px;
-                    }
-                    .chat-input::placeholder {
-                        font-size: 10px;
-                    }
-                }
-                
-                @media (min-width: 350px) {
-                    .chat-input {
-                        font-size: 13px;
-                    }
-                    .chat-input::placeholder {
-                        font-size: 12px;
-                    }
-                }
-                
-                .chat-messages {
-                    max-height: 200px;
-                    overflow-y: auto;
-                    margin-bottom: 8px;
-                    padding: 4px 0;
-                }
-                
-                .chat-message {
-                    margin-bottom: 8px;
-                    font-size: 12px;
-                    line-height: 1.4;
-                }
-                
-                .end-session-btn {
-                    background-color: var(--vscode-errorForeground) !important;
-                    color: white !important;
-                    margin-top: 8px;
-                    font-size: 12px;
-                    padding: 6px 12px;
-                    border: none !important;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    width: auto !important;
-                    height: auto !important;
-                    display: inline-block !important;
-                }
-
-                .end-session-btn:hover {
-                    background-color: var(--vscode-errorForeground) !important;
-                    opacity: 0.8;
-                }
-
-                .leave-session-btn {
-                    background-color: var(--vscode-charts-orange) !important;
-                    color: white !important;
-                    margin-top: 8px;
-                    font-size: 12px;
-                    padding: 6px 12px;
-                    border: none !important;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    width: auto !important;
-                    height: auto !important;
-                    display: inline-block !important;
-                }
-
-                .leave-session-btn:hover {
-                    background-color: var(--vscode-charts-orange) !important;
-                    opacity: 0.8;
-                }
-
-                .end-session-btn:disabled,
-                .leave-session-btn:disabled {
-                    opacity: 0.6 !important;
-                    cursor: not-allowed !important;
-                    pointer-events: none !important;
-                }
-
-                .agent-heading {
-                    font-size: 24px;
-                    font-weight: bold;
-                    text-align: center;
-                    color: var(--vscode-textLink-foreground);
-                    margin-bottom: 20px;
-                    padding: 10px 0;
-                    letter-spacing: 2px;
-                }
-
-                .section {
-                    margin-bottom: 20px;
-                    padding: 12px;
-                    border: 1px solid var(--vscode-panel-border);
-                    border-radius: 4px;
-                    background-color: var(--vscode-editor-background);
-                }
-                
-                .section-title {
-                    font-weight: bold;
-                    margin-bottom: 8px;
-                    color: var(--vscode-textBlockQuote-foreground);
-                }
-                
-                .button {
-                    background-color: var(--vscode-button-background);
-                    color: var(--vscode-button-foreground);
-                    border: none;
-                    padding: 8px 12px;
-                    margin: 4px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 12px;
-                }
-                
-                .button:hover {
-                    background-color: var(--vscode-button-hoverBackground);
-                }
-                
-                .activity-item {
-                    padding: 8px;
-                    margin: 4px 0;
-                    background-color: var(--vscode-list-inactiveSelectionBackground);
-                    border-radius: 4px;
-                    border-left: 3px solid var(--vscode-textLink-foreground);
-                }
-                
-                .chat-messages {
-                    max-height: 200px;
-                    overflow-y: auto;
-                    margin-bottom: 8px;
-                    padding: 4px 0;
-                }
-                
-                .chat-message {
-                    margin-bottom: 8px;
-                    font-size: 12px;
-                    line-height: 1.4;
-                }
-                
-                .status-indicator {
-                    display: inline-block;
-                    width: 8px;
-                    height: 8px;
-                    border-radius: 50%;
-                    background-color: var(--vscode-charts-green);
-                    margin-right: 6px;
-                }
-                
-                .offline {
-                    background-color: var(--vscode-charts-red);
-                }
-                
-                .loading {
-                    background-color: var(--vscode-charts-orange);
-                    animation: pulse 1.5s ease-in-out infinite;
-                }
-                
-                @keyframes pulse {
-                    0% { opacity: 1; }
-                    50% { opacity: 0.5; }
-                    100% { opacity: 1; }
-                }
-                
-                .agent-heading {
-                    text-align: center;
-                    font-size: 24px;
-                    font-weight: bold;
-                    margin-bottom: 20px;
-                    padding: 16px 0;
-                    color: var(--vscode-textLink-foreground);
-                    text-transform: uppercase;
-                    letter-spacing: 2px;
-                }
-            </style>
-        </head>
-        <body>
-            <div class="agent-heading">AGENT</div>
-            
-            <div class="section">
-                <div class="section-title">\u{1F680} Live Share Session</div>
-                <div id="sessionButtons">
-                    <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
-                    <button class="button" id="joinSessionBtn" onclick="joinLiveShare()">Join Session</button>
-                </div>
-                <div id="sessionStatus">No active session</div>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">\u{1F465} Team Activity</div>
-                <div id="teamActivity">
-                    <div class="activity-item">
-                        <span class="status-indicator"></span>
-                        <strong>You:</strong> Ready to collaborate
-                    </div>
-                </div>
-            </div>
-            
-            <div class="section">
-                <div class="section-title">\u{1F4AC} Team Chat</div>
-                <div id="chatMessages" class="chat-messages">
-                    <div class="chat-message">
-                        <strong>Collab Agent:</strong> Welcome! Start collaborating with your team.
-                    </div>
-                </div>
-                <input type="text" id="chatInput" class="chat-input" placeholder="Type a message to your team..." onkeypress="handleChatInput(event)">
-            </div>
-
-            <script>
-                const vscode = acquireVsCodeApi();
-                let isEndingSession = false; // Flag to track if session is being ended
-                let endingSessionTimer = null; // Timer to extend protection window
-                
-                function startLiveShare() {
-                    vscode.postMessage({
-                        command: 'startLiveShare'
-                    });
-                }
-                
-                function joinLiveShare() {
-                    vscode.postMessage({
-                        command: 'joinLiveShare'
-                    });
-                }
-                
-                function handleChatInput(event) {
-                    if (event.key === 'Enter') {
-                        const input = event.target;
-                        const message = input.value.trim();
-                        if (message) {
-                            vscode.postMessage({
-                                command: 'sendTeamMessage',
-                                text: message
-                            });
-                            input.value = '';
-                        }
-                    }
-                }
-                
-                // Listen for messages from the extension
-                window.addEventListener('message', event => {
-                    const message = event.data;
-                    switch (message.command) {
-                        case 'addMessage':
-                            addChatMessage(message.sender, message.message, message.timestamp);
-                            break;
-                        case 'updateActivity':
-                            updateTeamActivity(message.activity);
-                            break;
-                        case 'updateSessionStatus':
-                            // Pass duration so the panel can update elapsed time
-                            updateSessionStatus(message.status, message.link, message.participants, message.role, message.duration);
-                            break;
-                        case 'updateParticipants':
-                            updateParticipants(message.participants, message.count);
-                            break;
-                        case 'resetButtonState':
-                            resetButtonState(message.buttonType);
-                            break;
-                    }
-                });
-                
-                function addChatMessage(sender, text, timestamp) {
-                    const chatMessages = document.getElementById('chatMessages');
-                    const messageDiv = document.createElement('div');
-                    messageDiv.className = 'chat-message';
-                    messageDiv.innerHTML = \`<strong>\${sender}:</strong> \${text} <small>(\${timestamp})</small>\`;
-                    chatMessages.appendChild(messageDiv);
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-                
-                function updateTeamActivity(activity) {
-                    // TODO: Update team activity display
-                    console.log('Activity update:', activity);
-                }
-
-                function updateSessionStatus(status, link, participants, role, duration) {
-                    const statusDiv = document.getElementById('sessionStatus');
-                    const sessionButtons = document.getElementById('sessionButtons');
-                    const participantCount = participants || 1;
-                    const sessionDuration = duration || '0m';
-                    // Keep last non-empty link so periodic updates that omit link don't clear it
-                    if (!window.__collabAgentLastLink) { window.__collabAgentLastLink = ''; }
-                    if (link && link.trim().length > 0) { window.__collabAgentLastLink = link; }
-                    const effectiveLink = window.__collabAgentLastLink;
-                    
-                    console.log('Status update received:', status, 'isEndingSession:', isEndingSession);
-                    
-                    // If we're ending the session, ignore 'joined' status updates to prevent flickering
-                    if (isEndingSession && status === 'joined') {
-                        console.log('Ignoring joined status during session ending process');
-                        return;
-                    }
-                    
-                    if (status === 'hosting') {
-                        // Hide Start/Join buttons when hosting
-                        if (sessionButtons) sessionButtons.style.display = 'none';
-                        // If already rendered hosting block, just patch duration & participant count for smoother updates
-                        const existingDuration = statusDiv.querySelector && statusDiv.querySelector('[data-collab-duration]');
-                        const existingParticipants = statusDiv.querySelector && statusDiv.querySelector('[data-collab-participants]');
-                        const existingLink = statusDiv.querySelector && statusDiv.querySelector('[data-collab-link] code');
-                        if (existingDuration && existingParticipants && existingLink && statusDiv.innerHTML.includes('Hosting Live Share Session')) {
-                            existingDuration.textContent = sessionDuration;
-                            existingParticipants.textContent = participantCount;
-                            if (effectiveLink) { existingLink.textContent = effectiveLink; }
-                        } else {
-                            statusDiv.innerHTML = \`
-                                <div class="status-active">
-                                    <span class="status-indicator active"></span>
-                                    <strong>Hosting Live Share Session</strong>
-                                    <div class="session-info">
-                                        <div>Participants: <span data-collab-participants>\${participantCount}</span></div>
-                                        <div>Duration: <span data-collab-duration>\${sessionDuration}</span></div>
-                                        <div class="session-link" data-collab-link>Link: <code>\${effectiveLink}</code></div>
-                                        <button class="button end-session-btn" onclick="endSession()">End Session</button>
-                                    </div>
-                                </div>
-                            \`;
-                        }
-                    } else if (status === 'joined') {
-                        // Hide Start/Join buttons when joined as guest
-                        if (sessionButtons) sessionButtons.style.display = 'none';
-                        const existingDuration = statusDiv.querySelector && statusDiv.querySelector('[data-collab-duration]');
-                        const existingParticipants = statusDiv.querySelector && statusDiv.querySelector('[data-collab-participants]');
-                        if (existingDuration && existingParticipants && statusDiv.innerHTML.includes('Joined Live Share Session')) {
-                            existingDuration.textContent = sessionDuration;
-                            existingParticipants.textContent = participantCount;
-                        } else {
-                            statusDiv.innerHTML = \`
-                                <div class="status-active">
-                                    <span class="status-indicator active"></span>
-                                    <strong>Joined Live Share Session</strong>
-                                    <div class="session-info">
-                                        <div>Participants: <span data-collab-participants>\${participantCount}</span></div>
-                                        <div>Duration: <span data-collab-duration>\${sessionDuration}</span></div>
-                                        <div>Role: Guest</div>
-                                        <button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button>
-                                    </div>
-                                </div>
-                            \`;
-                        }
-                    } else if (status === 'ended') {
-                        // Don't reset the ending flag immediately - use timer to prevent delayed 'joined' updates
-                        console.log('Session ended - starting extended protection timer');
-                        
-                        // Clear any existing timer
-                        if (endingSessionTimer) {
-                            clearTimeout(endingSessionTimer);
-                        }
-                        
-                        // Show loading state during cleanup
-                        statusDiv.innerHTML = \`
-                            <div class="status-inactive">
-                                <span class="status-indicator loading"></span>
-                                <strong>Cleaning up session...</strong>
-                                <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 4px;">
-                                    Session controls will be available shortly
-                                </div>
-                            </div>
-                        \`;
-                        
-                        // Set extended timer to reset the flag after delayed updates settle
-                        endingSessionTimer = setTimeout(() => {
-                            console.log('Extended protection period ended - resetting isEndingSession flag');
-                            isEndingSession = false;
-                            endingSessionTimer = null;
-                            
-                            // Show Start/Join buttons when cleanup is complete
-                            if (sessionButtons) sessionButtons.style.display = 'block';
-                            
-                            // Update to final state
-                            statusDiv.innerHTML = \`
-                                <div class="status-inactive">
-                                    <span class="status-indicator"></span>
-                                    No active session
-                                </div>
-                            \`;
-                        }, 8000); // 8 second protection window
-                    } else {
-                        // Default: no active session (status === 'none' or anything else)
-                        // Only reset the ending flag if we're not in an active ending process
-                        if (!isEndingSession) {
-                            console.log('No active session - normal state');
-                            
-                            // Clear any existing timer if we're definitely back to no session
-                            if (endingSessionTimer) {
-                                clearTimeout(endingSessionTimer);
-                                endingSessionTimer = null;
-                            }
-                            
-                            // Show Start/Join buttons when no active session
-                            if (sessionButtons) sessionButtons.style.display = 'block';
-                            
-                            statusDiv.innerHTML = \`
-                                <div class="status-inactive">
-                                    <span class="status-indicator"></span>
-                                    No active session
-                                </div>
-                            \`;
-                        } else {
-                            console.log('No active session during ending process - showing cleanup state');
-                            
-                            // Show cleanup message if we're in ending process
-                            statusDiv.innerHTML = \`
-                                <div class="status-inactive">
-                                    <span class="status-indicator loading"></span>
-                                    <strong>Cleaning up session...</strong>
-                                    <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 4px;">
-                                        Session controls will be available shortly
-                                    </div>
-                                </div>
-                            \`;
-                        }
-                    }
-                }
-
-                function endSession() {
-                    console.log('End Session button clicked');
-                    
-                    // Set flag to prevent flickering during session end
-                    isEndingSession = true;
-                    
-                    // Update button to show loading state
-                    const button = document.querySelector('.end-session-btn');
-                    if (button) {
-                        button.textContent = 'Ending...';
-                        button.disabled = true;
-                        button.style.opacity = '0.6';
-                        button.style.cursor = 'not-allowed';
-                    }
-                    
-                    // Set timeout to reset button and flag if operation takes too long
-                    setTimeout(() => {
-                        resetButtonState('end');
-                        // Clear any existing timer and reset flag as final safeguard
-                        if (endingSessionTimer) {
-                            clearTimeout(endingSessionTimer);
-                            endingSessionTimer = null;
-                        }
-                        isEndingSession = false;
-                        console.log('Timeout safeguard triggered - resetting all ending session state');
-                    }, 15000); // 15 second timeout (longer than protection window)
-                    
-                    vscode.postMessage({
-                        command: 'endLiveShare'
-                    });
-                    console.log('Sent endLiveShare message to extension');
-                }
-
-                function leaveSession() {
-                    console.log('Leave Session button clicked');
-                    
-                    // Update button to show loading state
-                    const button = document.querySelector('.leave-session-btn');
-                    if (button) {
-                        button.textContent = 'Leaving...';
-                        button.disabled = true;
-                        button.style.opacity = '0.6';
-                        button.style.cursor = 'not-allowed';
-                    }
-                    
-                    // Set timeout to reset button if operation takes too long
-                    setTimeout(() => {
-                        resetButtonState('leave');
-                    }, 10000); // 10 second timeout
-                    
-                    vscode.postMessage({
-                        command: 'leaveLiveShare'
-                    });
-                    console.log('Sent leaveLiveShare message to extension');
-                }
-
-                function resetButtonState(buttonType) {
-                    if (buttonType === 'end') {
-                        const button = document.querySelector('.end-session-btn');
-                        if (button) {
-                            button.textContent = 'End Session';
-                            button.disabled = false;
-                            button.style.opacity = '1';
-                            button.style.cursor = 'pointer';
-                        }
-                    } else if (buttonType === 'leave') {
-                        const button = document.querySelector('.leave-session-btn');
-                        if (button) {
-                            button.textContent = 'Leave Session';
-                            button.disabled = false;
-                            button.style.opacity = '1';
-                            button.style.cursor = 'pointer';
-                        }
-                    }
-                }
-
-                function updateParticipants(participants, count) {
-                    console.log('updateParticipants called with:', participants, count);
-                    
-                    // Update the existing Team Activity section
-                    const teamActivityDiv = document.getElementById('teamActivity');
-                    if (teamActivityDiv && participants && participants.length > 0) {
-                        console.log('Updating team activity with participants:', participants);
-                        
-                        teamActivityDiv.innerHTML = \`
-                            <div class="participant-list">
-                                <h4>Active Participants (\${count})</h4>
-                                \${participants.map((p, index) => \`
-                                    <div class="participant-item">
-                                        <span class="status-indicator active"></span>
-                                        <span class="participant-name">\${p.name}</span>
-                                        <span class="participant-role">\${p.role}</span>
-                                    </div>
-                                \`).join('')}
-                            </div>
-                        \`;
-                        
-                        console.log('Team activity updated successfully');
-                    } else {
-                        if (teamActivityDiv) {
-                            teamActivityDiv.innerHTML = \`
-                                <div class="activity-item">
-                                    <span class="status-indicator"></span>
-                                    <strong>You:</strong> Ready to collaborate
-                                </div>
-                            \`;
-                        }
-                        console.log('No team activity div found or no participants:');
-                    }
-                }  
-            </script>
-        </body>
-        </html>`;
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Collab Agent</title>
+<link href="${styleUri}" rel="stylesheet" />
+</head>
+<body>
+  <div class="agent-heading">AGENT</div>
+  <div class="section">
+    <div class="section-title">\u{1F680} Live Share Session</div>
+    <div id="sessionButtons">
+      <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
+      <button class="button" id="joinSessionBtn" onclick="joinLiveShare()">Join Session</button>
+    </div>
+    <div id="sessionStatus">No active session</div>
+  </div>
+  <div class="section">
+    <div class="section-title">\u{1F465} Team Activity</div>
+    <div id="teamActivity">
+      <div class="activity-item">
+        <span class="status-indicator"></span>
+        <strong>You:</strong> Ready to collaborate
+      </div>
+    </div>
+  </div>
+  <div class="section">
+    <div class="section-title">\u{1F4AC} Team Chat</div>
+    <div id="chatMessages" class="chat-messages">
+      <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
+    </div>
+    <input type="text" id="chatInput" class="chat-input" placeholder="Type a message to your team..." onkeypress="handleChatInput(event)" />
+  </div>
+  <script nonce="${nonce}" src="${scriptUri}"></script>
+</body>
+</html>`;
   }
   dispose() {
     this.stopParticipantMonitoring();
@@ -3738,13 +3125,19 @@ var CollabAgentPanelProvider = class {
                 console.log("Guest updated sessionStartTime from host shared service:", this.sessionStartTime);
               }
             }
+            this._hostStartTimeRetryCount = 0;
           }
         } else {
           console.log("Shared service not yet available; will retry shortly");
-          setTimeout(() => {
-            this._requestedHostStartTime = false;
-            this.requestHostSessionStartTime();
-          }, 3e3);
+          if (this._hostStartTimeRetryCount < 5) {
+            this._hostStartTimeRetryCount++;
+            setTimeout(() => {
+              this._requestedHostStartTime = false;
+              this.requestHostSessionStartTime();
+            }, 3e3);
+          } else {
+            console.log("Max retries reached for fetching host start time; using local join time");
+          }
         }
       }
     } catch (err) {
