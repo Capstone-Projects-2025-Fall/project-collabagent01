@@ -16,7 +16,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     // You can store _context for later use
 }
 
-
     public async resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
@@ -60,6 +59,22 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         console.log('Handling sendTeamMessage command');
                         this.sendTeamMessage(message.text);
                         return;
+                    case 'manualSetInviteLink':
+                        console.log('Handling manualSetInviteLink command');
+                        this.setManualInviteLink(message.link);
+                        return;
+                    case 'manualClearInviteLink':
+                        console.log('Handling manualClearInviteLink command');
+                        this.clearManualInviteLink();
+                        return;
+                    case 'requestStoredLink':
+                        console.log('Handling requestStoredLink command');
+                        this.sendStoredLinkToWebview();
+                        return;
+                    case 'manualPasteInviteLink':
+                        console.log('Handling manualPasteInviteLink command');
+                        this.pasteInviteLinkFromClipboard();
+                        return;
                     default:
                         console.log('Unknown command received:', message.command);
                 }
@@ -67,6 +82,98 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             undefined,
             []
         );
+    }
+
+    // --- Manual invite link support (fallback when Live Share API does not expose link) ---
+    private readonly _persistedLinkKey = 'collabAgent.manualInviteLink';
+
+    private setManualInviteLink(link: string | undefined) {
+        if (!link || !link.trim()) {
+            if (this._view) {
+                this._view.webview.postMessage({ command: 'manualLinkInvalid', reason: 'empty' });
+            }
+            return;
+        }
+        const trimmed = link.trim();
+        this._sessionLink = trimmed;
+        // Persist so reload maintains it until session ends or cleared
+        this._context.globalState.update(this._persistedLinkKey, this._sessionLink);
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'manualLinkUpdated',
+                link: this._sessionLink
+            });
+            // Also push a status refresh if currently hosting
+            const status = this._liveShareApi?.session?.role === vsls.Role.Host ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
+            this._view.webview.postMessage({
+                command: 'updateSessionStatus',
+                status,
+                link: this._sessionLink,
+                participants: (this._liveShareApi?.peers?.length || 0) + (this._liveShareApi?.session ? 1 : 0),
+                role: this._liveShareApi?.session?.role,
+                duration: this.getSessionDuration()
+            });
+        }
+    }
+
+    private clearManualInviteLink() {
+        this._sessionLink = undefined;
+        this._context.globalState.update(this._persistedLinkKey, undefined);
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'manualLinkCleared' });
+            const status = this._liveShareApi?.session?.role === vsls.Role.Host ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
+            this._view.webview.postMessage({
+                command: 'updateSessionStatus',
+                status,
+                link: '',
+                participants: (this._liveShareApi?.peers?.length || 0) + (this._liveShareApi?.session ? 1 : 0),
+                role: this._liveShareApi?.session?.role,
+                duration: this.getSessionDuration()
+            });
+        }
+    }
+
+    private sendStoredLinkToWebview() {
+        const stored = this._context.globalState.get<string | undefined>(this._persistedLinkKey);
+        if (stored) {
+            this._sessionLink = stored; // restore into memory
+            if (this._view) {
+                this._view.webview.postMessage({ command: 'storedLink', link: stored });
+                // Also push a status update if in session
+                if (this._liveShareApi?.session) {
+                    const s = this._liveShareApi.session;
+                    this._view.webview.postMessage({
+                        command: 'updateSessionStatus',
+                        status: s.role === vsls.Role.Host ? 'hosting' : 'joined',
+                        link: stored,
+                        participants: (this._liveShareApi.peers?.length || 0) + 1,
+                        role: s.role,
+                        duration: this.getSessionDuration()
+                    });
+                }
+            }
+        }
+    }
+
+    private async pasteInviteLinkFromClipboard() {
+        try {
+            const clip = await vscode.env.clipboard.readText();
+            if (clip && clip.trim()) {
+                const trimmed = clip.trim();
+                this.setManualInviteLink(trimmed);
+                if (this._view) {
+                    this._view.webview.postMessage({ command: 'manualLinkPasted', link: trimmed });
+                }
+            } else {
+                if (this._view) {
+                    this._view.webview.postMessage({ command: 'manualLinkPasteInvalid' });
+                }
+                vscode.window.showWarningMessage('Clipboard is empty or does not contain text.');
+            }
+        } catch (err) {
+            console.warn('Failed reading clipboard for invite link:', err);
+            vscode.window.showErrorMessage('Could not read clipboard for invite link.');
+        }
     }
 
     private async initializeLiveShare(): Promise<boolean> {
@@ -201,6 +308,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             console.log('Session ended - clearing session start time');
             this.sessionStartTime = undefined;
             this.stopDurationUpdater();
+            // Clear any persisted manual link upon full session end
+            this.clearManualInviteLink();
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
@@ -455,6 +564,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             this.sessionStartTime = undefined;
             this.stopParticipantMonitoring();
             this.stopDurationUpdater();
+            this.clearManualInviteLink();
             
             if (this._view) {
                 this._view.webview.postMessage({
@@ -525,6 +635,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             this.sessionStartTime = undefined;
             this.stopParticipantMonitoring();
             this.stopDurationUpdater();
+            this.clearManualInviteLink();
             
             if (this._view) {
                 this._view.webview.postMessage({
@@ -700,7 +811,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             });
         }
     }
-
 
     public updateTeamActivity(activity: any) {
         if (this._view) {

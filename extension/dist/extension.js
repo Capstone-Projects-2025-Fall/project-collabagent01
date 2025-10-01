@@ -2487,7 +2487,7 @@ async function provideInlineCompletionItems(document, position, context, token) 
 var vscode12 = __toESM(require("vscode"));
 var vsls = __toESM(require_vscode());
 var CollabAgentPanelProvider = class {
-  // Use loose typing to avoid dependency on specific vsls type defs
+  // Helps avoid flicker by showing loading state first
   constructor(_extensionUri, _context) {
     this._extensionUri = _extensionUri;
     this._context = _context;
@@ -2498,6 +2498,10 @@ var CollabAgentPanelProvider = class {
   // Shared service name for propagating host session metadata (e.g., start time)
   _sharedServiceName = "collabAgentSessionInfo";
   _sharedService;
+  // Use loose typing to avoid dependency on specific vsls type defs
+  _sessionLink;
+  // Persist session link for consistent display
+  _initialSessionCheckDone = false;
   async resolveWebviewView(webviewView, context, _token) {
     console.log("CollabAgentPanel: resolveWebviewView called");
     this._view = webviewView;
@@ -2532,6 +2536,22 @@ var CollabAgentPanelProvider = class {
             console.log("Handling sendTeamMessage command");
             this.sendTeamMessage(message.text);
             return;
+          case "manualSetInviteLink":
+            console.log("Handling manualSetInviteLink command");
+            this.setManualInviteLink(message.link);
+            return;
+          case "manualClearInviteLink":
+            console.log("Handling manualClearInviteLink command");
+            this.clearManualInviteLink();
+            return;
+          case "requestStoredLink":
+            console.log("Handling requestStoredLink command");
+            this.sendStoredLinkToWebview();
+            return;
+          case "manualPasteInviteLink":
+            console.log("Handling manualPasteInviteLink command");
+            this.pasteInviteLinkFromClipboard();
+            return;
           default:
             console.log("Unknown command received:", message.command);
         }
@@ -2539,6 +2559,90 @@ var CollabAgentPanelProvider = class {
       void 0,
       []
     );
+  }
+  // --- Manual invite link support (fallback when Live Share API does not expose link) ---
+  _persistedLinkKey = "collabAgent.manualInviteLink";
+  setManualInviteLink(link) {
+    if (!link || !link.trim()) {
+      if (this._view) {
+        this._view.webview.postMessage({ command: "manualLinkInvalid", reason: "empty" });
+      }
+      return;
+    }
+    const trimmed = link.trim();
+    this._sessionLink = trimmed;
+    this._context.globalState.update(this._persistedLinkKey, this._sessionLink);
+    if (this._view) {
+      this._view.webview.postMessage({
+        command: "manualLinkUpdated",
+        link: this._sessionLink
+      });
+      const status = this._liveShareApi?.session?.role === vsls.Role.Host ? "hosting" : this._liveShareApi?.session ? "joined" : "none";
+      this._view.webview.postMessage({
+        command: "updateSessionStatus",
+        status,
+        link: this._sessionLink,
+        participants: (this._liveShareApi?.peers?.length || 0) + (this._liveShareApi?.session ? 1 : 0),
+        role: this._liveShareApi?.session?.role,
+        duration: this.getSessionDuration()
+      });
+    }
+  }
+  clearManualInviteLink() {
+    this._sessionLink = void 0;
+    this._context.globalState.update(this._persistedLinkKey, void 0);
+    if (this._view) {
+      this._view.webview.postMessage({ command: "manualLinkCleared" });
+      const status = this._liveShareApi?.session?.role === vsls.Role.Host ? "hosting" : this._liveShareApi?.session ? "joined" : "none";
+      this._view.webview.postMessage({
+        command: "updateSessionStatus",
+        status,
+        link: "",
+        participants: (this._liveShareApi?.peers?.length || 0) + (this._liveShareApi?.session ? 1 : 0),
+        role: this._liveShareApi?.session?.role,
+        duration: this.getSessionDuration()
+      });
+    }
+  }
+  sendStoredLinkToWebview() {
+    const stored = this._context.globalState.get(this._persistedLinkKey);
+    if (stored) {
+      this._sessionLink = stored;
+      if (this._view) {
+        this._view.webview.postMessage({ command: "storedLink", link: stored });
+        if (this._liveShareApi?.session) {
+          const s = this._liveShareApi.session;
+          this._view.webview.postMessage({
+            command: "updateSessionStatus",
+            status: s.role === vsls.Role.Host ? "hosting" : "joined",
+            link: stored,
+            participants: (this._liveShareApi.peers?.length || 0) + 1,
+            role: s.role,
+            duration: this.getSessionDuration()
+          });
+        }
+      }
+    }
+  }
+  async pasteInviteLinkFromClipboard() {
+    try {
+      const clip = await vscode12.env.clipboard.readText();
+      if (clip && clip.trim()) {
+        const trimmed = clip.trim();
+        this.setManualInviteLink(trimmed);
+        if (this._view) {
+          this._view.webview.postMessage({ command: "manualLinkPasted", link: trimmed });
+        }
+      } else {
+        if (this._view) {
+          this._view.webview.postMessage({ command: "manualLinkPasteInvalid" });
+        }
+        vscode12.window.showWarningMessage("Clipboard is empty or does not contain text.");
+      }
+    } catch (err) {
+      console.warn("Failed reading clipboard for invite link:", err);
+      vscode12.window.showErrorMessage("Could not read clipboard for invite link.");
+    }
   }
   async initializeLiveShare() {
     try {
@@ -2615,12 +2719,13 @@ var CollabAgentPanelProvider = class {
       } else if (session.role === vsls.Role.Guest) {
         status = "joined";
       }
-      const sessionLink = session.uri?.toString() || "";
-      let participantCount = session.peerNumber || 1;
+      const sessionLink = session.uri?.toString() || this._sessionLink || "";
+      if (sessionLink) {
+        this._sessionLink = sessionLink;
+      }
+      let participantCount = (this._liveShareApi?.peers?.length || 0) + 1;
       if (isHost && participantCount === 1) {
-        setTimeout(() => {
-          this.updateParticipantInfo();
-        }, 1e3);
+        setTimeout(() => this.updateParticipantInfo(), 1e3);
       }
       console.log("Sending updateSessionStatus message:", {
         status,
@@ -2645,6 +2750,7 @@ var CollabAgentPanelProvider = class {
       console.log("Session ended - clearing session start time");
       this.sessionStartTime = void 0;
       this.stopDurationUpdater();
+      this.clearManualInviteLink();
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
@@ -2697,17 +2803,29 @@ var CollabAgentPanelProvider = class {
         }
       }
     } else {
-      console.log("No existing session found, clearing UI state");
+      console.log("No existing session found on initial check; show loading");
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
-          // Use 'ended' first so the webview shows the cleaning/loading screen immediately
-          status: "ended",
+          status: "loading",
           link: "",
           participants: 0
         });
       }
+      setTimeout(() => {
+        if (!this._liveShareApi?.session && !this._initialSessionCheckDone) {
+          if (this._view) {
+            this._view.webview.postMessage({
+              command: "updateSessionStatus",
+              status: "none",
+              link: "",
+              participants: 0
+            });
+          }
+        }
+      }, 1500);
     }
+    this._initialSessionCheckDone = true;
     setInterval(() => {
       this.periodicSessionCheck();
     }, 5e3);
@@ -2801,8 +2919,7 @@ var CollabAgentPanelProvider = class {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
           status: isHost ? "hosting" : "joined",
-          link: "",
-          // Session link not available in participant monitoring
+          link: this._sessionLink || "",
           participants: participantCount,
           role: session.role,
           duration: currentDuration
@@ -2837,6 +2954,7 @@ var CollabAgentPanelProvider = class {
       this.sessionStartTime = void 0;
       this.stopParticipantMonitoring();
       this.stopDurationUpdater();
+      this.clearManualInviteLink();
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
@@ -2891,6 +3009,7 @@ var CollabAgentPanelProvider = class {
       this.sessionStartTime = void 0;
       this.stopParticipantMonitoring();
       this.stopDurationUpdater();
+      this.clearManualInviteLink();
       if (this._view) {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
@@ -2950,6 +3069,7 @@ var CollabAgentPanelProvider = class {
       const session = await this._liveShareApi.share();
       if (session && session.toString()) {
         const inviteLink = session.toString();
+        this._sessionLink = inviteLink;
         vscode12.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
         if (!this.sessionStartTime) {
           this.sessionStartTime = /* @__PURE__ */ new Date();
@@ -2998,6 +3118,7 @@ var CollabAgentPanelProvider = class {
       vscode12.window.showInformationMessage("Joining Live Share session...");
       const inviteUri = vscode12.Uri.parse(inviteLink.trim());
       await this._liveShareApi.join(inviteUri);
+      this._sessionLink = inviteLink;
       vscode12.window.showInformationMessage("Successfully joined Live Share session!");
       this.requestHostSessionStartTime();
       this.startDurationUpdater();
@@ -3014,6 +3135,10 @@ var CollabAgentPanelProvider = class {
     }
   }
   sendTeamMessage(message) {
+    if (!this._liveShareApi?.session) {
+      vscode12.window.showWarningMessage("Start or join a Live Share session to use team chat.");
+      return;
+    }
     vscode12.window.showInformationMessage(`Team message: ${message}`);
     if (this._view) {
       this._view.webview.postMessage({
@@ -3080,6 +3205,17 @@ var CollabAgentPanelProvider = class {
               if (!this.sessionStartTime || hostStart.getTime() < this.sessionStartTime.getTime()) {
                 this.sessionStartTime = hostStart;
                 console.log("Guest updated sessionStartTime from host shared service:", this.sessionStartTime);
+                if (this._liveShareApi?.session && this._view) {
+                  const s = this._liveShareApi.session;
+                  this._view.webview.postMessage({
+                    command: "updateSessionStatus",
+                    status: s.role === vsls.Role.Host ? "hosting" : "joined",
+                    link: this._sessionLink || "",
+                    participants: (this._liveShareApi.peers?.length || 0) + 1,
+                    role: s.role,
+                    duration: this.getSessionDuration()
+                  });
+                }
               }
             }
             this._hostStartTimeRetryCount = 0;
@@ -3116,9 +3252,8 @@ var CollabAgentPanelProvider = class {
         this._view.webview.postMessage({
           command: "updateSessionStatus",
           status: session.role === vsls.Role.Host ? "hosting" : "joined",
-          link: "",
-          // omit link in periodic duration updates to avoid type issues
-          participants: session.peerNumber || 1,
+          link: this._sessionLink || "",
+          participants: (this._liveShareApi.peers?.length || 0) + 1,
           role: session.role,
           duration: this.getSessionDuration()
         });
@@ -3152,7 +3287,7 @@ var CollabAgentPanelProvider = class {
             <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
             <button class="button" id="joinSessionBtn" onclick="joinLiveShare()">Join Session</button>
             </div>
-            <div id="sessionStatus">No active session</div>
+            <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
         </div>
         <div class="section">
             <div class="section-title">\u{1F465} Team Activity</div>
@@ -3168,7 +3303,7 @@ var CollabAgentPanelProvider = class {
             <div id="chatMessages" class="chat-messages">
             <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
             </div>
-            <input type="text" id="chatInput" class="chat-input" placeholder="Type a message to your team..." onkeypress="handleChatInput(event)" />
+            <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
         </div>
         <script nonce="${nonce}" src="${scriptUri}"></script>
         </body>

@@ -111,21 +111,33 @@
 			const existingDuration = statusDiv.querySelector('[data-collab-duration]');
 			const existingParticipants = statusDiv.querySelector('[data-collab-participants]');
 			const existingLink = statusDiv.querySelector('[data-collab-link] code');
-			const already = existingDuration && existingParticipants && existingLink && statusDiv.innerHTML.includes('Hosting Live Share Session');
+			// If we just captured a link and there's no code element yet, we must rebuild
+			const already = existingDuration && existingParticipants && statusDiv.innerHTML.includes('Hosting Live Share Session') && (effectiveLink ? !!existingLink : true);
 			if (already) {
 				existingDuration.textContent = sessionDuration;
 				existingParticipants.textContent = participantCount;
-				if (effectiveLink) existingLink.textContent = effectiveLink;
+				if (existingLink && effectiveLink) existingLink.textContent = effectiveLink;
 			} else {
+				const linkSection = effectiveLink ? `
+				<div class=\"session-link\" data-collab-link>Link: <code>${effectiveLink}</code>
+					<button class=\"button small\" onclick=\"copyManualLink()\">Copy</button>
+				</div>` : `
+				<div class=\"session-link manual-entry\" data-collab-link>
+					<div style=\"margin-bottom:4px; font-size:11px; opacity:0.8;\">Click to capture the current Live Share invite link from your clipboard.</div>
+					<div style=\"display:flex; gap:4px;\">
+						<button class=\"button small\" onclick=\"pasteManualLink()\">Capture From Clipboard</button>
+					</div>
+					<div id=\"manualLinkFeedback\" style=\"margin-top:4px; font-size:11px; color: var(--vscode-descriptionForeground);\"></div>
+				</div>`;
 				statusDiv.innerHTML = `
-					<div class="status-active">
-						<span class="status-indicator active"></span>
+					<div class=\"status-active\">
+						<span class=\"status-indicator active\"></span>
 						<strong>Hosting Live Share Session</strong>
-						<div class="session-info">
+						<div class=\"session-info\">
 							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
 							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
-							<div class="session-link" data-collab-link>Link: <code>${effectiveLink}</code></div>
-							<button class="button end-session-btn" onclick="endSession()">End Session</button>
+							${linkSection}
+							<button class=\"button end-session-btn\" onclick=\"endSession()\">End Session</button>
 						</div>
 					</div>`;
 			}
@@ -245,6 +257,62 @@
 			case 'resetButtonState':
 				resetButtonState(m.buttonType);
 				break;
+			case 'storedLink':
+				window.__collabAgentLastLink = m.link;
+				updateSessionStatus('hosting', m.link, undefined, 'host', undefined);
+				break;
+			case 'manualLinkUpdated':
+				if (m.link) {
+					window.__collabAgentLastLink = m.link;
+					updateSessionStatus('hosting', m.link);
+					showManualLinkFeedback('Link stored.', 'ok');
+				}
+				break;
+			case 'manualLinkCleared':
+				window.__collabAgentLastLink = '';
+				updateSessionStatus('hosting', '');
+				showManualLinkFeedback('Link cleared.', 'info');
+				break;
+			case 'manualLinkPasted':
+				if (m.link) {
+					window.__collabAgentLastLink = m.link;
+					// Force full re-render so link appears immediately
+					updateSessionStatus('hosting', m.link, 1);
+					showManualLinkFeedback('Link pasted & stored.', 'ok');
+				}
+				break;
+			case 'manualLinkInvalid':
+				showManualLinkFeedback('Please enter a link before clicking Set.', 'warn');
+				break;
+			case 'manualLinkPasteInvalid':
+				showManualLinkFeedback('Clipboard was empty.', 'warn');
+				break;
 		}
 	});
+
+	function showManualLinkFeedback(msg, kind) {
+		const el = document.getElementById('manualLinkFeedback');
+		if (!el) return;
+		let color = 'var(--vscode-descriptionForeground)';
+		if (kind === 'ok') color = 'var(--vscode-testing-iconPassed)';
+		if (kind === 'warn') color = 'var(--vscode-editorWarning-foreground, orange)';
+		el.style.color = color;
+		el.textContent = msg;
+	}
+
+	// Manual invite link helpers
+	window.pasteManualLink = function () {
+		// Provide immediate visual pending feedback if field exists
+		const fb = document.getElementById('manualLinkFeedback');
+		if (fb) { fb.textContent = 'Capturing from clipboard...'; }
+		post('manualPasteInviteLink');
+	};
+	window.copyManualLink = function () {
+		if (window.__collabAgentLastLink) {
+			navigator.clipboard.writeText(window.__collabAgentLastLink).catch(()=>{});
+		}
+	};
+
+	// Ask backend if there is a stored link when webview loads
+	post('requestStoredLink');
 })();
