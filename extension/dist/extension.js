@@ -2487,7 +2487,7 @@ async function provideInlineCompletionItems(document, position, context, token) 
 var vscode12 = __toESM(require("vscode"));
 var vsls = __toESM(require_vscode());
 var CollabAgentPanelProvider = class {
-  // guest proxy
+  // guest received at least one authoritative snapshot
   constructor(_extensionUri, _context) {
     this._extensionUri = _extensionUri;
     this._context = _context;
@@ -2507,6 +2507,8 @@ var CollabAgentPanelProvider = class {
   _presenceService;
   // host service
   _presenceProxy;
+  // guest proxy
+  _presenceSnapshotReceived = false;
   async resolveWebviewView(webviewView, context, _token) {
     console.log("CollabAgentPanel: resolveWebviewView called");
     this._view = webviewView;
@@ -2732,8 +2734,10 @@ var CollabAgentPanelProvider = class {
       }
       if (session.role === vsls.Role.Host) {
         this.registerSessionInfoServiceIfHost();
+        this.ensurePresenceService();
       } else if (session.role === vsls.Role.Guest && !this._requestedHostStartTime) {
         this.requestHostSessionStartTime();
+        this.ensurePresenceService();
       }
       const isHost = session.role === vsls.Role.Host;
       let status = "joined";
@@ -2769,6 +2773,9 @@ var CollabAgentPanelProvider = class {
         });
       }
       this.startParticipantMonitoring();
+      if (session.role === vsls.Role.Guest) {
+        this.schedulePresenceRetry();
+      }
     } else {
       console.log("Session ended - clearing session start time");
       this.sessionStartTime = void 0;
@@ -3040,6 +3047,7 @@ var CollabAgentPanelProvider = class {
   applyPresenceSnapshot(snapshot, source) {
     if (!snapshot || !this._view) return;
     console.log("Applying presence snapshot from", source, snapshot);
+    this._presenceSnapshotReceived = true;
     this._view.webview.postMessage({
       command: "updateParticipants",
       participants: snapshot.participants || [],
@@ -3056,6 +3064,18 @@ var CollabAgentPanelProvider = class {
         duration: this.getSessionDuration()
       });
     }
+  }
+  schedulePresenceRetry() {
+    if (this._presenceSnapshotReceived) return;
+    const delays = [1e3, 2e3, 4e3];
+    delays.forEach((ms, idx) => {
+      setTimeout(async () => {
+        if (!this._presenceSnapshotReceived) {
+          console.log(`Presence retry attempt ${idx + 1}`);
+          await this.requestInitialPresence();
+        }
+      }, ms);
+    });
   }
   async endLiveShareSession() {
     try {
