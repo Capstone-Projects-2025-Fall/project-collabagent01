@@ -2487,7 +2487,7 @@ async function provideInlineCompletionItems(document, position, context, token) 
 var vscode12 = __toESM(require("vscode"));
 var vsls = __toESM(require_vscode());
 var CollabAgentPanelProvider = class {
-  // Helps avoid flicker by showing loading state first
+  // guest proxy
   constructor(_extensionUri, _context) {
     this._extensionUri = _extensionUri;
     this._context = _context;
@@ -2502,6 +2502,11 @@ var CollabAgentPanelProvider = class {
   _sessionLink;
   // Persist session link for consistent display
   _initialSessionCheckDone = false;
+  // Helps avoid flicker by showing loading state first
+  _presenceServiceName = "collabAgentPresence";
+  _presenceService;
+  // host service
+  _presenceProxy;
   async resolveWebviewView(webviewView, context, _token) {
     console.log("CollabAgentPanel: resolveWebviewView called");
     this._view = webviewView;
@@ -2681,10 +2686,20 @@ var CollabAgentPanelProvider = class {
       if (typeof this._liveShareApi.onDidChangePeers === "function") {
         this._liveShareApi.onDidChangePeers((peerChangeEvent) => {
           console.log("Live Share peers changed:", peerChangeEvent);
-          this.updateParticipantInfo();
+          this.updateParticipantInfo("peers");
+          this.broadcastPresenceIfHost();
         });
       } else {
         console.warn("Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.");
+      }
+      if (typeof this._liveShareApi.onActivity === "function") {
+        this._liveShareApi.onActivity((activity) => {
+          if (activity && /session/i.test(JSON.stringify(activity))) {
+            console.log("Activity hinting at potential participant change:", activity);
+            this.updateParticipantInfo("activity");
+            this.broadcastPresenceIfHost();
+          }
+        });
       }
       this.monitorSessionState();
     } catch (error) {
@@ -2883,7 +2898,7 @@ var CollabAgentPanelProvider = class {
       this.participantMonitoringInterval = void 0;
     }
   }
-  async updateParticipantInfo() {
+  async updateParticipantInfo(trigger = "unknown") {
     if (!this._liveShareApi?.session) {
       console.log("updateParticipantInfo: No session available");
       return;
@@ -2891,7 +2906,7 @@ var CollabAgentPanelProvider = class {
     try {
       const session = this._liveShareApi.session;
       const peers = (this._liveShareApi.peers || []).filter((p) => !!p);
-      const participantCount = peers.length + 1;
+      let participantCount = peers.length + 1;
       const currentDuration = this.getSessionDuration();
       console.log("updateParticipantInfo:", {
         participantCount,
@@ -2899,7 +2914,8 @@ var CollabAgentPanelProvider = class {
         duration: currentDuration,
         sessionStartTime: this.sessionStartTime,
         role: session.role === vsls.Role.Host ? "Host" : "Guest",
-        sessionId: session.id
+        sessionId: session.id,
+        trigger
       });
       const participants = [];
       const mapPeer = (peer) => {
@@ -2936,6 +2952,109 @@ var CollabAgentPanelProvider = class {
       }
     } catch (error) {
       console.error("Error updating participant info:", error);
+    }
+  }
+  // Presence synchronization (authoritative from host)
+  async ensurePresenceService() {
+    if (!this._liveShareApi || !this._liveShareApi.session) return;
+    const isHost = this._liveShareApi.session.role === vsls.Role.Host;
+    const anyApi = this._liveShareApi;
+    if (isHost) {
+      if (!this._presenceService && typeof anyApi.registerService === "function") {
+        try {
+          this._presenceService = await anyApi.registerService(this._presenceServiceName);
+          if (this._presenceService?.onRequest) {
+            this._presenceService.onRequest("getPresence", async () => {
+              return this.buildPresenceSnapshot();
+            });
+          }
+          console.log("Presence service registered (host).");
+        } catch (e) {
+          console.warn("Failed to register presence service:", e);
+        }
+      }
+    } else {
+      if (!this._presenceProxy && typeof anyApi.getSharedService === "function") {
+        try {
+          this._presenceProxy = await anyApi.getSharedService(this._presenceServiceName);
+          if (this._presenceProxy?.isServiceAvailable) {
+            this._presenceProxy.onDidChangeIsServiceAvailable(async () => {
+              if (this._presenceProxy.isServiceAvailable) {
+                await this.requestInitialPresence();
+              }
+            });
+            await this.requestInitialPresence();
+            if (this._presenceProxy.onNotify) {
+              this._presenceProxy.onNotify("presenceUpdate", (payload) => {
+                this.applyPresenceSnapshot(payload, "notify");
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to obtain presence proxy (guest):", e);
+        }
+      }
+    }
+  }
+  buildPresenceSnapshot() {
+    if (!this._liveShareApi?.session) return { participants: [], count: 0 };
+    const session = this._liveShareApi.session;
+    const peers = (this._liveShareApi.peers || []).filter((p) => !!p);
+    const participants = [];
+    participants.push({
+      name: session.user?.displayName || "You",
+      email: session.user?.emailAddress || "",
+      role: session.role === vsls.Role.Host ? "Host" : "Guest"
+    });
+    for (const peer of peers) {
+      participants.push({
+        name: peer?.user?.displayName || peer?.displayName || "Unknown",
+        email: peer?.user?.emailAddress || peer?.emailAddress || "",
+        role: peer?.role === vsls.Role.Host ? "Host" : "Guest"
+      });
+    }
+    return { participants, count: participants.length };
+  }
+  broadcastPresenceIfHost() {
+    if (!this._liveShareApi?.session || this._liveShareApi.session.role !== vsls.Role.Host) return;
+    if (!this._presenceService) return;
+    try {
+      const snapshot = this.buildPresenceSnapshot();
+      if (this._presenceService.notify) {
+        this._presenceService.notify("presenceUpdate", snapshot);
+      }
+    } catch (e) {
+      console.warn("Failed broadcasting presence:", e);
+    }
+  }
+  async requestInitialPresence() {
+    try {
+      if (this._presenceProxy?.isServiceAvailable && this._presenceProxy.request) {
+        const snapshot = await this._presenceProxy.request("getPresence");
+        this.applyPresenceSnapshot(snapshot, "initial-request");
+      }
+    } catch (e) {
+      console.warn("Presence initial request failed:", e);
+    }
+  }
+  applyPresenceSnapshot(snapshot, source) {
+    if (!snapshot || !this._view) return;
+    console.log("Applying presence snapshot from", source, snapshot);
+    this._view.webview.postMessage({
+      command: "updateParticipants",
+      participants: snapshot.participants || [],
+      count: snapshot.count || 0
+    });
+    if (this._liveShareApi?.session) {
+      const s = this._liveShareApi.session;
+      this._view.webview.postMessage({
+        command: "updateSessionStatus",
+        status: s.role === vsls.Role.Host ? "hosting" : "joined",
+        link: this._sessionLink || "",
+        participants: snapshot.count || 0,
+        role: s.role,
+        duration: this.getSessionDuration()
+      });
     }
   }
   async endLiveShareSession() {
@@ -3097,7 +3216,9 @@ var CollabAgentPanelProvider = class {
             link: inviteLink
           });
         }
-        this.updateParticipantInfo();
+        await this.ensurePresenceService();
+        this.broadcastPresenceIfHost();
+        this.updateParticipantInfo("start");
       } else {
         vscode12.window.showErrorMessage("Failed to start Live Share session");
       }
@@ -3139,7 +3260,8 @@ var CollabAgentPanelProvider = class {
           link: inviteLink
         });
       }
-      this.updateParticipantInfo();
+      await this.ensurePresenceService();
+      this.updateParticipantInfo("join");
     } catch (error) {
       console.error("Error joining Live Share session:", error);
       vscode12.window.showErrorMessage("Error joining Live Share session: " + error);

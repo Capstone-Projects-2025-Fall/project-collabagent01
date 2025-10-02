@@ -11,6 +11,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private _sharedService: any | undefined; // Use loose typing to avoid dependency on specific vsls type defs
     private _sessionLink: string | undefined; // Persist session link for consistent display
     private _initialSessionCheckDone = false; // Helps avoid flicker by showing loading state first
+    private readonly _presenceServiceName = 'collabAgentPresence';
+    private _presenceService: any | undefined; // host service
+    private _presenceProxy: any | undefined;   // guest proxy
 
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
     // You can store _context for later use
@@ -224,11 +227,22 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             if (typeof (this._liveShareApi as any).onDidChangePeers === 'function') {
                 (this._liveShareApi as any).onDidChangePeers((peerChangeEvent: any) => {
                     console.log('Live Share peers changed:', peerChangeEvent);
-                    // Immediately refresh participant info
-                    this.updateParticipantInfo();
+                    this.updateParticipantInfo('peers');
+                    this.broadcastPresenceIfHost();
                 });
             } else {
                 console.warn('Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.');
+            }
+
+            // Additional safety net: some environments update activity sooner than peers array
+            if (typeof (this._liveShareApi as any).onActivity === 'function') {
+                (this._liveShareApi as any).onActivity((activity: any) => {
+                    if (activity && /session/i.test(JSON.stringify(activity))) {
+                        console.log('Activity hinting at potential participant change:', activity);
+                        this.updateParticipantInfo('activity');
+                        this.broadcastPresenceIfHost();
+                    }
+                });
             }
 
             // Monitor the current session state
@@ -474,7 +488,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    private async updateParticipantInfo() {
+    private async updateParticipantInfo(trigger: string = 'unknown') {
         if (!this._liveShareApi?.session) {
             console.log('updateParticipantInfo: No session available');
             return;
@@ -483,9 +497,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         try {
             const session = this._liveShareApi.session;
             
-            // Get actual peers from the API
-            const peers: any[] = (this._liveShareApi.peers || []).filter(p => !!p); // defensive
-            const participantCount = peers.length + 1; // +1 for self
+            // Get actual peers from the API (does NOT include self)
+            const peers: any[] = (this._liveShareApi.peers || []).filter(p => !!p);
+            let participantCount = peers.length + 1; // +1 self only
             
             const currentDuration = this.getSessionDuration();
             
@@ -496,6 +510,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 sessionStartTime: this.sessionStartTime,
                 role: session.role === vsls.Role.Host ? 'Host' : 'Guest',
                 sessionId: session.id,
+                trigger
             });
             
             // Build participant list with available information
@@ -517,7 +532,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 role: session.role === vsls.Role.Host ? 'Host' : 'Guest'
             });
 
-            // Add peers (these exclude self per API design)
+            // Add peers
             for (const peer of peers) {
                 participants.push(mapPeer(peer));
             }
@@ -542,6 +557,116 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
         } catch (error) {
             console.error('Error updating participant info:', error);
+        }
+    }
+
+    // Presence synchronization (authoritative from host)
+    private async ensurePresenceService() {
+        if (!this._liveShareApi || !this._liveShareApi.session) return;
+        const isHost = this._liveShareApi.session.role === vsls.Role.Host;
+        const anyApi: any = this._liveShareApi as any;
+        if (isHost) {
+            if (!this._presenceService && typeof anyApi.registerService === 'function') {
+                try {
+                    this._presenceService = await anyApi.registerService(this._presenceServiceName);
+                    if (this._presenceService?.onRequest) {
+                        this._presenceService.onRequest('getPresence', async () => {
+                            return this.buildPresenceSnapshot();
+                        });
+                    }
+                    console.log('Presence service registered (host).');
+                } catch (e) {
+                    console.warn('Failed to register presence service:', e);
+                }
+            }
+        } else {
+            // Guest: get proxy
+            if (!this._presenceProxy && typeof anyApi.getSharedService === 'function') {
+                try {
+                    this._presenceProxy = await anyApi.getSharedService(this._presenceServiceName);
+                    if (this._presenceProxy?.isServiceAvailable) {
+                        this._presenceProxy.onDidChangeIsServiceAvailable(async () => {
+                            if (this._presenceProxy.isServiceAvailable) {
+                                await this.requestInitialPresence();
+                            }
+                        });
+                        // Attempt initial fetch
+                        await this.requestInitialPresence();
+                        if (this._presenceProxy.onNotify) {
+                            this._presenceProxy.onNotify('presenceUpdate', (payload: any) => {
+                                this.applyPresenceSnapshot(payload, 'notify');
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Failed to obtain presence proxy (guest):', e);
+                }
+            }
+        }
+    }
+
+    private buildPresenceSnapshot() {
+        if (!this._liveShareApi?.session) return { participants: [], count: 0 };
+        const session = this._liveShareApi.session;
+        const peers: any[] = (this._liveShareApi.peers || []).filter(p => !!p);
+        const participants: any[] = [];
+        participants.push({
+            name: session.user?.displayName || 'You',
+            email: session.user?.emailAddress || '',
+            role: session.role === vsls.Role.Host ? 'Host' : 'Guest'
+        });
+        for (const peer of peers) {
+            participants.push({
+                name: peer?.user?.displayName || peer?.displayName || 'Unknown',
+                email: peer?.user?.emailAddress || peer?.emailAddress || '',
+                role: peer?.role === vsls.Role.Host ? 'Host' : 'Guest'
+            });
+        }
+        return { participants, count: participants.length };
+    }
+
+    private broadcastPresenceIfHost() {
+        if (!this._liveShareApi?.session || this._liveShareApi.session.role !== vsls.Role.Host) return;
+        if (!this._presenceService) return;
+        try {
+            const snapshot = this.buildPresenceSnapshot();
+            if (this._presenceService.notify) {
+                this._presenceService.notify('presenceUpdate', snapshot);
+            }
+        } catch (e) {
+            console.warn('Failed broadcasting presence:', e);
+        }
+    }
+
+    private async requestInitialPresence() {
+        try {
+            if (this._presenceProxy?.isServiceAvailable && this._presenceProxy.request) {
+                const snapshot = await this._presenceProxy.request('getPresence');
+                this.applyPresenceSnapshot(snapshot, 'initial-request');
+            }
+        } catch (e) {
+            console.warn('Presence initial request failed:', e);
+        }
+    }
+
+    private applyPresenceSnapshot(snapshot: any, source: string) {
+        if (!snapshot || !this._view) return;
+        console.log('Applying presence snapshot from', source, snapshot);
+        this._view.webview.postMessage({
+            command: 'updateParticipants',
+            participants: snapshot.participants || [],
+            count: snapshot.count || 0
+        });
+        if (this._liveShareApi?.session) {
+            const s = this._liveShareApi.session;
+            this._view.webview.postMessage({
+                command: 'updateSessionStatus',
+                status: s.role === vsls.Role.Host ? 'hosting' : 'joined',
+                link: this._sessionLink || '',
+                participants: snapshot.count || 0,
+                role: s.role,
+                duration: this.getSessionDuration()
+            });
         }
     }
 
@@ -753,9 +878,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         link: inviteLink
                     });
                 }
-
-                // Push participant info right away
-                this.updateParticipantInfo();
+                await this.ensurePresenceService();
+                this.broadcastPresenceIfHost();
+                this.updateParticipantInfo('start');
             } else {
                 vscode.window.showErrorMessage('Failed to start Live Share session');
             }
@@ -807,9 +932,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     link: inviteLink
                 });
             }
-
-            // Immediate participant info after join
-            this.updateParticipantInfo();
+            await this.ensurePresenceService();
+            this.updateParticipantInfo('join');
         } catch (error) {
             console.error('Error joining Live Share session:', error);
             vscode.window.showErrorMessage('Error joining Live Share session: ' + error); 
