@@ -2678,6 +2678,14 @@ var CollabAgentPanelProvider = class {
         console.log("Live Share session changed:", sessionChangeEvent);
         this.handleSessionChange(sessionChangeEvent);
       });
+      if (typeof this._liveShareApi.onDidChangePeers === "function") {
+        this._liveShareApi.onDidChangePeers((peerChangeEvent) => {
+          console.log("Live Share peers changed:", peerChangeEvent);
+          this.updateParticipantInfo();
+        });
+      } else {
+        console.warn("Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.");
+      }
       this.monitorSessionState();
     } catch (error) {
       console.error("Error setting up Live Share event listeners:", error);
@@ -2882,8 +2890,8 @@ var CollabAgentPanelProvider = class {
     }
     try {
       const session = this._liveShareApi.session;
-      let peers = this._liveShareApi.peers || [];
-      let participantCount = peers.length + 1;
+      const peers = (this._liveShareApi.peers || []).filter((p) => !!p);
+      const participantCount = peers.length + 1;
       const currentDuration = this.getSessionDuration();
       console.log("updateParticipantInfo:", {
         participantCount,
@@ -2894,19 +2902,20 @@ var CollabAgentPanelProvider = class {
         sessionId: session.id
       });
       const participants = [];
+      const mapPeer = (peer) => {
+        return {
+          name: peer?.user?.displayName || peer?.displayName || "Unknown",
+          email: peer?.user?.emailAddress || peer?.emailAddress || "",
+          role: peer?.role === vsls.Role.Host ? "Host" : "Guest"
+        };
+      };
       participants.push({
         name: session.user?.displayName || "You",
         email: session.user?.emailAddress || "",
         role: session.role === vsls.Role.Host ? "Host" : "Guest"
       });
-      if (participantCount > 1) {
-        for (let i = 1; i < participantCount; i++) {
-          participants.push({
-            name: `Teammate ${i}`,
-            email: "",
-            role: session.role === vsls.Role.Host ? "Guest" : "Host"
-          });
-        }
+      for (const peer of peers) {
+        participants.push(mapPeer(peer));
       }
       console.log("Sending participant update:", { participants, count: participantCount });
       if (this._view) {
@@ -3088,6 +3097,7 @@ var CollabAgentPanelProvider = class {
             link: inviteLink
           });
         }
+        this.updateParticipantInfo();
       } else {
         vscode12.window.showErrorMessage("Failed to start Live Share session");
       }
@@ -3129,6 +3139,7 @@ var CollabAgentPanelProvider = class {
           link: inviteLink
         });
       }
+      this.updateParticipantInfo();
     } catch (error) {
       console.error("Error joining Live Share session:", error);
       vscode12.window.showErrorMessage("Error joining Live Share session: " + error);

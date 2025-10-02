@@ -220,6 +220,17 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 this.handleSessionChange(sessionChangeEvent);
             });
 
+            // Listen for peer (participant) changes so guests also see updated counts
+            if (typeof (this._liveShareApi as any).onDidChangePeers === 'function') {
+                (this._liveShareApi as any).onDidChangePeers((peerChangeEvent: any) => {
+                    console.log('Live Share peers changed:', peerChangeEvent);
+                    // Immediately refresh participant info
+                    this.updateParticipantInfo();
+                });
+            } else {
+                console.warn('Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.');
+            }
+
             // Monitor the current session state
             this.monitorSessionState();
         } catch (error) {
@@ -473,8 +484,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const session = this._liveShareApi.session;
             
             // Get actual peers from the API
-            let peers = this._liveShareApi.peers || [];
-            let participantCount = peers.length + 1; // +1 for self (host or guest)
+            const peers: any[] = (this._liveShareApi.peers || []).filter(p => !!p); // defensive
+            const participantCount = peers.length + 1; // +1 for self
             
             const currentDuration = this.getSessionDuration();
             
@@ -489,23 +500,26 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             
             // Build participant list with available information
             const participants: any[] = [];
-            
-            // Add self
+
+            // Helper to normalize peer info
+            const mapPeer = (peer: any) => {
+                return {
+                    name: peer?.user?.displayName || peer?.displayName || 'Unknown',
+                    email: peer?.user?.emailAddress || peer?.emailAddress || '',
+                    role: peer?.role === vsls.Role.Host ? 'Host' : 'Guest'
+                };
+            };
+
+            // Add self first (session.user describes current user's identity)
             participants.push({
                 name: session.user?.displayName || 'You',
                 email: session.user?.emailAddress || '',
                 role: session.role === vsls.Role.Host ? 'Host' : 'Guest'
             });
-            
-            // Add other participants if detected
-            if (participantCount > 1) {
-                for (let i = 1; i < participantCount; i++) {
-                    participants.push({
-                        name: `Teammate ${i}`,
-                        email: '',
-                        role: session.role === vsls.Role.Host ? 'Guest' : 'Host'
-                    });
-                }
+
+            // Add peers (these exclude self per API design)
+            for (const peer of peers) {
+                participants.push(mapPeer(peer));
             }
 
             console.log('Sending participant update:', { participants, count: participantCount});
@@ -739,6 +753,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         link: inviteLink
                     });
                 }
+
+                // Push participant info right away
+                this.updateParticipantInfo();
             } else {
                 vscode.window.showErrorMessage('Failed to start Live Share session');
             }
@@ -790,6 +807,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     link: inviteLink
                 });
             }
+
+            // Immediate participant info after join
+            this.updateParticipantInfo();
         } catch (error) {
             console.error('Error joining Live Share session:', error);
             vscode.window.showErrorMessage('Error joining Live Share session: ' + error); 
