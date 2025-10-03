@@ -219,13 +219,9 @@ export async function handleSignIn() {
 
   await showAuthNotification("Sign In successfully! 🎉");
 
-  vscode.commands.executeCommand("clover.authStateChanged");
+  vscode.commands.executeCommand("collabAgent.authStateChanged");
 
-  trackEvent({
-    event: LogEvent.USER_LOGIN,
-    timeLapse: 0,
-    metadata: { user_id: user.id, email },
-  });
+  // logging removed
 }
 
 /**
@@ -268,13 +264,9 @@ export async function handleSignUpProvided(email: string, password: string) {
 
   await showAuthNotification("Sign Up successfully! 🎉");
 
-  vscode.commands.executeCommand("clover.authStateChanged");
+  vscode.commands.executeCommand("collabAgent.authStateChanged");
 
-  trackEvent({
-    event: LogEvent.USER_SIGNUP,
-    timeLapse: 0,
-    metadata: { user_id: user.id, email },
-  });
+  // logging removed
 }
 
 /**
@@ -300,13 +292,9 @@ export async function handleSignOut() {
   }
   await showAuthNotification(`Sign Out Successfully! 👋`);
 
-  vscode.commands.executeCommand("clover.authStateChanged");
+  vscode.commands.executeCommand("collabAgent.authStateChanged");
 
-  trackEvent({
-    event: LogEvent.USER_LOGOUT,
-    timeLapse: 0,
-    metadata: { user_id: user.id },
-  });
+  // logging removed
 }
 
 /**
@@ -365,13 +353,9 @@ export async function handleSignUp() {
       await errorNotification(`Failed to register user in backend: ${error}`);
     }
 
-    vscode.commands.executeCommand("clover.authStateChanged");
+  vscode.commands.executeCommand("collabAgent.authStateChanged");
 
-    trackEvent({
-      event: LogEvent.USER_SIGNUP,
-      timeLapse: 0,
-      metadata: { user_id: user.id, email: email },
-    });
+    // logging removed
   }
 }
 
@@ -381,12 +365,22 @@ export async function handleSignUp() {
  */
 export async function signInWithGithub() {
   try {
-    // Redirect to GitHub for authentication
-    await vscode.env.openExternal(
-      vscode.Uri.parse(
-        `https://backend-639487598928.us-east5.run.app/auth/login?provider=github&next=vscode://capstone-team-2.temple-capstone-clover/auth-complete`
-      )
-    );
+  // Use require to avoid needing explicit .js extension under nodenext resolution
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { getSupabase } = require("../auth/supabaseClient");
+    const supabase = getSupabase();
+    // Deep link registered in package.json: vscode://capstone-team-2.collab-agent01/auth/callback
+    const redirectTo = "vscode://capstone-team-2.collab-agent01/auth/callback";
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: { redirectTo }
+    });
+    if (error) throw error;
+    if (data?.url) {
+      await vscode.env.openExternal(vscode.Uri.parse(data.url));
+    } else {
+      throw new Error("No OAuth URL returned from Supabase");
+    }
   } catch (error: any) {
     await errorNotification(`GitHub Sign In failed: ${error.message}`);
     await authNotification();

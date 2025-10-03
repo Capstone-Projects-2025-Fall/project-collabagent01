@@ -1,10 +1,7 @@
 import * as vscode from "vscode";
 import { globalContext } from "../extension";
-import { submitCode } from "../api/suggestion-api";
-import { LogData, LogEvent } from "../api/types/event";
+// Stubbed dependencies removed with legacy suggestion system.
 import { SuggestionContext } from "../api/types/suggestion";
-import { trackEvent } from "../api/log-api";
-import { getAuthContext } from "../services/auth-service";
 import { escapeHtml } from "../utils";
 
 /**
@@ -42,41 +39,11 @@ export const createCodeCorrectionWebview = (
           const fixedCode = message.code;
           const elapsedTime = Date.now() - startTime;
 
-          const result = await submitCode(
-            wrongCode,
-            fixedCode,
-            suggestionContext.prompt ?? ""
-          );
-
+          // Legacy submit/validation removed; always show placeholder result.
           panel.webview.postMessage({
             command: "showResult",
-            result: result
-              ? "Your fix is correct! ✅"
-              : "Your fix is incorrect. ❌",
+            result: "Submission recorded (validation disabled).",
           });
-
-          const { context: user, error } = await getAuthContext();
-          if (error || user === undefined) {
-            console.error(
-              "Failed to get user context for logging suggestion event."
-            );
-            return;
-          }
-          const userId = user.id;
-
-          const logData: LogData = {
-            event: result
-              ? LogEvent.USER_ANSWER_CORRECT
-              : LogEvent.USER_ANSWER_INCORRECT,
-            timeLapse: elapsedTime,
-            metadata: {
-              user_id: userId,
-              suggestion_id: suggestionContext.suggestionId,
-              has_bug: suggestionContext.hasBug,
-            },
-          };
-
-          trackEvent(logData);
 
           break;
       }

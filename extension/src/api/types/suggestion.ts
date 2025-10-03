@@ -1,46 +1,7 @@
-export interface Suggestion {
-  id: string;
-  createdAt?: Date | null;
-  prompt: string;
-  suggestionArray: string[];
-  hasBug: boolean;
-  vendor?: string;
-  model?: string;
-  userSectionId?: string;
-}
-
-export interface SuggestionContext {
-  prompt?: string;
-  suggestions?: string[];
-  intervenedSuggestions?: IntervenedSuggestion[];
-  suggestionId: string;
-  hasBug: boolean;
-  startTime: number;
-}
-
-export interface IntervenedSuggestion {
-  mainLine: string;
-  fixedLine?: string;
-  hasBug: boolean;
-}
-
-export interface LineSuggestion {
-  id: string;
-  mainLine: string;
-  fixedLine: string;
-  hasBug: boolean;
-  lineIndex: number;
-  suggestionItems: IntervenedSuggestion[] | null;
-}
-
-export interface SuggestionResult {
-  suggestions: string[];
-  suggestionId: string;
-  hasBug: boolean;
-}
-
-export interface HintRequest {
-  prompt?: string;
-  wrongCode: string;
-  rightCode: string;
-}
+// Stubbed legacy types – retained only for compatibility.
+export interface Suggestion { id: string }
+export interface SuggestionContext { suggestionId?: string }
+export interface IntervenedSuggestion { mainLine: string }
+export interface LineSuggestion { id: string }
+export interface SuggestionResult { suggestions: string[] }
+export interface HintRequest { }

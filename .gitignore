@@ -1,6 +1,14 @@
 # Generated files
 .docusaurus
 
+# Dependencies
+node_modules/
+extension/node_modules/
+server/node_modules/
+
+# Build output for VS Code extension (can be regenerated with npm run compile)
+extension/dist/
+
 # Environment variables (IMPORTANT: Protects API keys and secrets)
 .env
 .env.local

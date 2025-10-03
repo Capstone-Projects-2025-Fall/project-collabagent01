@@ -1,23 +1,7 @@
 import * as vscode from "vscode";
 import * as vsls from 'vsls';
-import {
-  fetchSettingsCommand,
-  incorrectChoicesCommand,
-  testFetchCommand,
-} from "./commands/test-commands";
-import {
-  uriHandlerCommand,
-  signInCommand,
-  signOutCommand,
-  createAuthStatusBarItem,
-} from "./commands/auth-commands";
-import { registerSuggestionCommands } from "./commands/suggestion-commands";
-import { inlineCompletionProvider } from "./commands/completion-provider";
+import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
 import { checkUserSignIn } from "./services/auth-service";
-import {
-  registerClassSelectorCommand,
-  setupClassStatusBarItem,
-} from "./utils/userClass";
 import { CollabAgentPanelProvider } from "./views/CollabAgentPanel";
 
 /**
@@ -45,11 +29,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   checkUserSignIn();
 
-  const authButtonStatusBar = await setupClassStatusBarItem();
-  registerClassSelectorCommand(context, authButtonStatusBar);
-
   const authStatusBar = createAuthStatusBarItem(context);
-  const suggestionCommands = registerSuggestionCommands();
 
   // Register the Collab Agent panel provider
   console.log("Registering CollabAgentPanelProvider...");
@@ -111,15 +91,10 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   context.subscriptions.push(
-    ...suggestionCommands,
     authStatusBar,
-    incorrectChoicesCommand,
     signInCommand,
     signOutCommand,
-    uriHandlerCommand,
-    testFetchCommand,
-    inlineCompletionProvider,
-    fetchSettingsCommand
+    // Supabase-related commands removed
   );
 }
 /**

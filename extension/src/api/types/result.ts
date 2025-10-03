@@ -1,13 +1,2 @@
-interface Success<T> {
-    status: number;
-    success: true;
-    data: T;
-}
-
-interface Error {
-    status: number;
-    success: false;
-    error: string;
-}
-
-export type Result<T> = Success<T> | Error;
+// Stubbed generic result type.
+export type Result<T> = { status: number; success: boolean; data?: T; error?: string };
