@@ -19,7 +19,7 @@ import {
   setupClassStatusBarItem,
 } from "./utils/userClass";
 import { CollabAgentPanelProvider } from "./views/CollabAgentPanel";
-
+import { SessionManager } from "./sessionManager";
 /**
  * Global extension context shared across the entire lifecycle of the VS Code extension.
  * This context is used to store global state, manage subscriptions, and access workspace-specific configurations.
@@ -72,6 +72,9 @@ export async function activate(context: vscode.ExtensionContext) {
   // Live Share file creation sync
   const liveShare = await vsls.getApi();
   if (liveShare) {
+
+    const sessionManager = new SessionManager(context, liveShare);
+    await sessionManager.initializeSessionFeatures();
     // Set up shared service for file creation notifications
     const service = await liveShare.getSharedService('collabagent');
 

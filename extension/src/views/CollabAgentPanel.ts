@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as vsls from 'vsls';
+import { SessionManager } from '../sessionManager';
+
 
 export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'collabAgent.teamActivity';
@@ -11,6 +13,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private _sharedService: any | undefined; // Use loose typing to avoid dependency on specific vsls type defs
     private _sessionLink: string | undefined; // Persist session link for consistent display
     private _initialSessionCheckDone = false; // Helps avoid flicker by showing loading state first
+    private sessionManager: SessionManager | null = null;
+        // Removed duplicate: private _requestedHostStartTime = false; // guard to avoid repeated requests as guest
 
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
     // You can store _context for later use
@@ -185,6 +189,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             if (this._liveShareApi) {
                 console.log('Live Share API initialized successfully.');
                 
+                this.sessionManager = new SessionManager(this._context, this._liveShareApi);
+                await this.sessionManager.initializeSessionFeatures();
+
                 // Set up session event listeners for real-time monitoring
                 this.setupLiveShareEventListeners();
                 
@@ -959,25 +966,37 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         if (!this._liveShareApi || !this._liveShareApi.session) {
             return;
         }
+
         this._durationUpdateInterval = setInterval(() => {
-            if (!this._liveShareApi || !this._liveShareApi.session) {
+            const session = this._liveShareApi?.session;
+            if (!session) {
                 this.stopDurationUpdater();
                 return;
             }
+
             if (this.sessionStartTime && this._view) {
-                const session = this._liveShareApi.session;
-                // Push lightweight status update with fresh duration only
+                const participantCount = (this._liveShareApi?.peers?.length || 0) + 1;
+
+                // ✅ Broadcast authoritative count if host via shared service
+                if (session.role === vsls.Role.Host) {
+                    this.sessionManager?.broadcastParticipantCount(participantCount);
+                }
+
+
+                // Still update local webview for the host UI
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
                     status: session.role === vsls.Role.Host ? 'hosting' : 'joined',
                     link: this._sessionLink || '',
-                    participants: (this._liveShareApi.peers?.length || 0) + 1,
+                    participants: participantCount,
                     role: session.role,
                     duration: this.getSessionDuration()
                 });
             }
-        }, 30000); // every 30s
+        }, 60000);
     }
+
+
 
     private stopDurationUpdater() {
         if (this._durationUpdateInterval) {

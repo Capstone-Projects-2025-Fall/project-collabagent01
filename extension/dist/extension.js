@@ -71,11 +71,11 @@ var require_vscode = __commonJS({
   "node_modules/vsls/vscode.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    var vscode14 = require("vscode");
+    var vscode15 = require("vscode");
     var liveShareApiVersion = require_package().version;
     exports2.extensionId = "ms-vsliveshare.vsliveshare";
     async function getApi3(callingExtensionId) {
-      const liveshareExtension = vscode14.extensions.getExtension(exports2.extensionId);
+      const liveshareExtension = vscode15.extensions.getExtension(exports2.extensionId);
       if (!liveshareExtension) {
         return null;
       }
@@ -102,12 +102,12 @@ var require_vscode = __commonJS({
       PolicySetting2["AllowedDomains"] = "allowedDomains";
       PolicySetting2["AllowReadWriteTerminals"] = "allowReadWriteTerminals";
     })(PolicySetting = exports2.PolicySetting || (exports2.PolicySetting = {}));
-    var Role2;
-    (function(Role3) {
-      Role3[Role3["None"] = 0] = "None";
-      Role3[Role3["Host"] = 1] = "Host";
-      Role3[Role3["Guest"] = 2] = "Guest";
-    })(Role2 = exports2.Role || (exports2.Role = {}));
+    var Role3;
+    (function(Role4) {
+      Role4[Role4["None"] = 0] = "None";
+      Role4[Role4["Host"] = 1] = "Host";
+      Role4[Role4["Guest"] = 2] = "Guest";
+    })(Role3 = exports2.Role || (exports2.Role = {}));
     var Access;
     (function(Access2) {
       Access2[Access2["None"] = 0] = "None";
@@ -192,8 +192,8 @@ __export(extension_exports, {
   globalContext: () => globalContext
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode13 = __toESM(require("vscode"));
-var vsls2 = __toESM(require_vscode());
+var vscode14 = __toESM(require("vscode"));
+var vsls3 = __toESM(require_vscode());
 
 // src/commands/test-commands.ts
 var vscode4 = __toESM(require("vscode"));
@@ -2484,10 +2484,108 @@ async function provideInlineCompletionItems(document, position, context, token) 
 }
 
 // src/views/CollabAgentPanel.ts
+var vscode13 = __toESM(require("vscode"));
+var vsls2 = __toESM(require_vscode());
+
+// src/sessionManager.ts
 var vscode12 = __toESM(require("vscode"));
 var vsls = __toESM(require_vscode());
+var SessionManager = class {
+  constructor(context, liveShareApi) {
+    this.context = context;
+    this.liveShareApi = liveShareApi;
+  }
+  participantService = null;
+  broadcastIntervalId = null;
+  /**
+   * Initialize Live Share participant tracking based on role.
+   */
+  async initializeSessionFeatures() {
+    const session = this.liveShareApi.session;
+    if (!session) {
+      console.log("[SessionManager] No Live Share session active yet.");
+      return;
+    }
+    if (session.role === vsls.Role.Host) {
+      console.log("[SessionManager] Initializing as Host");
+      await this.registerParticipantService();
+    } else if (session.role === vsls.Role.Guest) {
+      console.log("[SessionManager] Initializing as Guest");
+      await this.subscribeToParticipantService();
+    }
+  }
+  /**
+   * HOST: Register a shared service to broadcast participant count updates.
+   */
+  async registerParticipantService() {
+    try {
+      this.participantService = await this.liveShareApi.getSharedService("participantService");
+      if (this.participantService) {
+        console.log("[SessionManager] Participant service registered.");
+        this.startParticipantBroadcast();
+      } else {
+        console.warn("[SessionManager] Failed to register participant service as host.");
+      }
+    } catch (err) {
+      console.error("[SessionManager] Failed to register participant service:", err);
+    }
+  }
+  /**
+   * GUEST: Subscribe to the host's participant service for updates.
+   */
+  async subscribeToParticipantService() {
+    try {
+      const service = await this.liveShareApi.getSharedService("participantService");
+      if (service) {
+        console.log("[SessionManager] Subscribed to participantService.");
+        service.onNotify("participantUpdate", (e) => {
+          if (e?.count !== void 0) {
+            console.log(`[SessionManager] Received participant count: ${e.count}`);
+            vscode12.commands.executeCommand("setContext", "collabAgent.participantCount", e.count);
+          }
+        });
+      } else {
+        console.warn("[SessionManager] participantService not found on guest.");
+      }
+    } catch (err) {
+      console.error("[SessionManager] Failed to subscribe to participant service:", err);
+    }
+  }
+  /**
+   * HOST: Broadcast the participant count periodically to all guests.
+   */
+  startParticipantBroadcast() {
+    const broadcastInterval = 6e4;
+    this.broadcastIntervalId = setInterval(() => {
+      const count = (this.liveShareApi.peers?.length || 0) + 1;
+      console.log(`[SessionManager] Broadcasting participant count: ${count}`);
+      if (this.participantService) {
+        this.participantService.notify("participantUpdate", { count });
+      }
+    }, broadcastInterval);
+  }
+  /**
+   * Cleanup resources (clear intervals, nullify services) when session ends or extension deactivates.
+   */
+  dispose() {
+    if (this.broadcastIntervalId) {
+      clearInterval(this.broadcastIntervalId);
+      this.broadcastIntervalId = null;
+    }
+    this.participantService = null;
+    console.log("[SessionManager] Cleaned up session resources.");
+  }
+  // sessionManager.ts
+  broadcastParticipantCount(count) {
+    if (this.participantService) {
+      this.participantService.notify("participantUpdate", { count });
+    }
+  }
+};
+
+// src/views/CollabAgentPanel.ts
 var CollabAgentPanelProvider = class {
-  // guest received at least one authoritative snapshot
+  // Removed duplicate: private _requestedHostStartTime = false; // guard to avoid repeated requests as guest
   constructor(_extensionUri, _context) {
     this._extensionUri = _extensionUri;
     this._context = _context;
@@ -2503,12 +2601,7 @@ var CollabAgentPanelProvider = class {
   // Persist session link for consistent display
   _initialSessionCheckDone = false;
   // Helps avoid flicker by showing loading state first
-  _presenceServiceName = "collabAgentPresence";
-  _presenceService;
-  // host service
-  _presenceProxy;
-  // guest proxy
-  _presenceSnapshotReceived = false;
+  sessionManager = null;
   async resolveWebviewView(webviewView, context, _token) {
     console.log("CollabAgentPanel: resolveWebviewView called");
     this._view = webviewView;
@@ -2584,7 +2677,7 @@ var CollabAgentPanelProvider = class {
         command: "manualLinkUpdated",
         link: this._sessionLink
       });
-      const status = this._liveShareApi?.session?.role === vsls.Role.Host ? "hosting" : this._liveShareApi?.session ? "joined" : "none";
+      const status = this._liveShareApi?.session?.role === vsls2.Role.Host ? "hosting" : this._liveShareApi?.session ? "joined" : "none";
       this._view.webview.postMessage({
         command: "updateSessionStatus",
         status,
@@ -2600,7 +2693,7 @@ var CollabAgentPanelProvider = class {
     this._context.globalState.update(this._persistedLinkKey, void 0);
     if (this._view) {
       this._view.webview.postMessage({ command: "manualLinkCleared" });
-      const status = this._liveShareApi?.session?.role === vsls.Role.Host ? "hosting" : this._liveShareApi?.session ? "joined" : "none";
+      const status = this._liveShareApi?.session?.role === vsls2.Role.Host ? "hosting" : this._liveShareApi?.session ? "joined" : "none";
       this._view.webview.postMessage({
         command: "updateSessionStatus",
         status,
@@ -2621,7 +2714,7 @@ var CollabAgentPanelProvider = class {
           const s = this._liveShareApi.session;
           this._view.webview.postMessage({
             command: "updateSessionStatus",
-            status: s.role === vsls.Role.Host ? "hosting" : "joined",
+            status: s.role === vsls2.Role.Host ? "hosting" : "joined",
             link: stored,
             participants: (this._liveShareApi.peers?.length || 0) + 1,
             role: s.role,
@@ -2633,7 +2726,7 @@ var CollabAgentPanelProvider = class {
   }
   async pasteInviteLinkFromClipboard() {
     try {
-      const clip = await vscode12.env.clipboard.readText();
+      const clip = await vscode13.env.clipboard.readText();
       if (clip && clip.trim()) {
         const trimmed = clip.trim();
         this.setManualInviteLink(trimmed);
@@ -2644,19 +2737,21 @@ var CollabAgentPanelProvider = class {
         if (this._view) {
           this._view.webview.postMessage({ command: "manualLinkPasteInvalid" });
         }
-        vscode12.window.showWarningMessage("Clipboard is empty or does not contain text.");
+        vscode13.window.showWarningMessage("Clipboard is empty or does not contain text.");
       }
     } catch (err) {
       console.warn("Failed reading clipboard for invite link:", err);
-      vscode12.window.showErrorMessage("Could not read clipboard for invite link.");
+      vscode13.window.showErrorMessage("Could not read clipboard for invite link.");
     }
   }
   async initializeLiveShare() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 1e3));
-      this._liveShareApi = await vsls.getApi();
+      this._liveShareApi = await vsls2.getApi();
       if (this._liveShareApi) {
         console.log("Live Share API initialized successfully.");
+        this.sessionManager = new SessionManager(this._context, this._liveShareApi);
+        await this.sessionManager.initializeSessionFeatures();
         this.setupLiveShareEventListeners();
         return true;
       } else {
@@ -2688,8 +2783,7 @@ var CollabAgentPanelProvider = class {
       if (typeof this._liveShareApi.onDidChangePeers === "function") {
         this._liveShareApi.onDidChangePeers((peerChangeEvent) => {
           console.log("Live Share peers changed:", peerChangeEvent);
-          this.updateParticipantInfo("peers");
-          this.broadcastPresenceIfHost();
+          this.updateParticipantInfo();
         });
       } else {
         console.warn("Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.");
@@ -2698,8 +2792,7 @@ var CollabAgentPanelProvider = class {
         this._liveShareApi.onActivity((activity) => {
           if (activity && /session/i.test(JSON.stringify(activity))) {
             console.log("Activity hinting at potential participant change:", activity);
-            this.updateParticipantInfo("activity");
-            this.broadcastPresenceIfHost();
+            this.updateParticipantInfo();
           }
         });
       }
@@ -2732,18 +2825,16 @@ var CollabAgentPanelProvider = class {
         this.sessionStartTime = /* @__PURE__ */ new Date();
         console.log("Session start time set to (local clock):", this.sessionStartTime, "changeType:", sessionChangeEvent.changeType);
       }
-      if (session.role === vsls.Role.Host) {
+      if (session.role === vsls2.Role.Host) {
         this.registerSessionInfoServiceIfHost();
-        this.ensurePresenceService();
-      } else if (session.role === vsls.Role.Guest && !this._requestedHostStartTime) {
+      } else if (session.role === vsls2.Role.Guest && !this._requestedHostStartTime) {
         this.requestHostSessionStartTime();
-        this.ensurePresenceService();
       }
-      const isHost = session.role === vsls.Role.Host;
+      const isHost = session.role === vsls2.Role.Host;
       let status = "joined";
       if (isHost) {
         status = "hosting";
-      } else if (session.role === vsls.Role.Guest) {
+      } else if (session.role === vsls2.Role.Guest) {
         status = "joined";
       }
       const sessionLink = session.uri?.toString() || this._sessionLink || "";
@@ -2773,9 +2864,6 @@ var CollabAgentPanelProvider = class {
         });
       }
       this.startParticipantMonitoring();
-      if (session.role === vsls.Role.Guest) {
-        this.schedulePresenceRetry();
-      }
     } else {
       console.log("Session ended - clearing session start time");
       this.sessionStartTime = void 0;
@@ -2816,9 +2904,9 @@ var CollabAgentPanelProvider = class {
       console.log("monitorSessionState: Session details:", {
         id: session.id,
         role: session.role,
-        isValid: !!(session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest))
+        isValid: !!(session.id && (session.role === vsls2.Role.Host || session.role === vsls2.Role.Guest))
       });
-      if (session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest)) {
+      if (session.id && (session.role === vsls2.Role.Host || session.role === vsls2.Role.Guest)) {
         console.log("Found existing active session:", session);
         this.handleSessionChange({ session, changeType: "existing" });
       } else {
@@ -2865,7 +2953,7 @@ var CollabAgentPanelProvider = class {
       return;
     }
     const hasSession = !!this._liveShareApi.session;
-    const hasValidSession = hasSession && this._liveShareApi.session.id && (this._liveShareApi.session.role === vsls.Role.Host || this._liveShareApi.session.role === vsls.Role.Guest);
+    const hasValidSession = hasSession && this._liveShareApi.session.id && (this._liveShareApi.session.role === vsls2.Role.Host || this._liveShareApi.session.role === vsls2.Role.Guest);
     console.log("periodicSessionCheck:", { hasSession, hasValidSession, sessionId: this._liveShareApi.session?.id });
     if (!hasValidSession && this._view) {
       console.log("periodicSessionCheck: No valid session, ensuring UI shows none");
@@ -2905,7 +2993,7 @@ var CollabAgentPanelProvider = class {
       this.participantMonitoringInterval = void 0;
     }
   }
-  async updateParticipantInfo(trigger = "unknown") {
+  async updateParticipantInfo() {
     if (!this._liveShareApi?.session) {
       console.log("updateParticipantInfo: No session available");
       return;
@@ -2914,31 +3002,41 @@ var CollabAgentPanelProvider = class {
       const session = this._liveShareApi.session;
       const peers = (this._liveShareApi.peers || []).filter((p) => !!p);
       let participantCount = peers.length + 1;
+      const reportedPeerNumber = session.peerNumber;
+      if (reportedPeerNumber && reportedPeerNumber > participantCount) {
+        console.log("Using session.peerNumber fallback. peers.length+1=", participantCount, "peerNumber=", reportedPeerNumber);
+        participantCount = reportedPeerNumber;
+      }
       const currentDuration = this.getSessionDuration();
       console.log("updateParticipantInfo:", {
         participantCount,
         peersCount: peers.length,
         duration: currentDuration,
         sessionStartTime: this.sessionStartTime,
-        role: session.role === vsls.Role.Host ? "Host" : "Guest",
-        sessionId: session.id,
-        trigger
+        role: session.role === vsls2.Role.Host ? "Host" : "Guest",
+        sessionId: session.id
       });
       const participants = [];
       const mapPeer = (peer) => {
         return {
           name: peer?.user?.displayName || peer?.displayName || "Unknown",
           email: peer?.user?.emailAddress || peer?.emailAddress || "",
-          role: peer?.role === vsls.Role.Host ? "Host" : "Guest"
+          role: peer?.role === vsls2.Role.Host ? "Host" : "Guest"
         };
       };
       participants.push({
         name: session.user?.displayName || "You",
         email: session.user?.emailAddress || "",
-        role: session.role === vsls.Role.Host ? "Host" : "Guest"
+        role: session.role === vsls2.Role.Host ? "Host" : "Guest"
       });
       for (const peer of peers) {
         participants.push(mapPeer(peer));
+      }
+      if (participantCount > participants.length) {
+        const missing = participantCount - participants.length;
+        for (let i = 0; i < missing; i++) {
+          participants.push({ name: `Participant ${participants.length + 1}`, email: "", role: "Guest" });
+        }
       }
       console.log("Sending participant update:", { participants, count: participantCount });
       if (this._view) {
@@ -2947,7 +3045,7 @@ var CollabAgentPanelProvider = class {
           participants,
           count: participantCount
         });
-        const isHost = session.role === vsls.Role.Host;
+        const isHost = session.role === vsls2.Role.Host;
         this._view.webview.postMessage({
           command: "updateSessionStatus",
           status: isHost ? "hosting" : "joined",
@@ -2961,139 +3059,23 @@ var CollabAgentPanelProvider = class {
       console.error("Error updating participant info:", error);
     }
   }
-  // Presence synchronization (authoritative from host)
-  async ensurePresenceService() {
-    if (!this._liveShareApi || !this._liveShareApi.session) return;
-    const isHost = this._liveShareApi.session.role === vsls.Role.Host;
-    const anyApi = this._liveShareApi;
-    if (isHost) {
-      if (!this._presenceService && typeof anyApi.registerService === "function") {
-        try {
-          this._presenceService = await anyApi.registerService(this._presenceServiceName);
-          if (this._presenceService?.onRequest) {
-            this._presenceService.onRequest("getPresence", async () => {
-              return this.buildPresenceSnapshot();
-            });
-          }
-          console.log("Presence service registered (host).");
-        } catch (e) {
-          console.warn("Failed to register presence service:", e);
-        }
-      }
-    } else {
-      if (!this._presenceProxy && typeof anyApi.getSharedService === "function") {
-        try {
-          this._presenceProxy = await anyApi.getSharedService(this._presenceServiceName);
-          if (this._presenceProxy?.isServiceAvailable) {
-            this._presenceProxy.onDidChangeIsServiceAvailable(async () => {
-              if (this._presenceProxy.isServiceAvailable) {
-                await this.requestInitialPresence();
-              }
-            });
-            await this.requestInitialPresence();
-            if (this._presenceProxy.onNotify) {
-              this._presenceProxy.onNotify("presenceUpdate", (payload) => {
-                this.applyPresenceSnapshot(payload, "notify");
-              });
-            }
-          }
-        } catch (e) {
-          console.warn("Failed to obtain presence proxy (guest):", e);
-        }
-      }
-    }
-  }
-  buildPresenceSnapshot() {
-    if (!this._liveShareApi?.session) return { participants: [], count: 0 };
-    const session = this._liveShareApi.session;
-    const peers = (this._liveShareApi.peers || []).filter((p) => !!p);
-    const participants = [];
-    participants.push({
-      name: session.user?.displayName || "You",
-      email: session.user?.emailAddress || "",
-      role: session.role === vsls.Role.Host ? "Host" : "Guest"
-    });
-    for (const peer of peers) {
-      participants.push({
-        name: peer?.user?.displayName || peer?.displayName || "Unknown",
-        email: peer?.user?.emailAddress || peer?.emailAddress || "",
-        role: peer?.role === vsls.Role.Host ? "Host" : "Guest"
-      });
-    }
-    return { participants, count: participants.length };
-  }
-  broadcastPresenceIfHost() {
-    if (!this._liveShareApi?.session || this._liveShareApi.session.role !== vsls.Role.Host) return;
-    if (!this._presenceService) return;
-    try {
-      const snapshot = this.buildPresenceSnapshot();
-      if (this._presenceService.notify) {
-        this._presenceService.notify("presenceUpdate", snapshot);
-      }
-    } catch (e) {
-      console.warn("Failed broadcasting presence:", e);
-    }
-  }
-  async requestInitialPresence() {
-    try {
-      if (this._presenceProxy?.isServiceAvailable && this._presenceProxy.request) {
-        const snapshot = await this._presenceProxy.request("getPresence");
-        this.applyPresenceSnapshot(snapshot, "initial-request");
-      }
-    } catch (e) {
-      console.warn("Presence initial request failed:", e);
-    }
-  }
-  applyPresenceSnapshot(snapshot, source) {
-    if (!snapshot || !this._view) return;
-    console.log("Applying presence snapshot from", source, snapshot);
-    this._presenceSnapshotReceived = true;
-    this._view.webview.postMessage({
-      command: "updateParticipants",
-      participants: snapshot.participants || [],
-      count: snapshot.count || 0
-    });
-    if (this._liveShareApi?.session) {
-      const s = this._liveShareApi.session;
-      this._view.webview.postMessage({
-        command: "updateSessionStatus",
-        status: s.role === vsls.Role.Host ? "hosting" : "joined",
-        link: this._sessionLink || "",
-        participants: snapshot.count || 0,
-        role: s.role,
-        duration: this.getSessionDuration()
-      });
-    }
-  }
-  schedulePresenceRetry() {
-    if (this._presenceSnapshotReceived) return;
-    const delays = [1e3, 2e3, 4e3];
-    delays.forEach((ms, idx) => {
-      setTimeout(async () => {
-        if (!this._presenceSnapshotReceived) {
-          console.log(`Presence retry attempt ${idx + 1}`);
-          await this.requestInitialPresence();
-        }
-      }, ms);
-    });
-  }
   async endLiveShareSession() {
     try {
       console.log("Attempting to end Live Share session...");
       if (!this._liveShareApi) {
         console.log("Live Share API not available");
-        vscode12.window.showWarningMessage("Live Share API not available.");
+        vscode13.window.showWarningMessage("Live Share API not available.");
         return;
       }
       if (!this._liveShareApi.session) {
         console.log("No active session found");
-        vscode12.window.showWarningMessage("No active Live Share session to end.");
+        vscode13.window.showWarningMessage("No active Live Share session to end.");
         return;
       }
       console.log("Current session role:", this._liveShareApi.session.role);
-      console.log("Host role constant:", vsls.Role.Host);
-      if (this._liveShareApi.session.role !== vsls.Role.Host) {
-        vscode12.window.showWarningMessage("Only the session host can end the session.");
+      console.log("Host role constant:", vsls2.Role.Host);
+      if (this._liveShareApi.session.role !== vsls2.Role.Host) {
+        vscode13.window.showWarningMessage("Only the session host can end the session.");
         return;
       }
       console.log("Calling end() on Live Share API...");
@@ -3120,10 +3102,10 @@ var CollabAgentPanelProvider = class {
           buttonType: "end"
         });
       }
-      vscode12.window.showInformationMessage("Live Share session ended successfully.");
+      vscode13.window.showInformationMessage("Live Share session ended successfully.");
     } catch (error) {
       console.error("Error ending Live Share session:", error);
-      vscode12.window.showErrorMessage("Failed to end Live Share session: " + error);
+      vscode13.window.showErrorMessage("Failed to end Live Share session: " + error);
       if (this._view) {
         this._view.webview.postMessage({
           command: "resetButtonState",
@@ -3137,18 +3119,18 @@ var CollabAgentPanelProvider = class {
       console.log("Attempting to leave Live Share session...");
       if (!this._liveShareApi) {
         console.log("Live Share API not available");
-        vscode12.window.showWarningMessage("Live Share API not available.");
+        vscode13.window.showWarningMessage("Live Share API not available.");
         return;
       }
       if (!this._liveShareApi.session) {
         console.log("No active session found");
-        vscode12.window.showWarningMessage("No active Live Share session to leave.");
+        vscode13.window.showWarningMessage("No active Live Share session to leave.");
         return;
       }
       const session = this._liveShareApi.session;
       console.log("Current session role:", session.role);
-      if (session.role === vsls.Role.Host) {
-        vscode12.window.showWarningMessage('Hosts cannot leave their own session. Use "End Session" instead.');
+      if (session.role === vsls2.Role.Host) {
+        vscode13.window.showWarningMessage('Hosts cannot leave their own session. Use "End Session" instead.');
         return;
       }
       console.log("Calling end() on Live Share API to leave session...");
@@ -3170,10 +3152,10 @@ var CollabAgentPanelProvider = class {
           buttonType: "leave"
         });
       }
-      vscode12.window.showInformationMessage("Successfully left the Live Share session.");
+      vscode13.window.showInformationMessage("Successfully left the Live Share session.");
     } catch (error) {
       console.error("Error leaving Live Share session:", error);
-      vscode12.window.showErrorMessage("Failed to leave Live Share session: " + error);
+      vscode13.window.showErrorMessage("Failed to leave Live Share session: " + error);
       if (this._view) {
         this._view.webview.postMessage({
           command: "resetButtonState",
@@ -3196,15 +3178,15 @@ var CollabAgentPanelProvider = class {
     return `${diffMins}m`;
   }
   async startLiveShareSession() {
-    if (!vscode12.workspace.workspaceFolders || vscode12.workspace.workspaceFolders.length === 0) {
-      vscode12.window.showErrorMessage("Please open a project folder before starting a Live Share session.");
+    if (!vscode13.workspace.workspaceFolders || vscode13.workspace.workspaceFolders.length === 0) {
+      vscode13.window.showErrorMessage("Please open a project folder before starting a Live Share session.");
       return;
     }
     if (!this._liveShareApi) {
-      vscode12.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
+      vscode13.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
       return;
     }
-    const confirm = await vscode12.window.showWarningMessage(
+    const confirm = await vscode13.window.showWarningMessage(
       "Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.",
       { modal: true },
       "OK"
@@ -3213,19 +3195,19 @@ var CollabAgentPanelProvider = class {
       return;
     }
     try {
-      vscode12.window.showInformationMessage("Starting Live Share session...");
+      vscode13.window.showInformationMessage("Starting Live Share session...");
       const session = await this._liveShareApi.share();
       if (session && session.toString()) {
         const inviteLink = session.toString();
         this._sessionLink = inviteLink;
-        vscode12.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
+        vscode13.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
         if (!this.sessionStartTime) {
           this.sessionStartTime = /* @__PURE__ */ new Date();
           console.log("Host sessionStartTime initialized at startLiveShareSession():", this.sessionStartTime);
         }
         this.registerSessionInfoServiceIfHost();
         this.startDurationUpdater();
-        vscode12.window.showWarningMessage(
+        vscode13.window.showWarningMessage(
           "Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.",
           { modal: true }
         );
@@ -3236,24 +3218,22 @@ var CollabAgentPanelProvider = class {
             link: inviteLink
           });
         }
-        await this.ensurePresenceService();
-        this.broadcastPresenceIfHost();
-        this.updateParticipantInfo("start");
+        this.updateParticipantInfo();
       } else {
-        vscode12.window.showErrorMessage("Failed to start Live Share session");
+        vscode13.window.showErrorMessage("Failed to start Live Share session");
       }
     } catch (error) {
       console.error("Error starting Live Share session:", error);
-      vscode12.window.showErrorMessage("Error starting Live Share session: " + error);
+      vscode13.window.showErrorMessage("Error starting Live Share session: " + error);
     }
   }
   async joinLiveShareSession() {
     if (!this._liveShareApi) {
-      vscode12.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
+      vscode13.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
       return;
     }
     try {
-      const inviteLink = await vscode12.window.showInputBox({
+      const inviteLink = await vscode13.window.showInputBox({
         prompt: "Enter Live Share invite link",
         placeHolder: "https://prod.liveshare.vsengsaas.visualstudio.com/join?...",
         validateInput: (value) => {
@@ -3266,11 +3246,11 @@ var CollabAgentPanelProvider = class {
       if (!inviteLink) {
         return;
       }
-      vscode12.window.showInformationMessage("Joining Live Share session...");
-      const inviteUri = vscode12.Uri.parse(inviteLink.trim());
+      vscode13.window.showInformationMessage("Joining Live Share session...");
+      const inviteUri = vscode13.Uri.parse(inviteLink.trim());
       await this._liveShareApi.join(inviteUri);
       this._sessionLink = inviteLink;
-      vscode12.window.showInformationMessage("Successfully joined Live Share session!");
+      vscode13.window.showInformationMessage("Successfully joined Live Share session!");
       this.requestHostSessionStartTime();
       this.startDurationUpdater();
       if (this._view) {
@@ -3280,19 +3260,18 @@ var CollabAgentPanelProvider = class {
           link: inviteLink
         });
       }
-      await this.ensurePresenceService();
-      this.updateParticipantInfo("join");
+      this.updateParticipantInfo();
     } catch (error) {
       console.error("Error joining Live Share session:", error);
-      vscode12.window.showErrorMessage("Error joining Live Share session: " + error);
+      vscode13.window.showErrorMessage("Error joining Live Share session: " + error);
     }
   }
   sendTeamMessage(message) {
     if (!this._liveShareApi?.session) {
-      vscode12.window.showWarningMessage("Start or join a Live Share session to use team chat.");
+      vscode13.window.showWarningMessage("Start or join a Live Share session to use team chat.");
       return;
     }
-    vscode12.window.showInformationMessage(`Team message: ${message}`);
+    vscode13.window.showInformationMessage(`Team message: ${message}`);
     if (this._view) {
       this._view.webview.postMessage({
         command: "addMessage",
@@ -3318,7 +3297,7 @@ var CollabAgentPanelProvider = class {
   // --- Shared session start time support ---
   async registerSessionInfoServiceIfHost() {
     try {
-      if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) {
+      if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls2.Role.Host) {
         return;
       }
       if (this._sharedService) {
@@ -3344,7 +3323,7 @@ var CollabAgentPanelProvider = class {
     }
     this._requestedHostStartTime = true;
     try {
-      if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Guest) {
+      if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls2.Role.Guest) {
         return;
       }
       const anyApi = this._liveShareApi;
@@ -3362,7 +3341,7 @@ var CollabAgentPanelProvider = class {
                   const s = this._liveShareApi.session;
                   this._view.webview.postMessage({
                     command: "updateSessionStatus",
-                    status: s.role === vsls.Role.Host ? "hosting" : "joined",
+                    status: s.role === vsls2.Role.Host ? "hosting" : "joined",
                     link: this._sessionLink || "",
                     participants: (this._liveShareApi.peers?.length || 0) + 1,
                     role: s.role,
@@ -3396,22 +3375,26 @@ var CollabAgentPanelProvider = class {
       return;
     }
     this._durationUpdateInterval = setInterval(() => {
-      if (!this._liveShareApi || !this._liveShareApi.session) {
+      const session = this._liveShareApi?.session;
+      if (!session) {
         this.stopDurationUpdater();
         return;
       }
       if (this.sessionStartTime && this._view) {
-        const session = this._liveShareApi.session;
+        const participantCount = (this._liveShareApi?.peers?.length || 0) + 1;
+        if (session.role === vsls2.Role.Host) {
+          this.sessionManager?.broadcastParticipantCount(participantCount);
+        }
         this._view.webview.postMessage({
           command: "updateSessionStatus",
-          status: session.role === vsls.Role.Host ? "hosting" : "joined",
+          status: session.role === vsls2.Role.Host ? "hosting" : "joined",
           link: this._sessionLink || "",
-          participants: (this._liveShareApi.peers?.length || 0) + 1,
+          participants: participantCount,
           role: session.role,
           duration: this.getSessionDuration()
         });
       }
-    }, 3e4);
+    }, 6e4);
   }
   stopDurationUpdater() {
     if (this._durationUpdateInterval) {
@@ -3421,8 +3404,8 @@ var CollabAgentPanelProvider = class {
   }
   // @ts-ignore
   _getHtmlForWebview(webview) {
-    const scriptUri = webview.asWebviewUri(vscode12.Uri.joinPath(this._extensionUri, "media", "panel.js"));
-    const styleUri = webview.asWebviewUri(vscode12.Uri.joinPath(this._extensionUri, "media", "panel.css"));
+    const scriptUri = webview.asWebviewUri(vscode13.Uri.joinPath(this._extensionUri, "media", "panel.js"));
+    const styleUri = webview.asWebviewUri(vscode13.Uri.joinPath(this._extensionUri, "media", "panel.css"));
     const nonce = Date.now().toString();
     return `<!DOCTYPE html>
         <html lang="en">
@@ -3469,31 +3452,33 @@ var globalContext;
 async function activate(context) {
   globalContext = context;
   console.log("Collab Agent Activated");
-  vscode13.window.showInformationMessage("Collab Agent: Extension activated!");
-  await vscode13.commands.executeCommand("setContext", "collabAgent.showPanel", true);
+  vscode14.window.showInformationMessage("Collab Agent: Extension activated!");
+  await vscode14.commands.executeCommand("setContext", "collabAgent.showPanel", true);
   checkUserSignIn();
   const authButtonStatusBar = await setupClassStatusBarItem();
   registerClassSelectorCommand(context, authButtonStatusBar);
   const authStatusBar = createAuthStatusBarItem(context);
   const suggestionCommands = registerSuggestionCommands();
   console.log("Registering CollabAgentPanelProvider...");
-  vscode13.window.showInformationMessage("Collab Agent: Registering webview provider...");
+  vscode14.window.showInformationMessage("Collab Agent: Registering webview provider...");
   const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
-  const disposable = vscode13.window.registerWebviewViewProvider(
+  const disposable = vscode14.window.registerWebviewViewProvider(
     "collabAgent.teamActivity",
     collabPanelProvider
   );
   context.subscriptions.push(disposable);
   console.log("CollabAgentPanelProvider registered successfully");
-  vscode13.window.showInformationMessage("Collab Agent: Webview provider registered!");
-  const refreshCommand = vscode13.commands.registerCommand("collabAgent.refreshPanel", () => {
-    vscode13.commands.executeCommand("workbench.view.extension.collabAgent");
+  vscode14.window.showInformationMessage("Collab Agent: Webview provider registered!");
+  const refreshCommand = vscode14.commands.registerCommand("collabAgent.refreshPanel", () => {
+    vscode14.commands.executeCommand("workbench.view.extension.collabAgent");
   });
   context.subscriptions.push(refreshCommand);
-  const liveShare = await vsls2.getApi();
+  const liveShare = await vsls3.getApi();
   if (liveShare) {
+    const sessionManager = new SessionManager(context, liveShare);
+    await sessionManager.initializeSessionFeatures();
     const service = await liveShare.getSharedService("collabagent");
-    vscode13.workspace.onDidCreateFiles(async (event) => {
+    vscode14.workspace.onDidCreateFiles(async (event) => {
       if (service) {
         for (const file of event.files) {
           service.notify("fileCreated", { path: file.path });
@@ -3504,7 +3489,7 @@ async function activate(context) {
       service.onNotify("fileCreated", async (args) => {
         try {
           if (args && typeof args.path === "string") {
-            const sharedUri = vscode13.Uri.parse(args.path);
+            const sharedUri = vscode14.Uri.parse(args.path);
             let localUri = sharedUri;
             if (liveShare.convertSharedUriToLocal) {
               const converted = await liveShare.convertSharedUriToLocal(sharedUri);
@@ -3512,8 +3497,8 @@ async function activate(context) {
                 localUri = converted;
               }
             }
-            vscode13.commands.executeCommand("workbench.files.action.refreshFilesExplorer");
-            vscode13.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
+            vscode14.commands.executeCommand("workbench.files.action.refreshFilesExplorer");
+            vscode14.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
           } else {
             console.warn("fileCreated notification received without valid path:", args);
           }
