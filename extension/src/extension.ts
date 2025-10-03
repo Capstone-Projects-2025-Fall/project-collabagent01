@@ -3,6 +3,7 @@ import * as vsls from 'vsls';
 import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
 import { checkUserSignIn } from "./services/auth-service";
 import { CollabAgentPanelProvider } from "./views/CollabAgentPanel";
+import { setDisplayNameExplicit, getOrInitDisplayName } from './services/profile-service';
 
 /**
  * Global extension context shared across the entire lifecycle of the VS Code extension.
@@ -94,8 +95,14 @@ export async function activate(context: vscode.ExtensionContext) {
     authStatusBar,
     signInCommand,
     signOutCommand,
+    vscode.commands.registerCommand('collabAgent.setDisplayName', async () => {
+      await setDisplayNameExplicit();
+    }),
     // Supabase-related commands removed
   );
+
+  // Pre-initialize display name silently (nonInteractive) so first participant update has a name if possible.
+  getOrInitDisplayName(true).catch(err => console.warn('Display name init failed', err));
 }
 /**
  * Called when the extension is deactivated.

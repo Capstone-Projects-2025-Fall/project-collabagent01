@@ -78,6 +78,10 @@
         "title": "Debug: Test fetchSuggestions"
       },
       {
+        "command": "collabAgent.setDisplayName",
+        "title": "Collab Agent: Set Display Name"
+      },
+      {
         "command": "collabAgent.signIn",
         "title": "Collab Agent: Sign In to Collab Agent"
       },

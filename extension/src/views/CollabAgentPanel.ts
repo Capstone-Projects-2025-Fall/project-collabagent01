@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as vsls from 'vsls';
+import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-service';
 
 export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     public static readonly viewType = 'collabAgent.teamActivity';
@@ -527,9 +528,19 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 };
             };
 
-            // Add self first (session.user describes current user's identity)
+            // Resolve self display name: cached/prompted alias > session.user.displayName > fallback
+            let selfName = getCachedDisplayName();
+            if (!selfName) {
+                // attempt non-interactive init (supabase metadata) without prompting UI loops
+                try {
+                    const r = await getOrInitDisplayName(true);
+                    selfName = r.displayName;
+                } catch {
+                    selfName = undefined;
+                }
+            }
             participants.push({
-                name: session.user?.displayName || 'You',
+                name: selfName || session.user?.displayName || 'You',
                 email: session.user?.emailAddress || '',
                 role: session.role === vsls.Role.Host ? 'Host' : 'Guest'
             });

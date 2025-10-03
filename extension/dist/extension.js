@@ -74,11 +74,11 @@ var require_vscode = __commonJS({
   "node_modules/vsls/vscode.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    var vscode7 = require("vscode");
+    var vscode8 = require("vscode");
     var liveShareApiVersion = require_package().version;
     exports2.extensionId = "ms-vsliveshare.vsliveshare";
     async function getApi3(callingExtensionId) {
-      const liveshareExtension = vscode7.extensions.getExtension(exports2.extensionId);
+      const liveshareExtension = vscode8.extensions.getExtension(exports2.extensionId);
       if (!liveshareExtension) {
         return null;
       }
@@ -12949,13 +12949,77 @@ var init_auth_commands = __esm({
   }
 });
 
+// src/services/profile-service.ts
+async function getOrInitDisplayName(nonInteractive = false) {
+  const cached = globalContext?.globalState.get(DISPLAY_NAME_KEY);
+  if (cached) {
+    return { displayName: cached, source: "cached" };
+  }
+  try {
+    const supabase = getSupabase();
+    const { data } = await supabase.auth.getUser();
+    const user = data?.user;
+    if (user?.user_metadata) {
+      const meta = user.user_metadata;
+      const candidate = meta.user_name || meta.preferred_username || meta.full_name || meta.name || user.email || void 0;
+      if (candidate) {
+        await globalContext.globalState.update(DISPLAY_NAME_KEY, candidate);
+        return { displayName: candidate, source: "supabase" };
+      }
+    }
+  } catch (e) {
+    console.warn("Display name: Supabase metadata fetch failed", e);
+  }
+  if (!nonInteractive) {
+    const input = await vscode5.window.showInputBox({
+      title: "Set Display Name",
+      prompt: "Enter the name to show to others in Live Share sessions",
+      ignoreFocusOut: true,
+      validateInput: (val) => !val.trim() ? "Display name cannot be empty" : void 0
+    });
+    if (input && input.trim()) {
+      await globalContext.globalState.update(DISPLAY_NAME_KEY, input.trim());
+      return { displayName: input.trim(), source: "prompt" };
+    }
+  }
+  return { displayName: "You", source: "fallback" };
+}
+async function setDisplayNameExplicit() {
+  const current = globalContext.globalState.get(DISPLAY_NAME_KEY) || "";
+  const input = await vscode5.window.showInputBox({
+    title: "Change Display Name",
+    value: current,
+    prompt: "Enter a new display name for Live Share sessions",
+    ignoreFocusOut: true,
+    validateInput: (val) => !val.trim() ? "Display name cannot be empty" : void 0
+  });
+  if (input && input.trim()) {
+    await globalContext.globalState.update(DISPLAY_NAME_KEY, input.trim());
+    vscode5.window.showInformationMessage(`Collab Agent: Display name updated to "${input.trim()}"`);
+  }
+}
+function getCachedDisplayName() {
+  return globalContext?.globalState.get(DISPLAY_NAME_KEY);
+}
+var vscode5, DISPLAY_NAME_KEY;
+var init_profile_service = __esm({
+  "src/services/profile-service.ts"() {
+    "use strict";
+    vscode5 = __toESM(require("vscode"));
+    init_supabaseClient();
+    init_extension();
+    DISPLAY_NAME_KEY = "collabAgent.displayName";
+  }
+});
+
 // src/views/CollabAgentPanel.ts
-var vscode5, vsls, CollabAgentPanelProvider;
+var vscode6, vsls, CollabAgentPanelProvider;
 var init_CollabAgentPanel = __esm({
   "src/views/CollabAgentPanel.ts"() {
     "use strict";
-    vscode5 = __toESM(require("vscode"));
+    vscode6 = __toESM(require("vscode"));
     vsls = __toESM(require_vscode());
+    init_profile_service();
     CollabAgentPanelProvider = class {
       // Helps avoid flicker by showing loading state first
       constructor(_extensionUri, _context) {
@@ -13096,7 +13160,7 @@ var init_CollabAgentPanel = __esm({
       }
       async pasteInviteLinkFromClipboard() {
         try {
-          const clip = await vscode5.env.clipboard.readText();
+          const clip = await vscode6.env.clipboard.readText();
           if (clip && clip.trim()) {
             const trimmed = clip.trim();
             this.setManualInviteLink(trimmed);
@@ -13107,11 +13171,11 @@ var init_CollabAgentPanel = __esm({
             if (this._view) {
               this._view.webview.postMessage({ command: "manualLinkPasteInvalid" });
             }
-            vscode5.window.showWarningMessage("Clipboard is empty or does not contain text.");
+            vscode6.window.showWarningMessage("Clipboard is empty or does not contain text.");
           }
         } catch (err) {
           console.warn("Failed reading clipboard for invite link:", err);
-          vscode5.window.showErrorMessage("Could not read clipboard for invite link.");
+          vscode6.window.showErrorMessage("Could not read clipboard for invite link.");
         }
       }
       async initializeLiveShare() {
@@ -13392,8 +13456,17 @@ var init_CollabAgentPanel = __esm({
               role: peer?.role === vsls.Role.Host ? "Host" : "Guest"
             };
           };
+          let selfName = getCachedDisplayName();
+          if (!selfName) {
+            try {
+              const r = await getOrInitDisplayName(true);
+              selfName = r.displayName;
+            } catch {
+              selfName = void 0;
+            }
+          }
           participants.push({
-            name: session.user?.displayName || "You",
+            name: selfName || session.user?.displayName || "You",
             email: session.user?.emailAddress || "",
             role: session.role === vsls.Role.Host ? "Host" : "Guest"
           });
@@ -13432,18 +13505,18 @@ var init_CollabAgentPanel = __esm({
           console.log("Attempting to end Live Share session...");
           if (!this._liveShareApi) {
             console.log("Live Share API not available");
-            vscode5.window.showWarningMessage("Live Share API not available.");
+            vscode6.window.showWarningMessage("Live Share API not available.");
             return;
           }
           if (!this._liveShareApi.session) {
             console.log("No active session found");
-            vscode5.window.showWarningMessage("No active Live Share session to end.");
+            vscode6.window.showWarningMessage("No active Live Share session to end.");
             return;
           }
           console.log("Current session role:", this._liveShareApi.session.role);
           console.log("Host role constant:", vsls.Role.Host);
           if (this._liveShareApi.session.role !== vsls.Role.Host) {
-            vscode5.window.showWarningMessage("Only the session host can end the session.");
+            vscode6.window.showWarningMessage("Only the session host can end the session.");
             return;
           }
           console.log("Calling end() on Live Share API...");
@@ -13470,10 +13543,10 @@ var init_CollabAgentPanel = __esm({
               buttonType: "end"
             });
           }
-          vscode5.window.showInformationMessage("Live Share session ended successfully.");
+          vscode6.window.showInformationMessage("Live Share session ended successfully.");
         } catch (error) {
           console.error("Error ending Live Share session:", error);
-          vscode5.window.showErrorMessage("Failed to end Live Share session: " + error);
+          vscode6.window.showErrorMessage("Failed to end Live Share session: " + error);
           if (this._view) {
             this._view.webview.postMessage({
               command: "resetButtonState",
@@ -13487,18 +13560,18 @@ var init_CollabAgentPanel = __esm({
           console.log("Attempting to leave Live Share session...");
           if (!this._liveShareApi) {
             console.log("Live Share API not available");
-            vscode5.window.showWarningMessage("Live Share API not available.");
+            vscode6.window.showWarningMessage("Live Share API not available.");
             return;
           }
           if (!this._liveShareApi.session) {
             console.log("No active session found");
-            vscode5.window.showWarningMessage("No active Live Share session to leave.");
+            vscode6.window.showWarningMessage("No active Live Share session to leave.");
             return;
           }
           const session = this._liveShareApi.session;
           console.log("Current session role:", session.role);
           if (session.role === vsls.Role.Host) {
-            vscode5.window.showWarningMessage('Hosts cannot leave their own session. Use "End Session" instead.');
+            vscode6.window.showWarningMessage('Hosts cannot leave their own session. Use "End Session" instead.');
             return;
           }
           console.log("Calling end() on Live Share API to leave session...");
@@ -13520,10 +13593,10 @@ var init_CollabAgentPanel = __esm({
               buttonType: "leave"
             });
           }
-          vscode5.window.showInformationMessage("Successfully left the Live Share session.");
+          vscode6.window.showInformationMessage("Successfully left the Live Share session.");
         } catch (error) {
           console.error("Error leaving Live Share session:", error);
-          vscode5.window.showErrorMessage("Failed to leave Live Share session: " + error);
+          vscode6.window.showErrorMessage("Failed to leave Live Share session: " + error);
           if (this._view) {
             this._view.webview.postMessage({
               command: "resetButtonState",
@@ -13546,15 +13619,15 @@ var init_CollabAgentPanel = __esm({
         return `${diffMins}m`;
       }
       async startLiveShareSession() {
-        if (!vscode5.workspace.workspaceFolders || vscode5.workspace.workspaceFolders.length === 0) {
-          vscode5.window.showErrorMessage("Please open a project folder before starting a Live Share session.");
+        if (!vscode6.workspace.workspaceFolders || vscode6.workspace.workspaceFolders.length === 0) {
+          vscode6.window.showErrorMessage("Please open a project folder before starting a Live Share session.");
           return;
         }
         if (!this._liveShareApi) {
-          vscode5.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
+          vscode6.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
           return;
         }
-        const confirm = await vscode5.window.showWarningMessage(
+        const confirm = await vscode6.window.showWarningMessage(
           "Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.",
           { modal: true },
           "OK"
@@ -13563,19 +13636,19 @@ var init_CollabAgentPanel = __esm({
           return;
         }
         try {
-          vscode5.window.showInformationMessage("Starting Live Share session...");
+          vscode6.window.showInformationMessage("Starting Live Share session...");
           const session = await this._liveShareApi.share();
           if (session && session.toString()) {
             const inviteLink = session.toString();
             this._sessionLink = inviteLink;
-            vscode5.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
+            vscode6.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
             if (!this.sessionStartTime) {
               this.sessionStartTime = /* @__PURE__ */ new Date();
               console.log("Host sessionStartTime initialized at startLiveShareSession():", this.sessionStartTime);
             }
             this.registerSessionInfoServiceIfHost();
             this.startDurationUpdater();
-            vscode5.window.showWarningMessage(
+            vscode6.window.showWarningMessage(
               "Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.",
               { modal: true }
             );
@@ -13588,20 +13661,20 @@ var init_CollabAgentPanel = __esm({
             }
             this.updateParticipantInfo();
           } else {
-            vscode5.window.showErrorMessage("Failed to start Live Share session");
+            vscode6.window.showErrorMessage("Failed to start Live Share session");
           }
         } catch (error) {
           console.error("Error starting Live Share session:", error);
-          vscode5.window.showErrorMessage("Error starting Live Share session: " + error);
+          vscode6.window.showErrorMessage("Error starting Live Share session: " + error);
         }
       }
       async joinLiveShareSession() {
         if (!this._liveShareApi) {
-          vscode5.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
+          vscode6.window.showErrorMessage("Live Share API not available. Please install Live Share extension.");
           return;
         }
         try {
-          const inviteLink = await vscode5.window.showInputBox({
+          const inviteLink = await vscode6.window.showInputBox({
             prompt: "Enter Live Share invite link",
             placeHolder: "https://prod.liveshare.vsengsaas.visualstudio.com/join?...",
             validateInput: (value) => {
@@ -13614,11 +13687,11 @@ var init_CollabAgentPanel = __esm({
           if (!inviteLink) {
             return;
           }
-          vscode5.window.showInformationMessage("Joining Live Share session...");
-          const inviteUri = vscode5.Uri.parse(inviteLink.trim());
+          vscode6.window.showInformationMessage("Joining Live Share session...");
+          const inviteUri = vscode6.Uri.parse(inviteLink.trim());
           await this._liveShareApi.join(inviteUri);
           this._sessionLink = inviteLink;
-          vscode5.window.showInformationMessage("Successfully joined Live Share session!");
+          vscode6.window.showInformationMessage("Successfully joined Live Share session!");
           this.requestHostSessionStartTime();
           this.startDurationUpdater();
           if (this._view) {
@@ -13631,15 +13704,15 @@ var init_CollabAgentPanel = __esm({
           this.updateParticipantInfo();
         } catch (error) {
           console.error("Error joining Live Share session:", error);
-          vscode5.window.showErrorMessage("Error joining Live Share session: " + error);
+          vscode6.window.showErrorMessage("Error joining Live Share session: " + error);
         }
       }
       sendTeamMessage(message) {
         if (!this._liveShareApi?.session) {
-          vscode5.window.showWarningMessage("Start or join a Live Share session to use team chat.");
+          vscode6.window.showWarningMessage("Start or join a Live Share session to use team chat.");
           return;
         }
-        vscode5.window.showInformationMessage(`Team message: ${message}`);
+        vscode6.window.showInformationMessage(`Team message: ${message}`);
         if (this._view) {
           this._view.webview.postMessage({
             command: "addMessage",
@@ -13768,8 +13841,8 @@ var init_CollabAgentPanel = __esm({
       }
       // @ts-ignore
       _getHtmlForWebview(webview) {
-        const scriptUri = webview.asWebviewUri(vscode5.Uri.joinPath(this._extensionUri, "media", "panel.js"));
-        const styleUri = webview.asWebviewUri(vscode5.Uri.joinPath(this._extensionUri, "media", "panel.css"));
+        const scriptUri = webview.asWebviewUri(vscode6.Uri.joinPath(this._extensionUri, "media", "panel.js"));
+        const styleUri = webview.asWebviewUri(vscode6.Uri.joinPath(this._extensionUri, "media", "panel.css"));
         const nonce = Date.now().toString();
         return `<!DOCTYPE html>
         <html lang="en">
@@ -13824,28 +13897,28 @@ module.exports = __toCommonJS(extension_exports);
 async function activate(context) {
   globalContext = context;
   console.log("Collab Agent Activated");
-  vscode6.window.showInformationMessage("Collab Agent: Extension activated!");
-  await vscode6.commands.executeCommand("setContext", "collabAgent.showPanel", true);
+  vscode7.window.showInformationMessage("Collab Agent: Extension activated!");
+  await vscode7.commands.executeCommand("setContext", "collabAgent.showPanel", true);
   checkUserSignIn();
   const authStatusBar = createAuthStatusBarItem(context);
   console.log("Registering CollabAgentPanelProvider...");
-  vscode6.window.showInformationMessage("Collab Agent: Registering webview provider...");
+  vscode7.window.showInformationMessage("Collab Agent: Registering webview provider...");
   const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
-  const disposable = vscode6.window.registerWebviewViewProvider(
+  const disposable = vscode7.window.registerWebviewViewProvider(
     "collabAgent.teamActivity",
     collabPanelProvider
   );
   context.subscriptions.push(disposable);
   console.log("CollabAgentPanelProvider registered successfully");
-  vscode6.window.showInformationMessage("Collab Agent: Webview provider registered!");
-  const refreshCommand = vscode6.commands.registerCommand("collabAgent.refreshPanel", () => {
-    vscode6.commands.executeCommand("workbench.view.extension.collabAgent");
+  vscode7.window.showInformationMessage("Collab Agent: Webview provider registered!");
+  const refreshCommand = vscode7.commands.registerCommand("collabAgent.refreshPanel", () => {
+    vscode7.commands.executeCommand("workbench.view.extension.collabAgent");
   });
   context.subscriptions.push(refreshCommand);
   const liveShare = await vsls2.getApi();
   if (liveShare) {
     const service = await liveShare.getSharedService("collabagent");
-    vscode6.workspace.onDidCreateFiles(async (event) => {
+    vscode7.workspace.onDidCreateFiles(async (event) => {
       if (service) {
         for (const file of event.files) {
           service.notify("fileCreated", { path: file.path });
@@ -13856,7 +13929,7 @@ async function activate(context) {
       service.onNotify("fileCreated", async (args) => {
         try {
           if (args && typeof args.path === "string") {
-            const sharedUri = vscode6.Uri.parse(args.path);
+            const sharedUri = vscode7.Uri.parse(args.path);
             let localUri = sharedUri;
             if (liveShare.convertSharedUriToLocal) {
               const converted = await liveShare.convertSharedUriToLocal(sharedUri);
@@ -13864,8 +13937,8 @@ async function activate(context) {
                 localUri = converted;
               }
             }
-            vscode6.commands.executeCommand("workbench.files.action.refreshFilesExplorer");
-            vscode6.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
+            vscode7.commands.executeCommand("workbench.files.action.refreshFilesExplorer");
+            vscode7.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
           } else {
             console.warn("fileCreated notification received without valid path:", args);
           }
@@ -13878,21 +13951,26 @@ async function activate(context) {
   context.subscriptions.push(
     authStatusBar,
     signInCommand,
-    signOutCommand
+    signOutCommand,
+    vscode7.commands.registerCommand("collabAgent.setDisplayName", async () => {
+      await setDisplayNameExplicit();
+    })
     // Supabase-related commands removed
   );
+  getOrInitDisplayName(true).catch((err) => console.warn("Display name init failed", err));
 }
 function deactivate() {
   console.log("AI Extension Deactivated");
 }
-var vscode6, vsls2, globalContext;
+var vscode7, vsls2, globalContext;
 var init_extension = __esm({
   "src/extension.ts"() {
-    vscode6 = __toESM(require("vscode"));
+    vscode7 = __toESM(require("vscode"));
     vsls2 = __toESM(require_vscode());
     init_auth_commands();
     init_auth_service();
     init_CollabAgentPanel();
+    init_profile_service();
   }
 });
 init_extension();
