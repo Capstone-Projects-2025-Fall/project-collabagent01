@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.8.1">
 <title data-rh="true">Use-case descriptions | Project Collabagent01</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/requirements/use-case-descriptions"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Use-case descriptions | Project Collabagent01"><meta data-rh="true" name="description" content="Use Case 1 - Real-Time Code Synchronization Setup"><meta data-rh="true" property="og:description" content="Use Case 1 - Real-Time Code Synchronization Setup"><link data-rh="true" rel="icon" href="/project-collabagent01/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/requirements/use-case-descriptions"><link data-rh="true" rel="alternate" href="https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/requirements/use-case-descriptions" hreflang="en"><link data-rh="true" rel="alternate" href="https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/requirements/use-case-descriptions" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Requirements Specification","item":"https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/category/requirements-specification"},{"@type":"ListItem","position":2,"name":"Use-case descriptions","item":"https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/requirements/use-case-descriptions"}]}</script><script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script><link rel="stylesheet" href="/project-collabagent01/assets/css/styles.5f90f4b3.css">
-<script src="/project-collabagent01/assets/js/runtime~main.0f73974f.js" defer="defer"></script>
+<script src="/project-collabagent01/assets/js/runtime~main.7b776aad.js" defer="defer"></script>
 <script src="/project-collabagent01/assets/js/main.64a315bd.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -20,17 +20,21 @@
 <li>The extension generates a session invite link/code that the user shares with teammates.</li>
 <li>Teammates join the session by clicking the link or entering the session code in their agent extension.</li>
 <li>The user sees a list of connected team members in the sidebar with colored indicators (each person gets a unique cursor color).</li>
-<li>The extension enables real-time synchronization. When any team member types, others see the changes instantly with colored cursors showing who is editing and where.</li>
+<li>The extension enables real-time synchronization. When any team member types, others see the changes instantly with colored cursors showing who is editing and where.<!-- -->
+<img width="966" height="659" alt="Screenshot 2025-09-21 162754" src="https://github.com/user-attachments/assets/6cae0478-9a75-44f5-ba3b-0e2d2c9c95c8">
+</li>
 </ol>
 <h2 class="anchor anchorWithStickyNavbar_LWe7" id="use-case-2---live-editing-collaboration">Use Case 2 - Live Editing Collaboration<a href="#use-case-2---live-editing-collaboration" class="hash-link" aria-label="Direct link to Use Case 2 - Live Editing Collaboration" title="Direct link to Use Case 2 - Live Editing Collaboration">​</a></h2>
-<p><em>As a user, I want to see my teammates edits in real time while working on the same project.</em></p>
+<p><em>As a user, I want to see my teammates&#x27; edits in real time while working on the same project.</em></p>
 <ol>
 <li>Multiple team members are connected to the same collaboration session.</li>
 <li>When a teammate opens a file, the user sees a notification: &quot;Nick opened components/Login.jsx&quot; in the agent sidebar.</li>
 <li>As the teammate types, the user sees their cursor and text changes appearing in real-time with their assigned color.</li>
 <li>When the user opens the same file, both cursors are visible and edits sync instantly.</li>
 <li>The user can see, line by line, who made what changes through colored highlighting that briefly appears after each edit.</li>
-<li>Multiple team members can edit different parts of the same file simultaneously without conflicts.</li>
+<li>Multiple team members can edit different parts of the same file simultaneously without conflicts.<!-- -->
+<img width="803" height="616" alt="Screenshot 2025-09-21 162828" src="https://github.com/user-attachments/assets/6e3c7765-8a5f-499f-9430-6a86093891dc">
+</li>
 </ol>
 <h2 class="anchor anchorWithStickyNavbar_LWe7" id="use-case-3---agent-bot-activity-monitoring">Use Case 3 - Agent Bot Activity Monitoring<a href="#use-case-3---agent-bot-activity-monitoring" class="hash-link" aria-label="Direct link to Use Case 3 - Agent Bot Activity Monitoring" title="Direct link to Use Case 3 - Agent Bot Activity Monitoring">​</a></h2>
 <p><em>As a user, I want to see what files and tasks my teammates are working on via the Agent Bot.</em></p>
@@ -40,7 +44,9 @@
 <li>When a teammate starts typing in a file, the bot updates: &quot;Ben is editing auth.js&quot; with a live indicator.</li>
 <li>When a teammate saves or closes a file, the bot posts: &quot;Ben finished working on auth.js (worked for 23 minutes)&quot;.</li>
 <li>The user can click on any activity update to quickly navigate to that file and see what their teammate was working on.</li>
-<li>The sidebar maintains a scrollable history of the last 50 team activities for reference.</li>
+<li>The sidebar maintains a scrollable history of the last 50 team activities for reference.<!-- -->
+<img width="1188" height="502" alt="Screenshot 2025-09-21 162934" src="https://github.com/user-attachments/assets/d94e7041-4c3c-43fe-a8c9-131ce6329866">
+</li>
 </ol>
 <h2 class="anchor anchorWithStickyNavbar_LWe7" id="use-case-4---manual-task-status-updates">Use Case 4 - Manual Task Status Updates<a href="#use-case-4---manual-task-status-updates" class="hash-link" aria-label="Direct link to Use Case 4 - Manual Task Status Updates" title="Direct link to Use Case 4 - Manual Task Status Updates">​</a></h2>
 <p><em>As a user, I want to manually tell my team what I&#x27;m currently working on through the agent bot.</em></p>
@@ -50,7 +56,9 @@
 <li>The user types their current task (e.g., &quot;Fixing login validation bug&quot; or &quot;Refactoring user dashboard).</li>
 <li>The user clicks &quot;share&quot; or hits enter to broadcast the status.</li>
 <li>The agent bot immediately posts to all teammates: &quot;You are working on: Fixing login validation bug&quot; in their sidebars.</li>
-<li>The status remains visible in the sidebar until the user updates it or starts working on a different file (which the bot can detect and ask if they want to update their status).</li>
+<li>The status remains visible in the sidebar until the user updates it or starts working on a different file (which the bot can detect and ask if they want to update their status).<!-- -->
+<img width="686" height="485" alt="Screenshot 2025-09-21 163004" src="https://github.com/user-attachments/assets/42cc78ff-44b3-4913-8e9e-9056eba2f024">
+</li>
 </ol>
 <h2 class="anchor anchorWithStickyNavbar_LWe7" id="use-case-5---agent-bot-smart-task-detection">Use Case 5 - Agent Bot Smart Task Detection<a href="#use-case-5---agent-bot-smart-task-detection" class="hash-link" aria-label="Direct link to Use Case 5 - Agent Bot Smart Task Detection" title="Direct link to Use Case 5 - Agent Bot Smart Task Detection">​</a></h2>
 <p><em>As a user, I want the Agent Bot to intelligently guess what I&#x27;m working on based on my file activity.</em></p>
@@ -60,7 +68,9 @@
 <li>After 2-3 minutes of active editing, the agent bot suggests: &quot;It looks like you&#x27;re working on user profile updates. Should I share this with your team?&quot;</li>
 <li>The user can click &quot;Yes&quot; to broadcast the status, &quot;No&quot; to dismiss, or &quot;Edit&quot; to customize the message.</li>
 <li>If the user clicks &quot;Yes,&quot; the agent bot posts: &quot;You are working on: User profile component updates&quot; to teammates&#x27; sidebars.</li>
-<li>The user can set preferences for how often the bot makes these suggestions (always ask, auto share, or never suggest).</li>
+<li>The user can set preferences for how often the bot makes these suggestions (always ask, auto share, or never suggest).<!-- -->
+<img width="1261" height="606" alt="Screenshot 2025-09-21 163035" src="https://github.com/user-attachments/assets/74c1bbce-3499-45b4-8433-c34c8495f617">
+</li>
 </ol></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"><a href="https://github.com/Capstone-Projects-2025-Fall/project-collabagent01/edit/main/documentation/docs/requirements/use-case-descriptions.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"><details><summary>Revision History</summary><table><thead><tr><th scope="row">Author</th><th scope="row">Revision</th><th scope="row">Date</th></tr></thead><tbody>nothing</tbody></table></details><span class="theme-last-updated">Last updated<!-- --> by <b>Alphin Shajan</b></span></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/project-collabagent01/docs/requirements/features-and-requirements"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Features and Requirements</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/project-collabagent01/docs/requirements/general-requirements"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">general-requirements</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#use-case-1---real-time-code-synchronization-setup" class="table-of-contents__link toc-highlight">Use Case 1 - Real-Time Code Synchronization Setup</a></li><li><a href="#use-case-2---live-editing-collaboration" class="table-of-contents__link toc-highlight">Use Case 2 - Live Editing Collaboration</a></li><li><a href="#use-case-3---agent-bot-activity-monitoring" class="table-of-contents__link toc-highlight">Use Case 3 - Agent Bot Activity Monitoring</a></li><li><a href="#use-case-4---manual-task-status-updates" class="table-of-contents__link toc-highlight">Use Case 4 - Manual Task Status Updates</a></li><li><a href="#use-case-5---agent-bot-smart-task-detection" class="table-of-contents__link toc-highlight">Use Case 5 - Agent Bot Smart Task Detection</a></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/project-collabagent01/docs/intro">Documentation</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/Capstone-Projects-2025-Fall/project-collabagent01" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-hidden="true" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="margin-bottom--sm"><img src="https://upload.wikimedia.org/wikipedia/commons/1/17/Temple_T_logo.svg" alt="My Site Logo" class="footer__logo themedComponent_mlkZ themedComponent--light_NVdE"><img src="https://upload.wikimedia.org/wikipedia/commons/1/17/Temple_T_logo.svg" alt="My Site Logo" class="footer__logo themedComponent_mlkZ themedComponent--dark_xIcU"></div><div class="footer__copyright">Copyright © 2025 Project Collabagent01, Inc. Built with Docusaurus.</div></div></div></footer></div>
 </body>
 </html>
