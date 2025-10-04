@@ -188,6 +188,33 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 
                 // Set up session event listeners for real-time monitoring
                 this.setupLiveShareEventListeners();
+
+                // 🧩 Step 2: Let Guests Subscribe to These Updates
+                if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
+                    const anyApi: any = this._liveShareApi;
+                    const proxy = await anyApi.getSharedService(this._sharedServiceName);
+
+                    if (proxy?.isServiceAvailable && typeof proxy.onNotify === 'function') {
+                        proxy.onNotify('participantUpdate', (data: any) => {
+                            console.log('Guest received participant update from host:', data);
+                            if (this._view) {
+                                this._view.webview.postMessage({
+                                    command: 'updateParticipants',
+                                    participants: data.participants,
+                                    count: data.count
+                                });
+                                this._view.webview.postMessage({
+                                    command: 'updateSessionStatus',
+                                    status: 'joined',
+                                    link: this._sessionLink || '',
+                                    participants: data.count,
+                                    role: this._liveShareApi?.session?.role,
+                                    duration: data.duration
+                                });
+                            }
+                        });
+                    }
+                }
                 
                 return true;
             } else {
@@ -486,52 +513,18 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private async updateParticipantInfo() {
-        if (!this._liveShareApi?.session) {
-            console.log('updateParticipantInfo: No session available');
-            return;
-        }
+        if (!this._liveShareApi?.session) return;
+        const session = this._liveShareApi.session;
+        const isHost = session.role === vsls.Role.Host;
 
-        try {
-            const session = this._liveShareApi.session;
-            
-            // Get actual peers from the API
-            const peers: any[] = (this._liveShareApi.peers || []).filter(p => !!p); // defensive
-            let participantCount = peers.length + 1; // +1 for self
-
-            // Fallback: peerNumber sometimes reflects total participants (including self) earlier than peers[] updates for guests
-            const reportedPeerNumber: number | undefined = (session as any).peerNumber;
-            if (reportedPeerNumber && reportedPeerNumber > participantCount) {
-                console.log('Using session.peerNumber fallback. peers.length+1=', participantCount, 'peerNumber=', reportedPeerNumber);
-                participantCount = reportedPeerNumber;
-            }
-            
-            const currentDuration = this.getSessionDuration();
-            
-            console.log('updateParticipantInfo:', { 
-                participantCount, 
-                peersCount: peers.length,
-                duration: currentDuration,
-                sessionStartTime: this.sessionStartTime,
-                role: session.role === vsls.Role.Host ? 'Host' : 'Guest',
-                sessionId: session.id,
-            });
-            
-            // Build participant list with available information
+        // 🟢 Only host sends out updates
+        if (isHost) {
+            const peers = (this._liveShareApi.peers || []).filter(p => !!p);
+            const participantCount = peers.length + 1;
             const participants: any[] = [];
 
-            // Helper to normalize peer info
-            const mapPeer = (peer: any) => {
-                return {
-                    name: peer?.user?.displayName || peer?.displayName || 'Unknown',
-                    email: peer?.user?.emailAddress || peer?.emailAddress || '',
-                    role: peer?.role === vsls.Role.Host ? 'Host' : 'Guest'
-                };
-            };
-
-            // Resolve self display name: cached/prompted alias > session.user.displayName > fallback
             let selfName = getCachedDisplayName();
             if (!selfName) {
-                // attempt non-interactive init (supabase metadata) without prompting UI loops
                 try {
                     const r = await getOrInitDisplayName(true);
                     selfName = r.displayName;
@@ -539,45 +532,46 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     selfName = undefined;
                 }
             }
+
             participants.push({
                 name: selfName || session.user?.displayName || 'You',
                 email: session.user?.emailAddress || '',
-                role: session.role === vsls.Role.Host ? 'Host' : 'Guest'
+                role: 'Host'
             });
 
-            // Add peers (these exclude self per API design)
             for (const peer of peers) {
-                participants.push(mapPeer(peer));
+                participants.push({
+                    name: peer?.user?.displayName || 'Unknown',
+                    email: peer?.user?.emailAddress || '',
+                    role: 'Guest'
+                });
             }
 
-            // If peerNumber indicated more participants than we have peer objects for, fabricate placeholders
-            if (participantCount > participants.length) {
-                const missing = participantCount - participants.length;
-                for (let i = 0; i < missing; i++) {
-                    participants.push({ name: `Participant ${participants.length + 1}`, email: '', role: 'Guest' });
-                }
+            // 🔄 Host notifies guests of participant updates
+            if (this._sharedService?.notify) {
+                this._sharedService.notify('participantUpdate', {
+                    count: participantCount,
+                    participants: participants,
+                    duration: this.getSessionDuration()
+                });
             }
 
-            console.log('Sending participant update:', { participants, count: participantCount});
-
+            // UI update for host
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'updateParticipants',
                     participants: participants,
                     count: participantCount
                 });
-                const isHost = session.role === vsls.Role.Host;
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
-                    status: isHost ? 'hosting' : 'joined',
+                    status: 'hosting',
                     link: this._sessionLink || '',
                     participants: participantCount,
                     role: session.role,
-                    duration: currentDuration
+                    duration: this.getSessionDuration()
                 });
             }
-        } catch (error) {
-            console.error('Error updating participant info:', error);
         }
     }
 
@@ -718,18 +712,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private getSessionDuration(): string {
-        if (!this.sessionStartTime) {
-            return '0m';
-        }
-        
+        if (!this.sessionStartTime) return '';
         const now = new Date();
         const diffMs = now.getTime() - this.sessionStartTime.getTime();
         const diffMins = Math.floor(diffMs / 60000);
         const diffHours = Math.floor(diffMins / 60);
-        
-        if (diffHours > 0) {
-            return `${diffHours}h ${diffMins % 60}m`;
-        }
+        if (diffHours > 0) return `${diffHours}h ${diffMins % 60}m`;
         return `${diffMins}m`;
     }
 
@@ -869,6 +857,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     public updateTeamActivity(activity: any) {
+        // Only hosts update team activity
+        if (this._liveShareApi?.session?.role !== vsls.Role.Host) return;
         if (this._view) {
             this._view.webview.postMessage({
                 command: 'updateActivity',
@@ -965,29 +955,26 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private startDurationUpdater() {
-        // Clear existing interval first
+        // Only hosts update duration
         this.stopDurationUpdater();
-        if (!this._liveShareApi || !this._liveShareApi.session) {
-            return;
-        }
+        if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) return;
         this._durationUpdateInterval = setInterval(() => {
-            if (!this._liveShareApi || !this._liveShareApi.session) {
+            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) {
                 this.stopDurationUpdater();
                 return;
             }
             if (this.sessionStartTime && this._view) {
                 const session = this._liveShareApi.session;
-                // Push lightweight status update with fresh duration only
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
-                    status: session.role === vsls.Role.Host ? 'hosting' : 'joined',
+                    status: 'hosting',
                     link: this._sessionLink || '',
                     participants: (this._liveShareApi.peers?.length || 0) + 1,
                     role: session.role,
                     duration: this.getSessionDuration()
                 });
             }
-        }, 30000); // every 30s
+        }, 30000);
     }
 
     private stopDurationUpdater() {

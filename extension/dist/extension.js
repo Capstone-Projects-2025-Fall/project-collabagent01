@@ -13426,36 +13426,13 @@ var init_CollabAgentPanel = __esm({
         }
       }
       async updateParticipantInfo() {
-        if (!this._liveShareApi?.session) {
-          console.log("updateParticipantInfo: No session available");
-          return;
-        }
+        if (!this._liveShareApi?.session) return;
+        const session = this._liveShareApi.session;
+        if (session.role !== vsls.Role.Host) return;
         try {
-          const session = this._liveShareApi.session;
           const peers = (this._liveShareApi.peers || []).filter((p) => !!p);
-          let participantCount = peers.length + 1;
-          const reportedPeerNumber = session.peerNumber;
-          if (reportedPeerNumber && reportedPeerNumber > participantCount) {
-            console.log("Using session.peerNumber fallback. peers.length+1=", participantCount, "peerNumber=", reportedPeerNumber);
-            participantCount = reportedPeerNumber;
-          }
-          const currentDuration = this.getSessionDuration();
-          console.log("updateParticipantInfo:", {
-            participantCount,
-            peersCount: peers.length,
-            duration: currentDuration,
-            sessionStartTime: this.sessionStartTime,
-            role: session.role === vsls.Role.Host ? "Host" : "Guest",
-            sessionId: session.id
-          });
+          const participantCount = peers.length + 1;
           const participants = [];
-          const mapPeer = (peer) => {
-            return {
-              name: peer?.user?.displayName || peer?.displayName || "Unknown",
-              email: peer?.user?.emailAddress || peer?.emailAddress || "",
-              role: peer?.role === vsls.Role.Host ? "Host" : "Guest"
-            };
-          };
           let selfName = getCachedDisplayName();
           if (!selfName) {
             try {
@@ -13468,32 +13445,28 @@ var init_CollabAgentPanel = __esm({
           participants.push({
             name: selfName || session.user?.displayName || "You",
             email: session.user?.emailAddress || "",
-            role: session.role === vsls.Role.Host ? "Host" : "Guest"
+            role: "Host"
           });
           for (const peer of peers) {
-            participants.push(mapPeer(peer));
+            participants.push({
+              name: peer?.user?.displayName || peer?.displayName || "Unknown",
+              email: peer?.user?.emailAddress || peer?.emailAddress || "",
+              role: "Guest"
+            });
           }
-          if (participantCount > participants.length) {
-            const missing = participantCount - participants.length;
-            for (let i = 0; i < missing; i++) {
-              participants.push({ name: `Participant ${participants.length + 1}`, email: "", role: "Guest" });
-            }
-          }
-          console.log("Sending participant update:", { participants, count: participantCount });
           if (this._view) {
             this._view.webview.postMessage({
               command: "updateParticipants",
               participants,
               count: participantCount
             });
-            const isHost = session.role === vsls.Role.Host;
             this._view.webview.postMessage({
               command: "updateSessionStatus",
-              status: isHost ? "hosting" : "joined",
+              status: "hosting",
               link: this._sessionLink || "",
               participants: participantCount,
               role: session.role,
-              duration: currentDuration
+              duration: this.getSessionDuration()
             });
           }
         } catch (error) {
@@ -13606,16 +13579,12 @@ var init_CollabAgentPanel = __esm({
         }
       }
       getSessionDuration() {
-        if (!this.sessionStartTime) {
-          return "0m";
-        }
+        if (!this.sessionStartTime) return "";
         const now = /* @__PURE__ */ new Date();
         const diffMs = now.getTime() - this.sessionStartTime.getTime();
         const diffMins = Math.floor(diffMs / 6e4);
         const diffHours = Math.floor(diffMins / 60);
-        if (diffHours > 0) {
-          return `${diffHours}h ${diffMins % 60}m`;
-        }
+        if (diffHours > 0) return `${diffHours}h ${diffMins % 60}m`;
         return `${diffMins}m`;
       }
       async startLiveShareSession() {
@@ -13723,6 +13692,7 @@ var init_CollabAgentPanel = __esm({
         }
       }
       updateTeamActivity(activity) {
+        if (this._liveShareApi?.session?.role !== vsls.Role.Host) return;
         if (this._view) {
           this._view.webview.postMessage({
             command: "updateActivity",
@@ -13812,11 +13782,9 @@ var init_CollabAgentPanel = __esm({
       }
       startDurationUpdater() {
         this.stopDurationUpdater();
-        if (!this._liveShareApi || !this._liveShareApi.session) {
-          return;
-        }
+        if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) return;
         this._durationUpdateInterval = setInterval(() => {
-          if (!this._liveShareApi || !this._liveShareApi.session) {
+          if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) {
             this.stopDurationUpdater();
             return;
           }
@@ -13824,7 +13792,7 @@ var init_CollabAgentPanel = __esm({
             const session = this._liveShareApi.session;
             this._view.webview.postMessage({
               command: "updateSessionStatus",
-              status: session.role === vsls.Role.Host ? "hosting" : "joined",
+              status: "hosting",
               link: this._sessionLink || "",
               participants: (this._liveShareApi.peers?.length || 0) + 1,
               role: session.role,
