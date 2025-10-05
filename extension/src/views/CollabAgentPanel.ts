@@ -191,13 +191,22 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
                 // 🧩 Step 2: Let Guests Subscribe to These Updates
                 if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
+                    console.log('[initializeLiveShare] Guest detected, setting up participantUpdate listener.');
                     const anyApi: any = this._liveShareApi;
                     const proxy = await anyApi.getSharedService(this._sharedServiceName);
 
+                    if (proxy) {
+                        console.log('[initializeLiveShare] Shared service proxy obtained:', proxy);
+                    } else {
+                        console.warn('[initializeLiveShare] Could not obtain shared service proxy.');
+                    }
+
                     if (proxy?.isServiceAvailable && typeof proxy.onNotify === 'function') {
+                        console.log('[initializeLiveShare] Shared service is available, attaching onNotify listener.');
                         proxy.onNotify('participantUpdate', (data: any) => {
-                            console.log('Guest received participant update from host:', data);
+                            console.log('[onNotify:participantUpdate] Guest received notification:', data);
                             if (this._view) {
+                                console.log('[onNotify:participantUpdate] Updating webview with participant data.');
                                 this._view.webview.postMessage({
                                     command: 'updateParticipants',
                                     participants: data.participants,
@@ -211,8 +220,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                     role: this._liveShareApi?.session?.role,
                                     duration: data.duration
                                 });
+                            } else {
+                                console.warn('[onNotify:participantUpdate] No webview found to post message.');
                             }
                         });
+                    } else {
+                        console.warn('[initializeLiveShare] Shared service not yet available or no onNotify.');
                     }
                 }
                 
@@ -513,16 +526,26 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private async updateParticipantInfo() {
-        if (!this._liveShareApi?.session) return;
+        if (!this._liveShareApi?.session) {
+            console.warn('[updateParticipantInfo] No active Live Share session.');
+            return;
+        }
+
         const session = this._liveShareApi.session;
         const isHost = session.role === vsls.Role.Host;
+        console.log(`[updateParticipantInfo] Triggered. Role=${session.role}, Peer count=${this._liveShareApi.peers?.length || 0}`);
 
-        // 🟢 Only host sends out updates
-        if (isHost) {
+        if (!isHost) {
+            console.log('[updateParticipantInfo] Skipping update because this client is not host.');
+            return;
+        }
+
+        try {
             const peers = (this._liveShareApi.peers || []).filter(p => !!p);
             const participantCount = peers.length + 1;
-            const participants: any[] = [];
+            console.log(`[updateParticipantInfo] Host sees ${participantCount} participants.`);
 
+            const participants: any[] = [];
             let selfName = getCachedDisplayName();
             if (!selfName) {
                 try {
@@ -540,6 +563,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             });
 
             for (const peer of peers) {
+                console.log('[updateParticipantInfo] Peer object:', JSON.stringify(peer, null, 2));
                 participants.push({
                     name: peer?.user?.displayName || 'Unknown',
                     email: peer?.user?.emailAddress || '',
@@ -547,31 +571,32 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 });
             }
 
-            // 🔄 Host notifies guests of participant updates
+            // 🔄 Notify guests
             if (this._sharedService?.notify) {
+                console.log('[updateParticipantInfo] Sending participantUpdate notification via shared service:', {
+                    count: participantCount,
+                    duration: this.getSessionDuration()
+                });
                 this._sharedService.notify('participantUpdate', {
                     count: participantCount,
-                    participants: participants,
+                    participants,
                     duration: this.getSessionDuration()
                 });
+            } else {
+                console.warn('[updateParticipantInfo] Shared service not registered yet, cannot notify guests.');
             }
 
-            // UI update for host
+            // 🖥 Update host UI
             if (this._view) {
+                console.log('[updateParticipantInfo] Sending updateParticipants message to webview.');
                 this._view.webview.postMessage({
                     command: 'updateParticipants',
-                    participants: participants,
+                    participants,
                     count: participantCount
                 });
-                this._view.webview.postMessage({
-                    command: 'updateSessionStatus',
-                    status: 'hosting',
-                    link: this._sessionLink || '',
-                    participants: participantCount,
-                    role: session.role,
-                    duration: this.getSessionDuration()
-                });
             }
+        } catch (error) {
+            console.error('[updateParticipantInfo] Error:', error);
         }
     }
 
@@ -880,6 +905,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     // --- Shared session start time support ---
     private async registerSessionInfoServiceIfHost() {
         try {
+            console.log('[registerSessionInfoServiceIfHost] Attempting to register shared service.');
             if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) {
                 return;
             }
@@ -890,11 +916,18 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const anyApi: any = this._liveShareApi as any;
             if (typeof anyApi.registerService === 'function') {
                 this._sharedService = await anyApi.registerService(this._sharedServiceName);
-                if (this._sharedService && typeof this._sharedService.onRequest === 'function') {
-                    this._sharedService.onRequest('getSessionInfo', async () => {
-                        return { startTime: this.sessionStartTime ? this.sessionStartTime.toISOString() : new Date().toISOString() };
-                    });
-                    console.log('Registered collabAgent session info shared service.');
+                if (this._sharedService) {
+                    console.log(`[registerSessionInfoServiceIfHost] Shared service "${this._sharedServiceName}" registered successfully.`);
+                    if (typeof this._sharedService.onRequest === 'function') {
+                        this._sharedService.onRequest('getSessionInfo', async () => {
+                            console.log('[registerSessionInfoServiceIfHost] Received getSessionInfo request.');
+                            return { startTime: this.sessionStartTime?.toISOString() || new Date().toISOString() };
+                        });
+                    } else {
+                        console.warn('[registerSessionInfoServiceIfHost] Shared service has no onRequest method.');
+                    }
+                } else {
+                    console.warn('[registerSessionInfoServiceIfHost] registerService() returned undefined.');
                 }
             }
         } catch (err) {

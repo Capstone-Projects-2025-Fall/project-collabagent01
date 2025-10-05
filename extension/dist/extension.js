@@ -13185,6 +13185,30 @@ var init_CollabAgentPanel = __esm({
           if (this._liveShareApi) {
             console.log("Live Share API initialized successfully.");
             this.setupLiveShareEventListeners();
+            if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
+              const anyApi = this._liveShareApi;
+              const proxy = await anyApi.getSharedService(this._sharedServiceName);
+              if (proxy?.isServiceAvailable && typeof proxy.onNotify === "function") {
+                proxy.onNotify("participantUpdate", (data) => {
+                  console.log("Guest received participant update from host:", data);
+                  if (this._view) {
+                    this._view.webview.postMessage({
+                      command: "updateParticipants",
+                      participants: data.participants,
+                      count: data.count
+                    });
+                    this._view.webview.postMessage({
+                      command: "updateSessionStatus",
+                      status: "joined",
+                      link: this._sessionLink || "",
+                      participants: data.count,
+                      role: this._liveShareApi?.session?.role,
+                      duration: data.duration
+                    });
+                  }
+                });
+              }
+            }
             return true;
           } else {
             console.log("Live Share extension not available.");
@@ -13428,8 +13452,8 @@ var init_CollabAgentPanel = __esm({
       async updateParticipantInfo() {
         if (!this._liveShareApi?.session) return;
         const session = this._liveShareApi.session;
-        if (session.role !== vsls.Role.Host) return;
-        try {
+        const isHost = session.role === vsls.Role.Host;
+        if (isHost) {
           const peers = (this._liveShareApi.peers || []).filter((p) => !!p);
           const participantCount = peers.length + 1;
           const participants = [];
@@ -13449,9 +13473,16 @@ var init_CollabAgentPanel = __esm({
           });
           for (const peer of peers) {
             participants.push({
-              name: peer?.user?.displayName || peer?.displayName || "Unknown",
-              email: peer?.user?.emailAddress || peer?.emailAddress || "",
+              name: peer?.user?.displayName || "Unknown",
+              email: peer?.user?.emailAddress || "",
               role: "Guest"
+            });
+          }
+          if (this._sharedService?.notify) {
+            this._sharedService.notify("participantUpdate", {
+              count: participantCount,
+              participants,
+              duration: this.getSessionDuration()
             });
           }
           if (this._view) {
@@ -13469,8 +13500,6 @@ var init_CollabAgentPanel = __esm({
               duration: this.getSessionDuration()
             });
           }
-        } catch (error) {
-          console.error("Error updating participant info:", error);
         }
       }
       async endLiveShareSession() {
