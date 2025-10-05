@@ -243,12 +243,27 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 console.warn('Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.');
             }
 
-            // Additional safety net: some environments update activity sooner than peers array
+            // Additional safety net: capture names from Live Share activities (guestJoin/join)
             if (typeof (this._liveShareApi as any).onActivity === 'function') {
                 (this._liveShareApi as any).onActivity((activity: any) => {
-                    if (activity && /session/i.test(JSON.stringify(activity))) {
-                        console.log('Activity hinting at potential participant change:', activity);
-                        this.updateParticipantInfo();
+                    try {
+                        if (!activity) return;
+                        const nameStr = String(activity.name || '');
+                        if (/session\/(guestJoin|join)/i.test(nameStr)) {
+                            const d = activity.data || activity.payload || {};
+                            const user = d.user || d.actor || d.participant || {};
+                            const key = (user.emailAddress || user.id || user.peerId || '').toLowerCase();
+                            const disp = user.displayName || user.loginName || user.userName || d.displayName || d.name;
+                            if (key && disp) {
+                                this._participantNameMap.set(key, disp);
+                            }
+                            console.log('Activity hinting at potential participant change:', { name: activity.name, user: user });
+                            this.updateParticipantInfo();
+                        } else if (/session\/(guestLeave|leave)/i.test(nameStr)) {
+                            this.updateParticipantInfo();
+                        }
+                    } catch {
+                        // ignore
                     }
                 });
             }
@@ -1084,10 +1099,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             if (this._sharedService) {
                 return; // already registered
             }
-            // registerService is only available to host
+            // shareService is only available to host
             const anyApi: any = this._liveShareApi as any;
-            if (typeof anyApi.registerService === 'function') {
-                this._sharedService = await anyApi.registerService(this._sharedServiceName);
+            const hostShareFn = anyApi.shareService || anyApi.registerService;
+            if (typeof hostShareFn === 'function') {
+                this._sharedService = await hostShareFn.call(anyApi, this._sharedServiceName);
                 if (this._sharedService) {
                     console.log(`[registerSessionInfoServiceIfHost] Shared service "${this._sharedServiceName}" registered successfully.`);
                     if (typeof this._sharedService.onRequest === 'function') {
@@ -1163,8 +1179,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                             } catch {}
                         });
                     }
-                } else {
-                    console.warn('[registerSessionInfoServiceIfHost] registerService() returned undefined.');
+                    } else {
+                    console.warn('[registerSessionInfoServiceIfHost] shareService() returned undefined.');
                 }
             }
         } catch (err) {
