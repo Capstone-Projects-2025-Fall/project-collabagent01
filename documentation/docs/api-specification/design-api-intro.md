@@ -6,36 +6,112 @@ description: What should be in this section.
 Design Document - Part II API
 =============================
 
-**Purpose**
-
+## Purpose
 This Design Document gives the complete design of the software implementation. This information should be in structured comments (e.g. Javadoc) in the source files. We encourage the use of a documentation generation tool to generate a draft of your API that you can augment to include the following details.
 
-**Requirements**
+---
 
-In addition to the general documentation requirements the Design Document - Part II API will contain:
+## 1. Class: CollabAgentPanelProvider (views/CollabAgentPanel.ts)
 
-General review of the software architecture for each module specified in Design Document - Part I Architecture. Please include your class diagram as an important reference.
+### **Purpose:**
 
-**For each class define the data fields, methods.**
+-◦ This class controls the Collab Agent sidebar inside VS Code.
 
-The purpose of the class.
+-◦ It creates the panel, shows the interface, and keeps it updated with Live Share info.
 
-The purpose of each data field.
+-◦ It also handles how the panel talks to the rest of the extension (sending and receiving messages).
 
-The purpose of each method
 
-Pre-conditions if any.
+#### **Data Fields**
 
-Post-conditions if any.
 
-Parameters and data types
+- 'extensionUri' (*vscode.Uri*) -  main folder where the extension’s files are stored, it helps the panel find things like its HTML, CSS, and scripts
 
-Return value and output variables
+- 'context' (*vscode.ExtensionContext*) - keeps track of what the extension is doing and stores small bits of info between uses, helps the extension remember things or clean up when closed.
 
-Exceptions thrown\* (PLEASE see note below for details).
+- 'viewType' (*collabAgent.teamActivity*) - A special name that VS Code uses to tell panels apart, It’s like this panel’s “ID tag
 
-An example of an auto-generated and then augmented API specification is here ([Fiscal Design Document 2\_API.docx](https://templeu.instructure.com/courses/106563/files/16928898?wrap=1 "Fiscal Design Document 2_API.docx") )
 
-This group developed their API documentation by hand ([Design Document Part 2 API-1\_MovieMatch.docx](https://templeu.instructure.com/courses/106563/files/16928899?wrap=1 "Design Document Part 2 API-1_MovieMatch.docx") )
+---
 
-\*At the top level, or where appropriate, all exceptions should be caught and an error message that is meaningful to the user generated. It is not OK to say ("xxxx has encountered a problem and will now close (OK?)". Error messages and recovery procedures should be documented in the User’s Manual.
+#### **Constructor**
+
+- constructor(_extensionUri: Uri, _context: ExtensionContext)
+
+**Purpose:**
+
+Starts up a new panel manager and gets it ready to show the sidebar.
+
+**Parameters:**
+
+- 'extensionUri': The main folder of the extension.
+
+- 'context': The extension’s “memory”, keeps track of state and events.
+
+**Returns:**
+
+- A working CollabAgentPanelProvider ready to use.
+
+**Before it runs (Pre-conditions):**
+
+- The extension must already be active.
+
+- You must give it a valid URI and context.
+
+**After it runs (Post-conditions):**
+
+- The provider is ready to make the sidebar panel appear.
+
+**Errors:**
+
+- If something’s wrong with the inputs, it throws an error saying the data is invalid.
+
+---
+## Method: 
+## resolveWebviewView
+- resolveWebviewView(webviewView, context, _token)
+
+**Purpose:**
+
+- Runs when the sidebar panel shows up. Also, builds the HTML page, connects buttons and messages, and starts Live Share.
+
+**Parameters:**
+
+- webviewView: The panel that will show the page.
+
+- context: Info about how and where the panel is being created.
+
+- token: A cancel switch (not used here).
+
+**Returns:**
+
+- Nothing right away, but finishes setting up everything (Promise<void>).
+
+## updateTeamActivity
+- updateTeamActivity(activity)
+
+**Purpose:**
+
+- Updates the sidebar to show what people on your team are doing (like who’s editing what).
+
+**Parameters:**
+
+- activity: Info about what happened, like edits or status updates.
+
+**Returns:**
+
+- Nothing (void)
+
+## dispose
+- dispose()
+
+**Purpose:**
+
+- Cleans up everything when the sidebar panel closes. Stops timers, removes event listeners, and frees up memory.
+
+**Returns:**
+
+- Nothing (void)
+
+
+
