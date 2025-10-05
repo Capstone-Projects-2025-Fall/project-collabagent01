@@ -189,7 +189,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 // Set up session event listeners for real-time monitoring
                 this.setupLiveShareEventListeners();
 
-                // 🧩 Step 2: Let Guests Subscribe to These Updates (if already a guest)
+                //Step 2: Let Guests Subscribe to These Updates (if already a guest)
                 if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
                     console.log('[initializeLiveShare] Guest detected, setting up participantUpdate listener.');
                     this.setupGuestParticipantListener();
@@ -233,6 +233,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     console.log('Live Share peers changed:', peerChangeEvent);
                     // Immediately refresh participant info
                     this.updateParticipantInfo();
+                    // As guest, also run fallback update to keep UI correct until host notifies
+                    if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
+                        this.updateGuestParticipantFallback();
+                    }
                 });
             } else {
                 console.warn('Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.');
@@ -300,6 +304,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 status = 'joined';
                 // Ensure guest listener is attached when we become a guest after joining
                 this.setupGuestParticipantListener();
+                // Kick a quick local fallback update so UI doesn't show 1
+                this.updateGuestParticipantFallback();
             }
             
             const sessionLink = session.uri?.toString() || this._sessionLink || '';
@@ -308,6 +314,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
             // Prefer peers array for current participants to avoid cumulative peerNumber inflation
             let participantCount = (this._liveShareApi?.peers?.length || 0) + 1; // +1 self
+            // For guests, never show less than 2 because a host must exist
+            if (!isHost) {
+                const sessionPeerNum = typeof (session as any).peerNumber === 'number' ? (session as any).peerNumber : undefined;
+                const candidate = sessionPeerNum && sessionPeerNum >= 2 ? sessionPeerNum : participantCount;
+                participantCount = Math.max(2, candidate);
+            }
             if (isHost && participantCount === 1) {
                 setTimeout(() => this.updateParticipantInfo(), 1000);
             }
@@ -504,8 +516,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     participants: 0
                 });
             }
+            // After a brief delay, if there is still no session, ensure UI exits loading state
             setTimeout(() => {
-                if (!this._liveShareApi?.session && !this._initialSessionCheckDone) {
+                if (!this._liveShareApi?.session) {
                     if (this._view) {
                         this._view.webview.postMessage({
                             command: 'updateSessionStatus',
@@ -598,6 +611,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
         if (!isHost) {
             console.log('[updateParticipantInfo] Skipping update because this client is not host.');
+            // Do not return silently—trigger guest fallback so UI reflects local best effort
+            this.updateGuestParticipantFallback();
             return;
         }
 
@@ -669,6 +684,34 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         } catch (error) {
             console.error('[updateParticipantInfo] Error:', error);
         }
+    }
+
+    // Guest-only: build a temporary participant view from local peers array to avoid stale UI
+    private updateGuestParticipantFallback() {
+        try {
+            if (!this._liveShareApi?.session || this._liveShareApi.session.role !== vsls.Role.Guest) return;
+            const peers = (this._liveShareApi.peers || []).filter(p => !!p);
+            // Ensure minimum 2 (host + self) even if peers isn't populated yet
+            const count = Math.max(2, (peers.length + 1));
+            const participants: any[] = [];
+            // We may not know host identity yet; show self + placeholders as needed
+            const selfName = this._liveShareApi.session.user?.displayName || 'You';
+            participants.push({ name: selfName, email: this._liveShareApi.session.user?.emailAddress || '', role: 'Guest' });
+            for (const peer of peers) {
+                participants.push({ name: peer?.user?.displayName || 'Unknown', email: peer?.user?.emailAddress || '', role: 'Host/Guest' });
+            }
+            if (this._view) {
+                this._view.webview.postMessage({ command: 'updateParticipants', participants, count });
+                this._view.webview.postMessage({
+                    command: 'updateSessionStatus',
+                    status: 'joined',
+                    link: this._sessionLink || '',
+                    participants: count,
+                    role: this._liveShareApi.session.role,
+                    duration: this.getSessionDuration()
+                });
+            }
+        } catch {}
     }
 
     private async endLiveShareSession() {
