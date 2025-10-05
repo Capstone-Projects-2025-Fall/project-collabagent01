@@ -175,7 +175,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             console.warn('Failed reading clipboard for invite link:', err);
             vscode.window.showErrorMessage('Could not read clipboard for invite link.');
         }
-    }
+    } 
 
     private async initializeLiveShare(): Promise<boolean> {
         try {
@@ -409,12 +409,53 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
             if (proxy.isServiceAvailable) {
                 attach();
+                // Immediately fetch a snapshot so header and list are correct without waiting
+                if (typeof proxy.request === 'function') {
+                    proxy.request('getParticipants').then((data: any) => {
+                        if (data && this._view) {
+                            this._view.webview.postMessage({
+                                command: 'updateParticipants',
+                                participants: data.participants,
+                                count: data.count
+                            });
+                            this._view.webview.postMessage({
+                                command: 'updateSessionStatus',
+                                status: 'joined',
+                                link: this._sessionLink || '',
+                                participants: data.count,
+                                role: this._liveShareApi?.session?.role,
+                                duration: data.duration
+                            });
+                        }
+                    }).catch(()=>{});
+                }
             }
 
             if (typeof proxy.onDidChangeIsServiceAvailable === 'function') {
                 proxy.onDidChangeIsServiceAvailable((available: boolean) => {
                     console.log('[setupGuestParticipantListener] Service availability changed:', available);
-                    if (available) attach();
+                    if (available) {
+                        attach();
+                        if (typeof proxy.request === 'function') {
+                            proxy.request('getParticipants').then((data: any) => {
+                                if (data && this._view) {
+                                    this._view.webview.postMessage({
+                                        command: 'updateParticipants',
+                                        participants: data.participants,
+                                        count: data.count
+                                    });
+                                    this._view.webview.postMessage({
+                                        command: 'updateSessionStatus',
+                                        status: 'joined',
+                                        link: this._sessionLink || '',
+                                        participants: data.count,
+                                        role: this._liveShareApi?.session?.role,
+                                        duration: data.duration
+                                    });
+                                }
+                            }).catch(()=>{});
+                        }
+                    }
                 });
             }
         } catch (err) {
@@ -613,6 +654,16 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     command: 'updateParticipants',
                     participants,
                     count: participantCount
+                });
+                // Keep the session header count in sync without needing a reload
+                const session = this._liveShareApi.session;
+                this._view.webview.postMessage({
+                    command: 'updateSessionStatus',
+                    status: 'hosting',
+                    link: this._sessionLink || '',
+                    participants: participantCount,
+                    role: session.role,
+                    duration: this.getSessionDuration()
                 });
             }
         } catch (error) {
@@ -951,6 +1002,42 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         this._sharedService.onRequest('getSessionInfo', async () => {
                             console.log('[registerSessionInfoServiceIfHost] Received getSessionInfo request.');
                             return { startTime: this.sessionStartTime?.toISOString() || new Date().toISOString() };
+                        });
+                        // Provide a participant snapshot on demand for guests joining late
+                        this._sharedService.onRequest('getParticipants', async () => {
+                            try {
+                                const peers = (this._liveShareApi?.peers || []).filter(p => !!p);
+                                const participantCount = peers.length + 1;
+                                const participants: any[] = [];
+                                let selfName = getCachedDisplayName();
+                                if (!selfName) {
+                                    try {
+                                        const r = await getOrInitDisplayName(true);
+                                        selfName = r.displayName;
+                                    } catch {
+                                        selfName = undefined;
+                                    }
+                                }
+                                participants.push({
+                                    name: selfName || this._liveShareApi?.session?.user?.displayName || 'You',
+                                    email: this._liveShareApi?.session?.user?.emailAddress || '',
+                                    role: 'Host'
+                                });
+                                for (const peer of peers) {
+                                    participants.push({
+                                        name: peer?.user?.displayName || 'Unknown',
+                                        email: peer?.user?.emailAddress || '',
+                                        role: 'Guest'
+                                    });
+                                }
+                                return {
+                                    count: participantCount,
+                                    participants,
+                                    duration: this.getSessionDuration()
+                                };
+                            } catch (e) {
+                                return { count: 1, participants: [], duration: this.getSessionDuration() };
+                            }
                         });
                     } else {
                         console.warn('[registerSessionInfoServiceIfHost] Shared service has no onRequest method.');
