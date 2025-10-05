@@ -4,6 +4,8 @@ sidebar_position: 1
 
 ### Component Overview
 The AI-Assisted Collaboration assistant project will contain components and technologies, including making use of a VSCode extension ‘Live Share’ for real-time coding  collaboration. We will also be making use of a Database to store information for its users.
+<img width="419" height="527" alt="image" src="https://github.com/user-attachments/assets/c139b4ec-5162-4c06-9686-5c7484969137" />
+
 
 **Main Application**
 **VS Code Extension (TypeScript, Node.js)**
