@@ -189,72 +189,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 // Set up session event listeners for real-time monitoring
                 this.setupLiveShareEventListeners();
 
-                // 🧩 Step 2: Let Guests Subscribe to These Updates
+                // 🧩 Step 2: Let Guests Subscribe to These Updates (if already a guest)
                 if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
                     console.log('[initializeLiveShare] Guest detected, setting up participantUpdate listener.');
-                    const anyApi: any = this._liveShareApi;
-                    const proxy = await anyApi.getSharedService(this._sharedServiceName);
-
-                    if (proxy) {
-                        console.log('[initializeLiveShare] Shared service proxy obtained:', proxy);
-                    } else {
-                        console.warn('[initializeLiveShare] Could not obtain shared service proxy.');
-                    }
-
-                    if (proxy?.isServiceAvailable && typeof proxy.onNotify === 'function') {
-                        console.log('[initializeLiveShare] Shared service is available, attaching onNotify listener.');
-                        proxy.onNotify('participantUpdate', (data: any) => {
-                            console.log('[onNotify:participantUpdate] Guest received notification:', data);
-                            if (this._view) {
-                                console.log('[onNotify:participantUpdate] Updating webview with participant data.');
-                                this._view.webview.postMessage({
-                                    command: 'updateParticipants',
-                                    participants: data.participants,
-                                    count: data.count
-                                });
-                                this._view.webview.postMessage({
-                                    command: 'updateSessionStatus',
-                                    status: 'joined',
-                                    link: this._sessionLink || '',
-                                    participants: data.count,
-                                    role: this._liveShareApi?.session?.role,
-                                    duration: data.duration
-                                });
-                            } else {
-                                console.warn('[onNotify:participantUpdate] No webview found to post message.');
-                            }
-                        });
-                    } else {
-                        console.warn('[initializeLiveShare] Shared service not yet available or no onNotify.');
-                    }
-
-                    // 🔁 React when the host service becomes available
-                    if (proxy && typeof proxy.onDidChangeIsServiceAvailable === 'function') {
-                        proxy.onDidChangeIsServiceAvailable((available: boolean) => {
-                            console.log('[onDidChangeIsServiceAvailable] Shared service availability changed:', available);
-                            if (available) {
-                                console.log('[onDidChangeIsServiceAvailable] Service available! Attaching onNotify listener.');
-                                proxy.onNotify('participantUpdate', (data: any) => {
-                                    console.log('[onNotify:participantUpdate] Guest received participant update:', data);
-                                    if (this._view) {
-                                        this._view.webview.postMessage({
-                                            command: 'updateParticipants',
-                                            participants: data.participants,
-                                            count: data.count
-                                        });
-                                        this._view.webview.postMessage({
-                                            command: 'updateSessionStatus',
-                                            status: 'joined',
-                                            link: this._sessionLink || '',
-                                            participants: data.count,
-                                            role: this._liveShareApi?.session?.role,
-                                            duration: data.duration
-                                        });
-                                    }
-                                });
-                            }
-                        });
-                    }
+                    this.setupGuestParticipantListener();
                 }
                 
                 return true;
@@ -360,6 +298,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 status = 'hosting';
             } else if (session.role === vsls.Role.Guest) {
                 status = 'joined';
+                // Ensure guest listener is attached when we become a guest after joining
+                this.setupGuestParticipantListener();
             }
             
             const sessionLink = session.uri?.toString() || this._sessionLink || '';
@@ -427,6 +367,58 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }, 2000); // Show "ended" for 2 seconds, then "No active session"
             }
             this.stopParticipantMonitoring();
+        }
+    }
+
+    // Ensure guests subscribe to host participant updates, even if they joined after initialization
+    private async setupGuestParticipantListener() {
+        try {
+            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Guest) {
+                return;
+            }
+            const anyApi: any = this._liveShareApi;
+            const proxy = await anyApi.getSharedService(this._sharedServiceName);
+            if (!proxy) {
+                console.warn('[setupGuestParticipantListener] Could not obtain shared service proxy.');
+                return;
+            }
+
+            const attach = () => {
+                if (typeof proxy.onNotify === 'function') {
+                    console.log('[setupGuestParticipantListener] Attaching onNotify(participantUpdate).');
+                    proxy.onNotify('participantUpdate', (data: any) => {
+                        console.log('[onNotify:participantUpdate] Guest received participant update:', data);
+                        if (this._view) {
+                            this._view.webview.postMessage({
+                                command: 'updateParticipants',
+                                participants: data.participants,
+                                count: data.count
+                            });
+                            this._view.webview.postMessage({
+                                command: 'updateSessionStatus',
+                                status: 'joined',
+                                link: this._sessionLink || '',
+                                participants: data.count,
+                                role: this._liveShareApi?.session?.role,
+                                duration: data.duration
+                            });
+                        }
+                    });
+                }
+            };
+
+            if (proxy.isServiceAvailable) {
+                attach();
+            }
+
+            if (typeof proxy.onDidChangeIsServiceAvailable === 'function') {
+                proxy.onDidChangeIsServiceAvailable((available: boolean) => {
+                    console.log('[setupGuestParticipantListener] Service availability changed:', available);
+                    if (available) attach();
+                });
+            }
+        } catch (err) {
+            console.warn('[setupGuestParticipantListener] Failed to attach guest listener:', err);
         }
     }
 
