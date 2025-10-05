@@ -12,6 +12,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private _sharedService: any | undefined; // Use loose typing to avoid dependency on specific vsls type defs
     private _sessionLink: string | undefined; // Persist session link for consistent display
     private _initialSessionCheckDone = false; // Helps avoid flicker by showing loading state first
+    private _participantNameMap: Map<string, string> = new Map(); // session userId/email -> display name
 
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
     // You can store _context for later use
@@ -438,6 +439,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                 role: this._liveShareApi?.session?.role,
                                 duration: data.duration
                             });
+                            // Announce our preferred display name to the host
+                            const displayName = getCachedDisplayName();
+                            if (displayName) {
+                                proxy.request('announceParticipant', {
+                                    id: this._liveShareApi?.session?.user?.id,
+                                    email: this._liveShareApi?.session?.user?.emailAddress,
+                                    displayName
+                                }).catch(()=>{});
+                            }
                         }
                     }).catch(()=>{});
                 }
@@ -464,6 +474,14 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                         role: this._liveShareApi?.session?.role,
                                         duration: data.duration
                                     });
+                                    const displayName = getCachedDisplayName();
+                                    if (displayName) {
+                                        proxy.request('announceParticipant', {
+                                            id: this._liveShareApi?.session?.user?.id,
+                                            email: this._liveShareApi?.session?.user?.emailAddress,
+                                            displayName
+                                        }).catch(()=>{});
+                                    }
                                 }
                             }).catch(()=>{});
                         }
@@ -632,16 +650,22 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }
             }
 
+            // Resolve host name with fallbacks and any announced overrides
+            const hostIdKey = (session.user?.emailAddress || session.user?.id || '').toLowerCase();
+            const announcedHostName = hostIdKey ? this._participantNameMap.get(hostIdKey) : undefined;
             participants.push({
-                name: selfName || session.user?.displayName || 'You',
+                name: announcedHostName || selfName || session.user?.displayName || session.user?.emailAddress || 'You',
                 email: session.user?.emailAddress || '',
                 role: 'Host'
             });
 
             for (const peer of peers) {
                 console.log('[updateParticipantInfo] Peer object:', JSON.stringify(peer, null, 2));
+                const peerKey = (peer?.user?.emailAddress || peer?.user?.id || '').toLowerCase();
+                const announced = peerKey ? this._participantNameMap.get(peerKey) : undefined;
+                const fallbackName = announced || peer?.user?.displayName || peer?.user?.emailAddress || 'Unknown';
                 participants.push({
-                    name: peer?.user?.displayName || 'Unknown',
+                    name: fallbackName,
                     email: peer?.user?.emailAddress || '',
                     role: 'Guest'
                 });
@@ -1045,6 +1069,21 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         this._sharedService.onRequest('getSessionInfo', async () => {
                             console.log('[registerSessionInfoServiceIfHost] Received getSessionInfo request.');
                             return { startTime: this.sessionStartTime?.toISOString() || new Date().toISOString() };
+                        });
+                        // Allow guests to announce their preferred display name
+                        this._sharedService.onRequest('announceParticipant', async (payload: any) => {
+                            try {
+                                const key: string = (payload?.id || payload?.email || '').toLowerCase();
+                                const name: string = payload?.displayName || '';
+                                if (key && name) {
+                                    this._participantNameMap.set(key, name);
+                                    // Refresh participant list so names appear quickly
+                                    this.updateParticipantInfo();
+                                }
+                                return { ok: true };
+                            } catch {
+                                return { ok: false };
+                            }
                         });
                         // Provide a participant snapshot on demand for guests joining late
                         this._sharedService.onRequest('getParticipants', async () => {
