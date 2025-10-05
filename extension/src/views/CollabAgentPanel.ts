@@ -441,9 +441,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                             });
                             // Announce our preferred display name to the host
                             const displayName = getCachedDisplayName();
-                            if (displayName) {
+                            const idOrEmail = this._liveShareApi?.session?.user?.emailAddress || (this._liveShareApi as any)?.session?.user?.id;
+                            if (displayName && idOrEmail) {
                                 proxy.request('announceParticipant', {
-                                    id: this._liveShareApi?.session?.user?.id,
+                                    id: (this._liveShareApi as any)?.session?.user?.id,
                                     email: this._liveShareApi?.session?.user?.emailAddress,
                                     displayName
                                 }).catch(()=>{});
@@ -475,9 +476,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                         duration: data.duration
                                     });
                                     const displayName = getCachedDisplayName();
-                                    if (displayName) {
+                                    const idOrEmail = this._liveShareApi?.session?.user?.emailAddress || (this._liveShareApi as any)?.session?.user?.id;
+                                    if (displayName && idOrEmail) {
                                         proxy.request('announceParticipant', {
-                                            id: this._liveShareApi?.session?.user?.id,
+                                            id: (this._liveShareApi as any)?.session?.user?.id,
                                             email: this._liveShareApi?.session?.user?.emailAddress,
                                             displayName
                                         }).catch(()=>{});
@@ -651,21 +653,26 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
 
             // Resolve host name with fallbacks and any announced overrides
-            const hostIdKey = (session.user?.emailAddress || session.user?.id || '').toLowerCase();
+            const hostIdKey = (session.user?.emailAddress || (session as any)?.user?.id || '').toLowerCase();
             const announcedHostName = hostIdKey ? this._participantNameMap.get(hostIdKey) : undefined;
+            const hostResolvedName = announcedHostName
+                || selfName
+                || session.user?.displayName
+                || (session as any)?.user?.loginName
+                || (session as any)?.user?.userName
+                || session.user?.emailAddress
+                || 'You';
             participants.push({
-                name: announcedHostName || selfName || session.user?.displayName || session.user?.emailAddress || 'You',
+                name: hostResolvedName,
                 email: session.user?.emailAddress || '',
                 role: 'Host'
             });
 
             for (const peer of peers) {
                 console.log('[updateParticipantInfo] Peer object:', JSON.stringify(peer, null, 2));
-                const peerKey = (peer?.user?.emailAddress || peer?.user?.id || '').toLowerCase();
-                const announced = peerKey ? this._participantNameMap.get(peerKey) : undefined;
-                const fallbackName = announced || peer?.user?.displayName || peer?.user?.emailAddress || 'Unknown';
+                const resolvedName = this.resolvePeerDisplayName(peer);
                 participants.push({
-                    name: fallbackName,
+                    name: resolvedName,
                     email: peer?.user?.emailAddress || '',
                     role: 'Guest'
                 });
@@ -707,6 +714,24 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
         } catch (error) {
             console.error('[updateParticipantInfo] Error:', error);
+        }
+    }
+
+    private resolvePeerDisplayName(peer: any): string {
+        try {
+            const key = (peer?.user?.emailAddress || peer?.user?.id || peer?.id || '').toLowerCase();
+            const announced = key ? this._participantNameMap.get(key) : undefined;
+            if (announced) return announced;
+            return (
+                peer?.user?.displayName
+                || peer?.displayName
+                || (peer as any)?.user?.loginName
+                || (peer as any)?.user?.userName
+                || peer?.user?.emailAddress
+                || 'Unknown'
+            );
+        } catch {
+            return 'Unknown';
         }
     }
 
