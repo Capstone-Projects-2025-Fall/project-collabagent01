@@ -1,15 +1,28 @@
 {
+    "$schema": "https://typedoc.org/schema.json",
     "entryPoints": ["src"],
-    "out": "../server/docs/extensionDocs",
+    "out": "./docs",
     "tsconfig": "./tsconfig.json",
-    "excludePrivate": true,
-    "excludeProtected": true,
+    "excludePrivate": false,
+    "excludeProtected": false,
+    "excludeInternal": false,
     "includeVersion": true,
-    "name": "CLOVER Extension",
-    "readme": "none",
-    "plugin": ["typedoc-theme-hierarchy"],
-    "theme": "hierarchy",
-    "hideGenerator": true,
+    "name": "Collab Agent Extension API Documentation",
+    "readme": "README.md",
+    "theme": "default",
+    "hideGenerator": false,
     "categorizeByGroup": true,
     "entryPointStrategy": "expand",
-  }
+    "sort": ["source-order"],
+    "validation": {
+        "notExported": true,
+        "invalidLink": true,
+        "notDocumented": false
+    },
+    "treatWarningsAsErrors": false,
+    "cleanOutputDir": true,
+    "searchInComments": true,
+    "searchInDocuments": true,
+    "excludeExternals": true,
+    "disableSources": false
+}

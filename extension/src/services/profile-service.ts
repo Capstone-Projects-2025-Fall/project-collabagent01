@@ -2,13 +2,26 @@ import * as vscode from 'vscode';
 import { getSupabase } from '../auth/supabaseClient';
 import { globalContext } from '../extension';
 
+/** Global state key for storing user's display name */
 const DISPLAY_NAME_KEY = 'collabAgent.displayName';
 
+/**
+ * Result object containing display name and its source.
+ */
 export interface DisplayNameResult {
+  /** The display name to use */
   displayName: string;
+  /** Where the display name was obtained from */
   source: 'supabase' | 'cached' | 'prompt' | 'fallback';
 }
 
+/**
+ * Gets or initializes a display name for the user.
+ * Tries multiple sources: cached, Supabase metadata, user prompt, or fallback.
+ * 
+ * @param nonInteractive - If true, won't prompt user for input
+ * @returns Promise resolving to display name result with source
+ */
 export async function getOrInitDisplayName(nonInteractive = false): Promise<DisplayNameResult> {
   // 1. If cached in globalState, return it.
   const cached = globalContext?.globalState.get<string>(DISPLAY_NAME_KEY);
@@ -48,6 +61,10 @@ export async function getOrInitDisplayName(nonInteractive = false): Promise<Disp
   return { displayName: 'You', source: 'fallback' };
 }
 
+/**
+ * Allows user to explicitly set or change their display name.
+ * Shows input dialog with current name pre-filled.
+ */
 export async function setDisplayNameExplicit(): Promise<void> {
   const current = globalContext.globalState.get<string>(DISPLAY_NAME_KEY) || '';
   const input = await vscode.window.showInputBox({
@@ -63,6 +80,11 @@ export async function setDisplayNameExplicit(): Promise<void> {
   }
 }
 
+/**
+ * Gets the cached display name from global state.
+ * 
+ * @returns The cached display name or undefined if not set
+ */
 export function getCachedDisplayName(): string | undefined {
   return globalContext?.globalState.get<string>(DISPLAY_NAME_KEY);
 }

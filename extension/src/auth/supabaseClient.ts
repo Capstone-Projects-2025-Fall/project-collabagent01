@@ -1,19 +1,26 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as vscode from 'vscode';
 
+/** Singleton Supabase client instance */
 let client: SupabaseClient | null = null;
 
+/**
+ * Gets or creates a Supabase client instance.
+ * Reads configuration from VS Code settings or environment variables.
+ * 
+ * @returns The Supabase client instance
+ * @throws Error if Supabase configuration is missing
+ */
 export function getSupabase(): SupabaseClient {
   if (client) return client;
 
-  // Read directly by full key (safer if user put in settings.json manually)
   const url = (vscode.workspace.getConfiguration().get<string>('collabAgent.supabase.url')
     || process.env.SUPABASE_URL
     || '').trim();
   const anonKey = (
     vscode.workspace.getConfiguration().get<string>('collabAgent.supabase.anonKey')
     || process.env.SUPABASE_ANON_KEY
-    || process.env.SUPABASE_KEY // common name used in backend .env
+    || process.env.SUPABASE_KEY
     || ''
   ).trim();
 
@@ -24,6 +31,11 @@ export function getSupabase(): SupabaseClient {
   return client;
 }
 
+/**
+ * Gets the currently authenticated user from Supabase.
+ * 
+ * @returns Promise resolving to the current user or null if not authenticated
+ */
 export async function getCurrentUser() {
   const supabase = getSupabase();
   const { data } = await supabase.auth.getUser();

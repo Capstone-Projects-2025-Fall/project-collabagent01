@@ -86,14 +86,6 @@ export async function checkUserSignIn() {
     await showAuthNotification(`Welcome back, ${user.first_name}! 🎉`);
     return;
   }
-
-  // if (sessionData?.session?.user) {
-  //     const user = sessionData.session.user;
-  //     await setAuthContext({ id: user.id, email: user.email }, sessionData.session, true);
-  //     vscode.window.showInformationMessage(`Welcome back, ${user.email}! 🎉`);
-  // } else {
-
-  // }
 }
 
 /**
@@ -125,9 +117,8 @@ export async function signInOrUpMenu() {
 }
 
 /**
- * Signs the user out and clears their authentication context.
+ * Displays the sign-out confirmation menu.
  */
-
 export async function signOutMenu() {
   const { context: user, error } = await getAuthContext();
   if (error) {
@@ -220,8 +211,6 @@ export async function handleSignIn() {
   await showAuthNotification("Sign In successfully! 🎉");
 
   vscode.commands.executeCommand("collabAgent.authStateChanged");
-
-  // logging removed
 }
 
 /**
@@ -265,8 +254,6 @@ export async function handleSignUpProvided(email: string, password: string) {
   await showAuthNotification("Sign Up successfully! 🎉");
 
   vscode.commands.executeCommand("collabAgent.authStateChanged");
-
-  // logging removed
 }
 
 /**
@@ -278,13 +265,6 @@ export async function handleSignOut() {
     await errorNotification(`Failed to get user context: ${contextError}`);
     return;
   }
-  // Add this back later
-  // const { error: signOutError } = await signOut(user.id);
-  // if (signOutError) {
-  //     vscode.window.showErrorMessage(`Sign Out failed: ${signOutError}`);
-  //     return;
-  // }
-
   const { error: setAuthError } = await setAuthContext(undefined);
   if (setAuthError) {
     await errorNotification(`Failed to set user context: ${setAuthError}`);
@@ -293,8 +273,6 @@ export async function handleSignOut() {
   await showAuthNotification(`Sign Out Successfully! 👋`);
 
   vscode.commands.executeCommand("collabAgent.authStateChanged");
-
-  // logging removed
 }
 
 /**
@@ -354,14 +332,12 @@ export async function handleSignUp() {
     }
 
   vscode.commands.executeCommand("collabAgent.authStateChanged");
-
-    // logging removed
   }
 }
 
 /**
- /**
  * Signs in a user through GitHub OAuth authentication flow.
+ * Opens external browser for OAuth flow and handles the callback.
  */
 export async function signInWithGithub() {
   try {

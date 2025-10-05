@@ -2,22 +2,53 @@ import * as vscode from 'vscode';
 import * as vsls from 'vsls';
 import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-service';
 
+/**
+ * Provides the webview panel for the Collab Agent extension.
+ * Manages Live Share sessions, participant monitoring, and team collaboration features.  
+ * This class implements the VS Code WebviewViewProvider interface.
+ */
 export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
+    /** The unique identifier for this webview view type */
     public static readonly viewType = 'collabAgent.teamActivity';
 
+    /** The webview view instance for displaying the panel */
     private _view?: vscode.WebviewView;
-    private _liveShareApi?: vsls.LiveShare | null = null; 
-    // Shared service name for propagating host session metadata (e.g., start time)
+    
+    /** Live Share API instance for managing collaboration sessions */
+    private _liveShareApi?: vsls.LiveShare | null = null;
+    
+    /** Name of the shared service for propagating session metadata between participants */
     private readonly _sharedServiceName = 'collabAgentSessionInfo';
-    private _sharedService: any | undefined; // Use loose typing to avoid dependency on specific vsls type defs
-    private _sessionLink: string | undefined; // Persist session link for consistent display
-    private _initialSessionCheckDone = false; // Helps avoid flicker by showing loading state first
-    private _participantNameMap: Map<string, string> = new Map(); // session userId/email -> display name
+    
+    /** Shared service instance for host-guest communication */
+    private _sharedService: any | undefined;
+    
+    /** Current session invite link for persistence and display */
+    private _sessionLink: string | undefined;
+    
+    /** Flag to track if initial session check has been completed */
+    private _initialSessionCheckDone = false;
+    
+    /** Map of participant user IDs/emails to their display names */
+    private _participantNameMap: Map<string, string> = new Map();
 
+    /**
+     * Creates a new CollabAgentPanelProvider instance.
+     * 
+     * @param _extensionUri - The URI of the extension for loading resources
+     * @param _context - The extension context for state management
+     */
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
-    // You can store _context for later use
-}
+    }
 
+    /**
+     * Resolves the webview view when it becomes visible.
+     * Sets up the webview HTML, message handlers, and initializes Live Share.
+     * 
+     * @param webviewView - The webview view to resolve
+     * @param context - The resolution context
+     * @param _token - Cancellation token (unused)
+     */
     public async resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
@@ -36,7 +67,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
         await this.initializeLiveShare();
 
-        // Handle messages from the webview
         webviewView.webview.onDidReceiveMessage(
             message => {
                 console.log('Received message from webview:', message);
@@ -86,9 +116,14 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         );
     }
 
-    // --- Manual invite link support (fallback when Live Share API does not expose link) ---
+    /** Key for persisting manual invite links in global state */
     private readonly _persistedLinkKey = 'collabAgent.manualInviteLink';
 
+    /**
+     * Sets a manual invite link as fallback when Live Share API doesn't expose the link.
+     * 
+     * @param link - The invite link to set, or undefined to clear
+     */
     private setManualInviteLink(link: string | undefined) {
         if (!link || !link.trim()) {
             if (this._view) {
@@ -98,14 +133,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
         const trimmed = link.trim();
         this._sessionLink = trimmed;
-        // Persist so reload maintains it until session ends or cleared
         this._context.globalState.update(this._persistedLinkKey, this._sessionLink);
         if (this._view) {
             this._view.webview.postMessage({
                 command: 'manualLinkUpdated',
                 link: this._sessionLink
             });
-            // Also push a status refresh if currently hosting
             const status = this._liveShareApi?.session?.role === vsls.Role.Host ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
             this._view.webview.postMessage({
                 command: 'updateSessionStatus',
@@ -118,6 +151,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Clears the manually set invite link and updates the UI.
+     */
     private clearManualInviteLink() {
         this._sessionLink = undefined;
         this._context.globalState.update(this._persistedLinkKey, undefined);
@@ -135,13 +171,16 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Sends any stored invite link from global state to the webview.
+     * Used for restoring session state after extension reload.
+     */
     private sendStoredLinkToWebview() {
         const stored = this._context.globalState.get<string | undefined>(this._persistedLinkKey);
         if (stored) {
-            this._sessionLink = stored; // restore into memory
+            this._sessionLink = stored;
             if (this._view) {
                 this._view.webview.postMessage({ command: 'storedLink', link: stored });
-                // Also push a status update if in session
                 if (this._liveShareApi?.session) {
                     const s = this._liveShareApi.session;
                     this._view.webview.postMessage({
@@ -157,6 +196,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Attempts to paste an invite link from the system clipboard.
+     * Shows appropriate error messages for invalid or empty clipboard content.
+     */
     private async pasteInviteLinkFromClipboard() {
         try {
             const clip = await vscode.env.clipboard.readText();
@@ -178,19 +221,22 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     } 
 
+    /**
+     * Initializes the Live Share API and sets up event listeners.
+     * Retries on failure with exponential backoff.
+     * 
+     * @returns Promise that resolves to true if initialization succeeds, false otherwise
+     */
     private async initializeLiveShare(): Promise<boolean> {
         try {
-            // Wait a bit for Live Share extension to be fully loaded
             await new Promise(resolve => setTimeout(resolve, 1000));
             
             this._liveShareApi = await vsls.getApi();
             if (this._liveShareApi) {
                 console.log('Live Share API initialized successfully.');
                 
-                // Set up session event listeners for real-time monitoring
                 this.setupLiveShareEventListeners();
 
-                //Step 2: Let Guests Subscribe to These Updates (if already a guest)
                 if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
                     console.log('[initializeLiveShare] Guest detected, setting up participantUpdate listener.');
                     this.setupGuestParticipantListener();
@@ -199,7 +245,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 return true;
             } else {
                 console.log('Live Share extension not available.');
-                // Retry after a delay
                 setTimeout(() => {
                     console.log('Retrying Live Share initialization...');
                     this.initializeLiveShare();
@@ -208,7 +253,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
         } catch (error) {
             console.error('Failed to initialize Live Share API:', error);
-            // Retry after a delay
             setTimeout(() => {
                 console.log('Retrying Live Share initialization after error...');
                 this.initializeLiveShare();
@@ -217,24 +261,24 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Sets up event listeners for Live Share session and peer changes.
+     * Monitors session state, participant changes, and activities.
+     */
     private setupLiveShareEventListeners() {
         if (!this._liveShareApi) {
             return;
         }
         try {
-            // Listen for session state changes
             this._liveShareApi.onDidChangeSession((sessionChangeEvent) => {
                 console.log('Live Share session changed:', sessionChangeEvent);
                 this.handleSessionChange(sessionChangeEvent);
             });
 
-            // Listen for peer (participant) changes so guests also see updated counts
             if (typeof (this._liveShareApi as any).onDidChangePeers === 'function') {
                 (this._liveShareApi as any).onDidChangePeers((peerChangeEvent: any) => {
                     console.log('Live Share peers changed:', peerChangeEvent);
-                    // Immediately refresh participant info
                     this.updateParticipantInfo();
-                    // As guest, also run fallback update to keep UI correct until host notifies
                     if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
                         this.updateGuestParticipantFallback();
                     }
@@ -243,7 +287,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 console.warn('Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.');
             }
 
-            // Additional safety net: capture names from Live Share activities (guestJoin/join)
             if (typeof (this._liveShareApi as any).onActivity === 'function') {
                 (this._liveShareApi as any).onActivity((activity: any) => {
                     try {
@@ -263,18 +306,22 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                             this.updateParticipantInfo();
                         }
                     } catch {
-                        // ignore
                     }
                 });
             }
 
-            // Monitor the current session state
             this.monitorSessionState();
         } catch (error) {
             console.error('Error setting up Live Share event listeners:', error);
         }
     }
 
+    /**
+     * Handles Live Share session state changes (start, join, end).
+     * Updates UI, manages participant monitoring, and handles session timing.
+     * 
+     * @param sessionChangeEvent - The session change event from Live Share API
+     */
     private handleSessionChange(sessionChangeEvent: any) {
         const session = sessionChangeEvent.session;
         console.log('handleSessionChange called with session:', session);
@@ -297,30 +344,24 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 user: session.user
             });
 
-            // Track session start time - include host 'started' events and guest 'joined'
             if (!this.sessionStartTime || ['joined','started','start','starting'].includes(String(sessionChangeEvent.changeType).toLowerCase())) {
                 this.sessionStartTime = new Date();
                 console.log('Session start time set to (local clock):', this.sessionStartTime, 'changeType:', sessionChangeEvent.changeType);
             }
-            // If we're host, ensure shared service is registered so guests can fetch accurate start time
             if (session.role === vsls.Role.Host) {
                 this.registerSessionInfoServiceIfHost();
             } else if (session.role === vsls.Role.Guest && !this._requestedHostStartTime) {
-                // As guest, attempt to request host's actual start time (only once)
                 this.requestHostSessionStartTime();
             }
 
-            // Determine the correct status based on role
             const isHost = session.role === vsls.Role.Host;
-            let status = 'joined'; // default
+            let status = 'joined';
             
             if (isHost) {
                 status = 'hosting';
             } else if (session.role === vsls.Role.Guest) {
                 status = 'joined';
-                // Ensure guest listener is attached when we become a guest after joining
                 this.setupGuestParticipantListener();
-                // Kick a quick local fallback update so UI doesn't show 1
                 this.updateGuestParticipantFallback();
             }
             
@@ -328,8 +369,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             if (sessionLink) {
                 this._sessionLink = sessionLink;
             }
-            // Prefer peers array for current participants to avoid cumulative peerNumber inflation
-            let participantCount = (this._liveShareApi?.peers?.length || 0) + 1; // +1 self
+            let participantCount = (this._liveShareApi?.peers?.length || 0) + 1;
             // For guests, never show less than 2 because a host must exist
             if (!isHost) {
                 const sessionPeerNum = typeof (session as any).peerNumber === 'number' ? (session as any).peerNumber : undefined;
@@ -366,7 +406,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             console.log('Session ended - clearing session start time');
             this.sessionStartTime = undefined;
             this.stopDurationUpdater();
-            // Clear any persisted manual link upon full session end
             this.clearManualInviteLink();
             if (this._view) {
                 this._view.webview.postMessage({
@@ -382,7 +421,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     count: 0
                 });
                 
-                // After showing "ended" briefly, switch to "none" to show "No active session"
                 setTimeout(() => {
                     if (this._view) {
                         this._view.webview.postMessage({
@@ -392,13 +430,16 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                             participants: 0
                         });
                     }
-                }, 2000); // Show "ended" for 2 seconds, then "No active session"
+                }, 2000);
             }
             this.stopParticipantMonitoring();
         }
     }
 
-    // Ensure guests subscribe to host participant updates, even if they joined after initialization
+    /**
+     * Sets up participant update listeners for guests.
+     * Allows guests to receive real-time participant updates from the host.
+     */
     private async setupGuestParticipantListener() {
         try {
             if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Guest) {
@@ -437,7 +478,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
             if (proxy.isServiceAvailable) {
                 attach();
-                // Immediately fetch a snapshot so header and list are correct without waiting
                 if (typeof proxy.request === 'function') {
                     proxy.request('getParticipants').then((data: any) => {
                         if (data && this._view) {
@@ -454,7 +494,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                 role: this._liveShareApi?.session?.role,
                                 duration: data.duration
                             });
-                            // Announce our preferred display name to the host
                             const displayName = getCachedDisplayName();
                             const idOrEmail = this._liveShareApi?.session?.user?.emailAddress || (this._liveShareApi as any)?.session?.user?.id;
                             if (displayName && idOrEmail) {
@@ -510,14 +549,16 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Monitors the current Live Share session state and updates the UI accordingly.
+     * Handles initial session detection and sets up periodic monitoring.
+     */
     private monitorSessionState() {
-        // Check current session state immediately
         console.log('monitorSessionState: Checking session state...');
         console.log('monitorSessionState: _liveShareApi exists:', !!this._liveShareApi);
         console.log('monitorSessionState: _liveShareApi.session exists:', !!this._liveShareApi?.session);
         
         if (this._liveShareApi?.session) {
-            // Only process if it's an active, valid session
             const session = this._liveShareApi.session;
             console.log('monitorSessionState: Session details:', {
                 id: session.id,
@@ -525,13 +566,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 isValid: !!(session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest))
             });
             
-            // Validate that this is actually an active session
             if (session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest)) {
                 console.log('Found existing active session:', session);
                 this.handleSessionChange({ session: session, changeType: 'existing' });
             } else {
                 console.log('Found invalid or inactive session, clearing UI state');
-                // Clear any invalid session state
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'updateSessionStatus',
@@ -551,7 +590,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     participants: 0
                 });
             }
-            // After a brief delay, if there is still no session, ensure UI exits loading state
             setTimeout(() => {
                 if (!this._liveShareApi?.session) {
                     if (this._view) {
@@ -567,13 +605,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
         this._initialSessionCheckDone = true;
         
-        // Set up periodic monitoring to catch session state changes
-        // that might not trigger the event listener
         setInterval(() => {
             this.periodicSessionCheck();
-        }, 5000); // Check every 5 seconds
+        }, 5000);
     }
     
+    /**
+     * Performs periodic checks of session state to catch changes
+     * that might not trigger event listeners.
+     */
     private periodicSessionCheck() {
         if (!this._liveShareApi) {
             return;
@@ -586,7 +626,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         
         console.log('periodicSessionCheck:', { hasSession, hasValidSession, sessionId: this._liveShareApi.session?.id });
         
-        // If we don't have a valid session but the UI might be showing one, clear it
         if (!hasValidSession && this._view) {
             console.log('periodicSessionCheck: No valid session, ensuring UI shows none');
             this._view.webview.postMessage({
@@ -602,31 +641,43 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 count: 0
             });
             
-            // Also clear any session-related state
             this.sessionStartTime = undefined;
             this.stopParticipantMonitoring();
         }
     }
 
+    /** Interval timer for monitoring participant changes */
     private participantMonitoringInterval?: NodeJS.Timeout;
+    
+    /** Timestamp when the current session started */
     private sessionStartTime?: Date;
-    private _requestedHostStartTime = false; // guard to avoid repeated requests as guest
-    private _durationUpdateInterval?: NodeJS.Timeout; // interval to push duration updates
-    private _hostStartTimeRetryCount = 0; // retry attempts for fetching host session start time
+    
+    /** Flag to prevent duplicate requests for host session start time */
+    private _requestedHostStartTime = false;
+    
+    /** Interval timer for pushing duration updates to the UI */
+    private _durationUpdateInterval?: NodeJS.Timeout;
+    
+    /** Number of retry attempts for fetching host session start time */
+    private _hostStartTimeRetryCount = 0;
 
+    /**
+     * Starts monitoring participants in the Live Share session.
+     * Updates participant information every 2 seconds for responsive UI updates.
+     */
     private startParticipantMonitoring() {
-        // Clear any existing monitoring
         this.stopParticipantMonitoring();
         
-        // Monitor participants every 2 seconds for more responsive updates
         this.participantMonitoringInterval = setInterval(() => {
             this.updateParticipantInfo();
         }, 2000);
 
-        // Update immediately
         this.updateParticipantInfo();
     }
 
+    /**
+     * Stops the participant monitoring interval timer.
+     */
     private stopParticipantMonitoring() {
         if (this.participantMonitoringInterval) {
             clearInterval(this.participantMonitoringInterval);
@@ -634,6 +685,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Updates participant information for the current session.
+     * Only hosts can update participant info and notify guests.
+     */
     private async updateParticipantInfo() {
         if (!this._liveShareApi?.session) {
             console.warn('[updateParticipantInfo] No active Live Share session.');
@@ -646,7 +701,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
         if (!isHost) {
             console.log('[updateParticipantInfo] Skipping update because this client is not host.');
-            // Do not return silently—trigger guest fallback so UI reflects local best effort
             this.updateGuestParticipantFallback();
             return;
         }
@@ -667,7 +721,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }
             }
 
-            // Resolve host name with fallbacks and any announced overrides
             const hostIdKey = (session.user?.emailAddress || (session as any)?.user?.id || '').toLowerCase();
             const announcedHostName = hostIdKey ? this._participantNameMap.get(hostIdKey) : undefined;
             const hostResolvedName = announcedHostName
@@ -693,7 +746,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 });
             }
 
-            // 🔄 Notify guests
             if (this._sharedService?.notify) {
                 console.log('[updateParticipantInfo] Sending participantUpdate notification via shared service:', {
                     count: participantCount,
@@ -708,7 +760,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 console.warn('[updateParticipantInfo] Shared service not registered yet, cannot notify guests.');
             }
 
-            // 🖥 Update host UI
             if (this._view) {
                 console.log('[updateParticipantInfo] Sending updateParticipants message to webview.');
                 this._view.webview.postMessage({
@@ -716,7 +767,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     participants,
                     count: participantCount
                 });
-                // Keep the session header count in sync without needing a reload
                 const session = this._liveShareApi.session;
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
@@ -732,6 +782,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Resolves the display name for a Live Share peer.
+     * Uses announced names, user properties, or fallback to 'Unknown'.
+     * 
+     * @param peer - The peer object from Live Share API
+     * @returns The resolved display name for the peer
+     */
     private resolvePeerDisplayName(peer: any): string {
         try {
             const key = (peer?.user?.emailAddress || peer?.user?.id || peer?.id || '').toLowerCase();
@@ -750,15 +807,16 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    // Guest-only: build a temporary participant view from local peers array to avoid stale UI
+    /**
+     * Provides fallback participant information for guests when host updates aren't available.
+     * Builds temporary participant view from local peer data.
+     */
     private updateGuestParticipantFallback() {
         try {
             if (!this._liveShareApi?.session || this._liveShareApi.session.role !== vsls.Role.Guest) return;
             const peers = (this._liveShareApi.peers || []).filter(p => !!p);
-            // Ensure minimum 2 (host + self) even if peers isn't populated yet
             const count = Math.max(2, (peers.length + 1));
             const participants: any[] = [];
-            // We may not know host identity yet; show self + placeholders as needed
             const selfName = this._liveShareApi.session.user?.displayName || 'You';
             participants.push({ name: selfName, email: this._liveShareApi.session.user?.emailAddress || '', role: 'Guest' });
             for (const peer of peers) {
@@ -778,6 +836,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         } catch {}
     }
 
+    /**
+     * Ends the current Live Share session (host only).
+     * Updates UI state and notifies participants.
+     */
     private async endLiveShareSession() {
         try {
             console.log('Attempting to end Live Share session...');
@@ -807,7 +869,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             await this._liveShareApi.end();
             console.log('Live Share end() completed');
             
-            // Immediately clear the UI state
             this.sessionStartTime = undefined;
             this.stopParticipantMonitoring();
             this.stopDurationUpdater();
@@ -839,7 +900,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             console.error('Error ending Live Share session:', error);
             vscode.window.showErrorMessage('Failed to end Live Share session: ' + error);
             
-            // Reset button state on error
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'resetButtonState',
@@ -849,6 +909,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Leaves the current Live Share session (guest only).
+     * Clears local session state and updates UI.
+     */
     private async leaveLiveShareSession() {
         try {
             console.log('Attempting to leave Live Share session...');
@@ -874,11 +938,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
 
             console.log('Calling end() on Live Share API to leave session...');
-            // For guests, end() will leave the session
             await this._liveShareApi.end();
             console.log('Live Share leave completed');
             
-            // Clear the UI state
             this.sessionStartTime = undefined;
             this.stopParticipantMonitoring();
             this.stopDurationUpdater();
@@ -904,7 +966,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             console.error('Error leaving Live Share session:', error);
             vscode.window.showErrorMessage('Failed to leave Live Share session: ' + error);
             
-            // Reset button state on error
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'resetButtonState',
@@ -914,6 +975,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Calculates and formats the current session duration.
+     * 
+     * @returns Formatted duration string (e.g., "1h 30m" or "45m")
+     */
     private getSessionDuration(): string {
         if (!this.sessionStartTime) return '';
         const now = new Date();
@@ -924,8 +990,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         return `${diffMins}m`;
     }
 
+    /**
+     * Starts a new Live Share session as host.
+     * Validates workspace state, creates session, and sets up monitoring.
+     */
     private async startLiveShareSession() {
-        // Check if a folder is open before starting session
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
             vscode.window.showErrorMessage('Please open a project folder before starting a Live Share session.');
             return;
@@ -956,23 +1025,19 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 const inviteLink = session.toString();
                 this._sessionLink = inviteLink;
                 vscode.window.showInformationMessage(`Live Share session started! Invite link ${inviteLink}`);
-                // Record start time immediately for host so duration begins updating
                 if (!this.sessionStartTime) {
                     this.sessionStartTime = new Date();
                     console.log('Host sessionStartTime initialized at startLiveShareSession():', this.sessionStartTime);
                 }
-                // Register shared service to provide start time to guests
                 this.registerSessionInfoServiceIfHost();
                 // Start duration updates
                 this.startDurationUpdater();
 
-                // Warn host about folder changes ending session
                 vscode.window.showWarningMessage(
                     'Warning: Closing this folder or opening another project folder will end the Live Share session for all participants.',
                     { modal: true }
                 );
 
-                // Update the UI
                 if (this._view) {
                     this._view.webview.postMessage({
                         command: 'updateSessionStatus',
@@ -987,7 +1052,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     this.registerSessionInfoServiceIfHost();
                 }, 2000);
 
-                // Push participant info right away
                 setTimeout(() => {
                     console.log('[startLiveShareSession] Triggering updateParticipantInfo after share.');
                     this.updateParticipantInfo();
@@ -1001,6 +1065,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Joins an existing Live Share session as guest.
+     * Prompts for invite link and establishes connection.
+     */
     private async joinLiveShareSession() {
         if (!this._liveShareApi) {
             vscode.window.showErrorMessage('Live Share API not available. Please install Live Share extension.');
@@ -1008,7 +1076,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
 
         try {
-            // Prompt user for invite link 
             const inviteLink = await vscode.window.showInputBox({
                 prompt: 'Enter Live Share invite link',
                 placeHolder: 'https://prod.liveshare.vsengsaas.visualstudio.com/join?...',
@@ -1021,21 +1088,18 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             });
 
             if (!inviteLink) {
-                return; // User cancelled 
+                return;
             }
 
             vscode.window.showInformationMessage('Joining Live Share session...');
 
-            // Join the Live Share session
             const inviteUri = vscode.Uri.parse(inviteLink.trim());
             await this._liveShareApi.join(inviteUri);
             this._sessionLink = inviteLink;
             vscode.window.showInformationMessage('Successfully joined Live Share session!');
-            // As guest, immediately attempt to fetch host start time
             this.requestHostSessionStartTime();
             this.startDurationUpdater();
 
-            // Update UI 
             if (this._view) {
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
@@ -1044,7 +1108,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 });
             }
 
-            // Immediate participant info after join
             this.updateParticipantInfo();
         } catch (error) {
             console.error('Error joining Live Share session:', error);
@@ -1052,6 +1115,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Sends a team message in the current Live Share session.
+     * 
+     * @param message - The message text to send
+     */
     private sendTeamMessage(message: string) {
         if (!this._liveShareApi?.session) {
             vscode.window.showWarningMessage('Start or join a Live Share session to use team chat.');
@@ -1068,8 +1136,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Updates team activity information (host only).
+     * 
+     * @param activity - The activity data to update
+     */
     public updateTeamActivity(activity: any) {
-        // Only hosts update team activity
         if (this._liveShareApi?.session?.role !== vsls.Role.Host) return;
         if (this._view) {
             this._view.webview.postMessage({
@@ -1079,17 +1151,21 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
-
+    /**
+     * Disposes of the panel provider and cleans up resources.
+     * Stops monitoring intervals and clears references.
+     */
     dispose() {
-        // Stop participant monitoring
         this.stopParticipantMonitoring();
         
-        // Dispose of any other resources
         this._view = undefined;
         this._liveShareApi = undefined;
     }
 
-    // --- Shared session start time support ---
+    /**
+     * Registers a shared service for host-guest communication (host only).
+     * Enables guests to receive session info and participant updates.
+     */
     private async registerSessionInfoServiceIfHost() {
         try {
             console.log('[registerSessionInfoServiceIfHost] Attempting to register shared service.');
@@ -1097,9 +1173,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 return;
             }
             if (this._sharedService) {
-                return; // already registered
+                return;
             }
-            // shareService is only available to host
             const anyApi: any = this._liveShareApi as any;
             const hostShareFn = anyApi.shareService || anyApi.registerService;
             if (typeof hostShareFn === 'function') {
@@ -1111,14 +1186,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                             console.log('[registerSessionInfoServiceIfHost] Received getSessionInfo request.');
                             return { startTime: this.sessionStartTime?.toISOString() || new Date().toISOString() };
                         });
-                        // Allow guests to announce their preferred display name
                         this._sharedService.onRequest('announceParticipant', async (payload: any) => {
                             try {
                                 const key: string = (payload?.id || payload?.email || '').toLowerCase();
                                 const name: string = payload?.displayName || '';
                                 if (key && name) {
                                     this._participantNameMap.set(key, name);
-                                    // Refresh participant list so names appear quickly
                                     this.updateParticipantInfo();
                                 }
                                 return { ok: true };
@@ -1126,7 +1199,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                 return { ok: false };
                             }
                         });
-                        // Provide a participant snapshot on demand for guests joining late
                         this._sharedService.onRequest('getParticipants', async () => {
                             try {
                                 const peers = (this._liveShareApi?.peers || []).filter(p => !!p);
@@ -1165,7 +1237,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     } else {
                         console.warn('[registerSessionInfoServiceIfHost] Shared service has no onRequest method.');
                     }
-                    // Also accept notifications so guests can announce names without awaiting a response
                     if (typeof this._sharedService.onNotify === 'function') {
                         this._sharedService.onNotify('announceParticipant', (payload: any, sender?: any) => {
                             try {
@@ -1188,11 +1259,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Requests the session start time from the host (guest only).
+     * Synchronizes session duration display across all participants.
+     */
     private async requestHostSessionStartTime() {
         if (this._requestedHostStartTime) {
             return;
         }
-        this._requestedHostStartTime = true; // set early to avoid spamming
+        this._requestedHostStartTime = true;
         try {
             if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Guest) {
                 return;
@@ -1205,7 +1280,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     if (info && info.startTime) {
                         const hostStart = new Date(info.startTime);
                         if (!isNaN(hostStart.getTime())) {
-                            // Only adopt if earlier than our local join time
                             if (!this.sessionStartTime || hostStart.getTime() < this.sessionStartTime.getTime()) {
                                 this.sessionStartTime = hostStart;
                                 console.log('Guest updated sessionStartTime from host shared service:', this.sessionStartTime);
@@ -1222,12 +1296,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                 }
                             }
                         }
-                        // Success - reset retry counter
                         this._hostStartTimeRetryCount = 0;
                     }
                 } else {
                     console.log('Shared service not yet available; will retry shortly');
-                    if (this._hostStartTimeRetryCount < 5) { // up to 5 retries (~15s total)
+                    if (this._hostStartTimeRetryCount < 5) {
                         this._hostStartTimeRetryCount++;
                         setTimeout(() => { this._requestedHostStartTime = false; this.requestHostSessionStartTime(); }, 3000);
                     } else {
@@ -1240,8 +1313,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Starts the duration updater interval (host only).
+     * Periodically updates the session duration in the UI.
+     */
     private startDurationUpdater() {
-        // Only hosts update duration
         this.stopDurationUpdater();
         if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) return;
         this._durationUpdateInterval = setInterval(() => {
@@ -1263,13 +1339,22 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }, 30000);
     }
 
+    /**
+     * Stops the duration updater interval timer.
+     */
     private stopDurationUpdater() {
         if (this._durationUpdateInterval) {
             clearInterval(this._durationUpdateInterval);
             this._durationUpdateInterval = undefined;
         }
     }
-    // @ts-ignore
+    
+    /**
+     * Generates the HTML content for the webview panel.
+     * 
+     * @param webview - The webview instance for generating resource URIs
+     * @returns The complete HTML string for the panel
+     */
     private _getHtmlForWebview(webview: vscode.Webview) {
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.js'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.css'));

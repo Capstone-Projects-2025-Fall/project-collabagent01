@@ -29,9 +29,9 @@ export const signOutCommand = vscode.commands.registerCommand(
 
 /**
  * Handles URIs sent back to the extension after OAuth authentication flow.
- *
- * Specifically listens for the `/auth-complete` URI, extracts the user token,
- * fetches the user, and updates the authentication context.
+ * Supports both custom backend auth and Supabase OAuth callbacks.
+ * 
+ * @param uri - The URI containing authentication data
  */
 export const handleAuthUri = async (uri: vscode.Uri) => {
   if (uri.path === "/auth-complete") {
@@ -65,7 +65,7 @@ export const handleAuthUri = async (uri: vscode.Uri) => {
       await errorNotification(`Unexpected error: ${err.message}`);
     }
   }
-  // New Supabase OAuth callback handler (deep link): vscode://capstone-team-2.collab-agent01/auth/callback
+  
   if (uri.path === "/auth/callback") {
     try {
       const { getSupabase } = require("../auth/supabaseClient");
@@ -83,7 +83,7 @@ export const handleAuthUri = async (uri: vscode.Uri) => {
           }
         }
       }
-      // Supabase sends a fragment (#) usually; VS Code passes query only. Attempt to refresh user.
+      
       const { data: { user }, error } = await supabase.auth.getUser();
       if (error) {
         await errorNotification(`Supabase auth error: ${error.message}`);
@@ -93,7 +93,7 @@ export const handleAuthUri = async (uri: vscode.Uri) => {
         await errorNotification("No Supabase user in session.");
         return;
       }
-      // Create minimal user context (without custom backend) so rest of extension can treat as authenticated.
+      
       const minimalUser = {
         id: user.id,
         email: user.email || "",
@@ -128,6 +128,7 @@ export const handleAuthUri = async (uri: vscode.Uri) => {
   }
 };
 
+/** URI handler command for processing authentication callbacks */
 export const uriHandlerCommand = vscode.window.registerUriHandler({
   handleUri: handleAuthUri,
 });
@@ -197,6 +198,9 @@ export function createAuthStatusBarItem(context: vscode.ExtensionContext) {
   return authStatusBarItem;
 }
 
+/**
+ * Registers all authentication-related commands with VS Code.
+ */
 export function registerAuthCommands() {
   vscode.commands.registerCommand("collabAgent.signIn", async () => signInOrUpMenu());
   vscode.commands.registerCommand("collabAgent.signOut", async () => signOutMenu());
