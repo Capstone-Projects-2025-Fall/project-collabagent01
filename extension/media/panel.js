@@ -9,8 +9,12 @@
 		vscode.postMessage({ command, ...payload });
 	}
 
-	window.startLiveShare = () => post('startLiveShare');
-	window.joinLiveShare = () => post('joinLiveShare');
+	window.startLiveShare = () => post('requestGithubSignInThenStart');
+	window.joinLiveShare = () => post('requestGithubSignInThenJoin');
+
+	// Username handling
+	window.setUsername = (name) => post('setUsername', { name });
+	window.clearUsername = () => post('clearUsername');
 
 	window.handleChatInput = (e) => {
 		if (e.key === 'Enter') {
@@ -287,6 +291,40 @@
 			case 'manualLinkPasteInvalid':
 				showManualLinkFeedback('Clipboard was empty.', 'warn');
 				break;
+
+			case 'storedUsername':
+				// Populate input with stored username
+				if (m.name) {
+					const el = document.getElementById('usernameInput');
+					if (el) el.value = m.name;
+					// If the name was set (likely via GitHub sign-in), disable manual editing to indicate it came from GitHub
+					if (el) el.disabled = true;
+				}
+				break;
+
+			case 'usernameSet':
+				showManualLinkFeedback('Name saved.', 'ok');
+				{
+					const el = document.getElementById('usernameInput');
+					if (el) el.disabled = true; // reflect that name is now set (from GitHub)
+				}
+				break;
+
+			case 'usernameCleared':
+				showManualLinkFeedback('Name cleared.', 'info');
+				{
+					const el = document.getElementById('usernameInput');
+					if (el) el.disabled = false;
+				}
+				break;
+
+			case 'usernameInvalid':
+				showManualLinkFeedback('Please enter a name before clicking Set.', 'warn');
+				break;
+
+			case 'githubSignInFailed':
+				showManualLinkFeedback('GitHub sign-in cancelled or failed.', 'warn');
+				break;
 		}
 	});
 
@@ -315,4 +353,6 @@
 
 	// Ask backend if there is a stored link when webview loads
 	post('requestStoredLink');
+	// Also request stored username so the input can be pre-populated
+	post('requestStoredUsername');
 })();

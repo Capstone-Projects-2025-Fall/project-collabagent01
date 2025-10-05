@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import * as vsls from 'vsls';
+import axios from 'axios';
 import { SessionManager } from '../sessionManager';
 
 
@@ -14,6 +15,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private _sessionLink: string | undefined; // Persist session link for consistent display
     private _initialSessionCheckDone = false; // Helps avoid flicker by showing loading state first
     private sessionManager: SessionManager | null = null;
+    private readonly _usernameKey = 'collabAgent.username';
+    private _username: string | undefined;
         // Removed duplicate: private _requestedHostStartTime = false; // guard to avoid repeated requests as guest
 
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
@@ -43,6 +46,30 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             message => {
                 console.log('Received message from webview:', message);
                 switch (message.command) {
+                    case 'requestGithubSignInThenStart':
+                        console.log('Handling requestGithubSignInThenStart command');
+                        (async () => {
+                            const signed = await this.ensureGithubAuthenticated();
+                            if (signed) {
+                                this.startLiveShareSession();
+                            } else {
+                                vscode.window.showWarningMessage('GitHub sign-in cancelled or failed.');
+                                if (this._view) this._view.webview.postMessage({ command: 'githubSignInFailed' });
+                            }
+                        })();
+                        return;
+                    case 'requestGithubSignInThenJoin':
+                        console.log('Handling requestGithubSignInThenJoin command');
+                        (async () => {
+                            const signed = await this.ensureGithubAuthenticated();
+                            if (signed) {
+                                this.joinLiveShareSession();
+                            } else {
+                                vscode.window.showWarningMessage('GitHub sign-in cancelled or failed.');
+                                if (this._view) this._view.webview.postMessage({ command: 'githubSignInFailed' });
+                            }
+                        })();
+                        return;
                     case 'startLiveShare':
                         console.log('Handling startLiveShare command');
                         this.startLiveShareSession();
@@ -79,6 +106,18 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         console.log('Handling manualPasteInviteLink command');
                         this.pasteInviteLinkFromClipboard();
                         return;
+                    case 'setUsername':
+                        console.log('Handling setUsername command');
+                        this.setUsername(message.name);
+                        return;
+                    case 'clearUsername':
+                        console.log('Handling clearUsername command');
+                        this.clearUsername();
+                        return;
+                    case 'requestStoredUsername':
+                        console.log('Handling requestStoredUsername command');
+                        this.sendStoredUsernameToWebview();
+                        return;
                     default:
                         console.log('Unknown command received:', message.command);
                 }
@@ -86,6 +125,36 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             undefined,
             []
         );
+    }
+
+    private async sendStoredUsernameToWebview() {
+        const stored = this._context.globalState.get<string | undefined>(this._usernameKey);
+        this._username = stored;
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'storedUsername', name: stored || '' });
+        }
+    }
+
+    private async setUsername(name: string | undefined) {
+        if (!name || !name.trim()) {
+            if (this._view) this._view.webview.postMessage({ command: 'usernameInvalid' });
+            return;
+        }
+        const trimmed = name.trim();
+        this._username = trimmed;
+        await this._context.globalState.update(this._usernameKey, trimmed);
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'usernameSet', name: trimmed });
+        }
+        // Refresh participant display to reflect new local username
+        this.updateParticipantInfo();
+    }
+
+    private async clearUsername() {
+        this._username = undefined;
+        await this._context.globalState.update(this._usernameKey, undefined);
+        if (this._view) this._view.webview.postMessage({ command: 'usernameCleared' });
+        this.updateParticipantInfo();
     }
 
     // --- Manual invite link support (fallback when Live Share API does not expose link) ---
@@ -535,8 +604,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             };
 
             // Add self first (session.user describes current user's identity)
+            const displayName = this._username || session.user?.displayName || 'You';
             participants.push({
-                name: session.user?.displayName || 'You',
+                name: displayName,
                 email: session.user?.emailAddress || '',
                 role: session.role === vsls.Role.Host ? 'Host' : 'Guest'
             });
@@ -730,6 +800,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private async startLiveShareSession() {
+        // Ensure GitHub sign-in so display name comes from GitHub
+        const signed = await this.ensureGithubAuthenticated();
+        if (!signed) {
+            vscode.window.showWarningMessage('GitHub sign-in is required to start a session with your GitHub name.');
+            return;
+        }
         // Check if a folder is open before starting session
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
             vscode.window.showErrorMessage('Please open a project folder before starting a Live Share session.');
@@ -798,6 +874,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     private async joinLiveShareSession() {
+        // Ensure GitHub sign-in so display name comes from GitHub
+        const signed = await this.ensureGithubAuthenticated();
+        if (!signed) {
+            vscode.window.showWarningMessage('GitHub sign-in is required to join a session with your GitHub name.');
+            return;
+        }
         if (!this._liveShareApi) {
             vscode.window.showErrorMessage('Live Share API not available. Please install Live Share extension.');
             return;
@@ -845,6 +927,53 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         } catch (error) {
             console.error('Error joining Live Share session:', error);
             vscode.window.showErrorMessage('Error joining Live Share session: ' + error); 
+        }
+    }
+
+    /**
+     * Ensure the user is signed in with GitHub via VS Code Authentication API.
+     * If signed in, fetch the GitHub profile and set the local username to the GitHub name/login.
+     */
+    private async ensureGithubAuthenticated(): Promise<boolean> {
+        try {
+            // Request a GitHub session (this will prompt the user if needed)
+            // Only request read:user scope so we don't present any email sign-up flows
+            const session = await vscode.authentication.getSession('github', ['read:user'], { createIfNone: true });
+            if (!session || !session.accessToken) {
+                return false;
+            }
+
+            // Fetch GitHub profile
+            try {
+                const resp = await axios.get('https://api.github.com/user', {
+                    headers: {
+                        Authorization: `token ${session.accessToken}`,
+                        Accept: 'application/vnd.github.v3+json'
+                    }
+                });
+                const profile = resp.data;
+                const name = profile && (profile.name || profile.login);
+                if (name) {
+                    await this.setUsername(name);
+                }
+                return true;
+            } catch (err) {
+                console.warn('Failed to fetch GitHub profile:', err);
+                vscode.window.showErrorMessage('Failed to fetch GitHub profile. Please ensure GitHub sign-in is working or install the "GitHub Pull Requests and Issues" extension.');
+                return false;
+            }
+        } catch (err) {
+            console.warn('GitHub authentication failed or was cancelled:', err);
+            // Guide the user to install/enable the GitHub auth provider extension
+            const choice = await vscode.window.showWarningMessage(
+                'GitHub sign-in failed or is not available in this environment. Install or enable the "GitHub Pull Requests and Issues" extension and try again.',
+                'Open Extensions',
+                'Cancel'
+            );
+            if (choice === 'Open Extensions') {
+                await vscode.commands.executeCommand('workbench.extensions.search', 'GitHub Pull Requests and Issues');
+            }
+            return false;
         }
     }
 

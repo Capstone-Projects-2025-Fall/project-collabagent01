@@ -11,8 +11,8 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "*"
+    "onUri",
+    "onStartupFinished"
   ],
   "extensionDependencies": [
     "ms-vsliveshare.vsliveshare"
@@ -118,6 +118,10 @@
           "icon": "$(organization)"
         }
       ]
+    },
+    "uriHandler": {
+      "scheme": "vscode",
+      "authority": "capstone-team-2.temple-capstone-clover"
     }
   },
   "scripts": {
