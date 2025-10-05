@@ -24,3 +24,6 @@ server/.env
 
 # Misc
 .DS_Store
+
+# Generated documentation (can be regenerated with npm run docs:generate)
+extension/docs/
