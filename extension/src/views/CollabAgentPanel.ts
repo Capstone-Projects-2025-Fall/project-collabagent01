@@ -227,6 +227,34 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     } else {
                         console.warn('[initializeLiveShare] Shared service not yet available or no onNotify.');
                     }
+
+                    // 🔁 React when the host service becomes available
+                    if (proxy && typeof proxy.onDidChangeIsServiceAvailable === 'function') {
+                        proxy.onDidChangeIsServiceAvailable((available: boolean) => {
+                            console.log('[onDidChangeIsServiceAvailable] Shared service availability changed:', available);
+                            if (available) {
+                                console.log('[onDidChangeIsServiceAvailable] Service available! Attaching onNotify listener.');
+                                proxy.onNotify('participantUpdate', (data: any) => {
+                                    console.log('[onNotify:participantUpdate] Guest received participant update:', data);
+                                    if (this._view) {
+                                        this._view.webview.postMessage({
+                                            command: 'updateParticipants',
+                                            participants: data.participants,
+                                            count: data.count
+                                        });
+                                        this._view.webview.postMessage({
+                                            command: 'updateSessionStatus',
+                                            status: 'joined',
+                                            link: this._sessionLink || '',
+                                            participants: data.count,
+                                            role: this._liveShareApi?.session?.role,
+                                            duration: data.duration
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
                 }
                 
                 return true;
@@ -803,8 +831,17 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     });
                 }
 
+                // 🧩 Ensure shared service is registered AFTER session starts
+                setTimeout(() => {
+                    console.log('[startLiveShareSession] Ensuring shared service is registered after share().');
+                    this.registerSessionInfoServiceIfHost();
+                }, 2000);
+
                 // Push participant info right away
-                this.updateParticipantInfo();
+                setTimeout(() => {
+                    console.log('[startLiveShareSession] Triggering updateParticipantInfo after share.');
+                    this.updateParticipantInfo();
+                }, 2500);
             } else {
                 vscode.window.showErrorMessage('Failed to start Live Share session');
             }
@@ -1035,7 +1072,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             <div class="section-title">🚀 Live Share Session</div>
             <div id="sessionButtons">
             <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
-            <button class="button" id="joinSessionBtn" onclick="joinLiveShare()">Join Session</button>
+            <button class="button" id="joinLiveShareBtn" onclick="joinLiveShare()">Join Session</button>
             </div>
             <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
         </div>
