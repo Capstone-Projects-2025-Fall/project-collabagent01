@@ -1149,6 +1149,20 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     } else {
                         console.warn('[registerSessionInfoServiceIfHost] Shared service has no onRequest method.');
                     }
+                    // Also accept notifications so guests can announce names without awaiting a response
+                    if (typeof this._sharedService.onNotify === 'function') {
+                        this._sharedService.onNotify('announceParticipant', (payload: any, sender?: any) => {
+                            try {
+                                const fromSender = sender && (sender.user?.emailAddress || sender.user?.id || sender.id);
+                                const key: string = (payload?.email || payload?.id || fromSender || '').toLowerCase();
+                                const name: string = payload?.displayName || payload?.name || '';
+                                if (key && name) {
+                                    this._participantNameMap.set(key, name);
+                                    this.updateParticipantInfo();
+                                }
+                            } catch {}
+                        });
+                    }
                 } else {
                     console.warn('[registerSessionInfoServiceIfHost] registerService() returned undefined.');
                 }
