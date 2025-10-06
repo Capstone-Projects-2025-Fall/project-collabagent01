@@ -52,6 +52,24 @@
 		post('leaveLiveShare');
 	};
 
+	window.addEventListener('message', event => {
+		const message = event.data;
+		switch (message.command) {
+			case 'aiResponse':
+			appendAIMessage(message.text);
+			break;
+		}
+		});
+
+	function appendAIMessage(text) {
+		const chatLog = document.getElementById('ai-chat-log');
+		const msgDiv = document.createElement('div');
+		msgDiv.className = 'chat-message ai-message';
+		msgDiv.textContent = `Agent: ${text}`;
+		chatLog.appendChild(msgDiv);
+		chatLog.scrollTop = chatLog.scrollHeight;
+		}
+
 	function addChatMessage(sender, text, timestamp) {
 		const box = document.getElementById('chatMessages');
 		if (!box) return;
@@ -315,4 +333,30 @@
 
 	// Ask backend if there is a stored link when webview loads
 	post('requestStoredLink');
+
+	// AI Agent Chat UI
+	const input = document.getElementById('ai-chat-input');
+	const sendBtn = document.getElementById('ai-chat-send');
+	const log = document.getElementById('ai-chat-log');
+
+	function appendMessage(sender, text) {
+		const msg = document.createElement('div');
+		msg.className = 'chat-message';
+		msg.innerHTML = `<strong>${sender}:</strong> ${text}`;
+		log.appendChild(msg);
+		log.scrollTop = log.scrollHeight;
+	}
+
+	function sendMessage() {
+		const text = input.value.trim();
+		if (!text) return;
+		appendMessage('You', text);
+		vscode.postMessage({ command: 'aiQuery', text });
+		input.value = '';
+	}
+
+	sendBtn.addEventListener('click', sendMessage);
+	input.addEventListener('keypress', (e) => {
+		if (e.key === 'Enter') sendMessage();
+	});
 })();

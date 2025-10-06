@@ -68,7 +68,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         await this.initializeLiveShare();
 
         webviewView.webview.onDidReceiveMessage(
-            message => {
+            (message: any) => {
                 console.log('Received message from webview:', message);
                 switch (message.command) {
                     case 'startLiveShare':
@@ -106,6 +106,18 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     case 'manualPasteInviteLink':
                         console.log('Handling manualPasteInviteLink command');
                         this.pasteInviteLinkFromClipboard();
+                        return;
+                    case 'aiQuery':
+                        console.log('Handling aiQuery command:', message.text);
+
+                        // Temporary fake AI response for testing
+                        const fakeResponse = `AI Agent received: "${message.text}"`;
+
+                        webviewView.webview.postMessage({
+                            command: 'aiResponse',
+                            text: fakeResponse
+                        });
+
                         return;
                     default:
                         console.log('Unknown command received:', message.command);
@@ -270,7 +282,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             return;
         }
         try {
-            this._liveShareApi.onDidChangeSession((sessionChangeEvent) => {
+            this._liveShareApi.onDidChangeSession((sessionChangeEvent: any) => {
                 console.log('Live Share session changed:', sessionChangeEvent);
                 this.handleSessionChange(sessionChangeEvent);
             });
@@ -1392,6 +1404,14 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
             </div>
             <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
+        </div>
+        <div id="ai-agent-box" class="section">
+            <h3> AI Agent</h3>
+            <div id="ai-chat-log" class="chat-log"></div>
+            <div class="chat-input-container">
+                <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
+                <button id="ai-chat-send">Send</button>
+            </div>
         </div>
         <script nonce="${nonce}" src="${scriptUri}"></script>
         </body>
