@@ -116,7 +116,7 @@ Starts up a new panel manager and gets it ready to show the sidebar.
 
 ##### **signIn**
 
-signIn(email: string, password: string): Promise<{ token?: string; error?: string }>
+`signIn(email: string, password: string): Promise<{ token?: string; error?: string }>`
 
 ##### **Purpose:**
 Logs a user into the system using their email and password.
