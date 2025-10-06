@@ -3,6 +3,7 @@ import * as vsls from 'vsls';
 import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
 import { checkUserSignIn } from "./services/auth-service";
 import { CollabAgentPanelProvider } from "./views/CollabAgentPanel";
+import { AgentPanelProvider } from "./views/AgentPanel";
 import { setDisplayNameExplicit, getOrInitDisplayName } from './services/profile-service';
 
 /** Global extension context for state management and subscriptions */
@@ -26,11 +27,13 @@ export async function activate(context: vscode.ExtensionContext) {
   const authStatusBar = createAuthStatusBarItem(context);
 
   const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
-  const disposable = vscode.window.registerWebviewViewProvider(
-    'collabAgent.teamActivity',
-    collabPanelProvider
-  );
-  context.subscriptions.push(disposable);
+  const teamView = vscode.window.registerWebviewViewProvider('collabAgent.teamActivity', collabPanelProvider);
+  context.subscriptions.push(teamView);
+
+  // Register Agent Panel (separate from Live Share)
+  const agentPanelProvider = new AgentPanelProvider(context.extensionUri, context);
+  const agentView = vscode.window.registerWebviewViewProvider(AgentPanelProvider.viewType, agentPanelProvider);
+  context.subscriptions.push(agentView);
   
   const refreshCommand = vscode.commands.registerCommand('collabAgent.refreshPanel', () => {
     vscode.commands.executeCommand('workbench.view.extension.collabAgent');

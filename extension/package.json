@@ -113,6 +113,12 @@
           "name": "Team Activity",
           "icon": "$(people)",
           "type": "webview"
+        },
+        {
+          "id": "collabAgent.agentPanel",
+          "name": "Agent Panel",
+          "icon": "$(robot)",
+          "type": "webview"
         }
       ]
     },

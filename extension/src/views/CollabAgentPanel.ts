@@ -107,18 +107,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         console.log('Handling manualPasteInviteLink command');
                         this.pasteInviteLinkFromClipboard();
                         return;
-                    case 'aiQuery':
-                        console.log('Handling aiQuery command:', message.text);
-
-                        // Temporary fake AI response for testing
-                        const fakeResponse = `AI Agent received: "${message.text}"`;
-
-                        webviewView.webview.postMessage({
-                            command: 'aiResponse',
-                            text: fakeResponse
-                        });
-
-                        return;
+                    // Agent chat box and aiQuery logic moved to AgentPanelProvider
+                    // ...existing code...
                     default:
                         console.log('Unknown command received:', message.command);
                 }
@@ -1380,7 +1370,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         <link href="${styleUri}" rel="stylesheet" />
         </head>
         <body>
-        <div class="agent-heading">AGENT</div>
+        <div class="agent-heading">Live Share</div>
         <div class="section">
             <div class="section-title">🚀 Live Share Session</div>
             <div id="sessionButtons">
@@ -1404,14 +1394,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
             </div>
             <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
-        </div>
-        <div id="ai-agent-box" class="section">
-            <h3> AI Agent</h3>
-            <div id="ai-chat-log" class="chat-log"></div>
-            <div class="chat-input-container">
-                <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
-                <button id="ai-chat-send">Send</button>
-            </div>
         </div>
         <script nonce="${nonce}" src="${scriptUri}"></script>
         </body>
