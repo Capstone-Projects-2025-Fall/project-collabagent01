@@ -7,7 +7,7 @@ Design Document - Part II API
 =============================
 
 ## Purpose
--◦ This Design Document gives the complete design of the software implementation. This information should be in structured comments (e.g. Javadoc) in the source files. We encourage the use of a documentation generation tool to generate a draft of your API that you can augment to include the following details.
+- This Design Document gives the complete design of the software implementation. This information should be in structured comments (e.g. Javadoc) in the source files. We encourage the use of a documentation generation tool to generate a draft of your API that you can augment to include the following details.
 
 ---
 
@@ -15,7 +15,7 @@ Design Document - Part II API
 
 #### **Purpose:**
 
--◦ This class controls the Collab Agent sidebar inside VS Code. It creates the panel, shows the interface, and keeps it updated with Live Share info.
+- This class controls the Collab Agent sidebar inside VS Code. It creates the panel, shows the interface, and keeps it updated with Live Share info.
    It also handles how the panel talks to the rest of the extension (sending and receiving messages).
 
 
@@ -63,6 +63,7 @@ Starts up a new panel manager and gets it ready to show the sidebar.
 - If something’s wrong with the inputs, it throws an error saying the data is invalid.
 
 ---
+
 ## Method: 
 ### resolveWebviewView ()
 - resolveWebviewView (webviewView, context, _token)
@@ -81,7 +82,7 @@ Starts up a new panel manager and gets it ready to show the sidebar.
 
 ##### **Returns:**
 
-- Nothing right away, but finishes setting up everything (Promise<void>).
+`- Nothing right away, but finishes setting up everything (Promise<void>).`
 
 ### updateTeamActivity ()
 - updateTeamActivity (activity)
@@ -110,6 +111,7 @@ Starts up a new panel manager and gets it ready to show the sidebar.
 - Nothing (void)
 
 ---
+
 ## 2. Class: OAuth (api/auth-api.ts)
 
 ## Methods:
@@ -172,12 +174,13 @@ Sends a POST request to the signup endpoint to create the account.
 an error message if registration fails.`
 
 ---
+
 ## 3. Class: Supabase (auth/supabaseClient.ts)
 
 ## Methods:
 ##### **getSupabase**
 
-getSupabase(): SupabaseClient
+`getSupabase(): SupabaseClient`
 
 ##### **Purpose:**
 
@@ -190,13 +193,13 @@ SupabaseClient - The initialized Supabase client instance ready for use.
 
 ##### Throws:
 
-Error - If the Supabase configuration (URL or API key) is missing or invalid.
+`Error - If the Supabase configuration (URL or API key) is missing or invalid.`
 
 
 
 ##### **getCurrentUser**
 
-getCurrentUser(): Promise<null | User>
+`getCurrentUser(): Promise<null | User>`
 
 ##### **Purpose:**
 Fetches the currently signed-in user from Supabase.
@@ -204,7 +207,7 @@ Used to check authentication status or retrieve the user’s profile information
 
 ##### **Returns:**
 
-Promise<null | User> - Resolves with the current user object if authenticated, or null if no user is signed in.
+`Promise<null | User> - Resolves with the current user object if authenticated, or null if no user is signed in.`
 
 ---
 
@@ -242,6 +245,7 @@ Method: GET
 `URL: {BASE_URL}/users/{userID}`
 
 ---
+
 `PUT /users/{userID}/status`
 
 ##### **Purpose:**
