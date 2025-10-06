@@ -14,9 +14,8 @@
     "onStartupFinished",
     "*"
   ],
-  "extensionDependencies": [
-    "ms-vsliveshare.vsliveshare"
-  ],
+  "extensionDependencies": [],
+  "extensionPack": [],
   "repository": {
     "type": "git",
     "url": "https://github.com/Capstone-Projects-2025-Fall/project-collabagent01"
@@ -68,6 +67,24 @@
             "default": false,
             "description": "Check for every suggestion generated to contain a bug.",
             "group": "debug"
+          },
+          "collabAgent.liveshare.showInstallRecommendation": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show recommendation to install VS Code Live Share extension if not installed.",
+            "group": "liveshare"
+          },
+          "collabAgent.liveshare.showFeatureReminders": {
+            "type": "boolean",
+            "default": true,
+            "description": "Show reminders when attempting to use features that require Live Share.",
+            "group": "liveshare"
+          },
+          "collabAgent.liveshare.suppressNotifications": {
+            "type": "boolean",
+            "default": false,
+            "description": "Suppress all Live Share related notifications.",
+            "group": "liveshare"
           }
         }
       }
@@ -96,6 +113,10 @@
       {
         "command": "collabAgent.refreshPanel",
         "title": "Collab Agent: Refresh Panel"
+      },
+      {
+        "command": "collabAgent.checkLiveShareStatus",
+        "title": "Collab Agent: Check Live Share Status"
       },
       {
         "command": "collabAgent.supabaseSignIn",
