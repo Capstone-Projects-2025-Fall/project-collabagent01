@@ -131,12 +131,12 @@ Sends a POST request to the authentication endpoint to check if the credentials 
 
 ##### **Returns:**
 
-Promise<{ token?: string; error?: string }> - Returns an object that includes either, a token when the login is successful, or an error message if the login fails.
+`Promise<{ token?: string; error?: string }> - Returns an object that includes either, a token when the login is successful, or an error message if the login fails.`
 
 
 ##### **signOut**
 
-signOut(userID: string): Promise<{ error?: string }>
+`signOut(userID: string): Promise<{ error?: string }>`
 
 ##### **Purpose:**
 Logs a user out by ending their session on the backend.
@@ -146,11 +146,11 @@ Sends a POST request to the signout endpoint with the user’s unique ID.
 `userID (string)` - The ID of the user to sign out.
 
 ##### **Returns:**
-Promise<{ error?: string }> - Returns an object indicating success or containing an error message if something goes wrong.
+`Promise<{ error?: string }> - Returns an object indicating success or containing an error message if something goes wrong.`
 
 ##### **signUp**
 
-signUp(email: string, password: string, firstName: string, lastName: string): Promise<{ token?: string; error?: string }>
+`signUp(email: string, password: string, firstName: string, lastName: string): Promise<{ token?: string; error?: string }>`
 
 ##### **Purpose:**
 Registers a new user account using their email, password, and name.
@@ -168,8 +168,8 @@ Sends a POST request to the signup endpoint to create the account.
 
 ##### **Returns:**
 
-Promise<{ token?: string; error?: string }> - Returns an object that includes either: a token when registration is successful, or
-an error message if registration fails.
+`Promise<{ token?: string; error?: string }> - Returns an object that includes either: a token when registration is successful, or
+an error message if registration fails.`
 
 ---
 ## 3. Class: Supabase (auth/supabaseClient.ts)
@@ -226,11 +226,11 @@ Logs a user into Collab Agent using their email and password.
 
 Method: POST
 
-URL: {BASE_URL}/auth/login?provider=email
+`URL: {BASE_URL}/auth/login?provider=email`
 
 #### **User Management Endpoints**
 
-GET /users/{userID}
+`GET /users/{userID}`
 
 ##### **Purpose:**
 Fetches user information to track Live Share participants.
@@ -239,10 +239,10 @@ Fetches user information to track Live Share participants.
 
 Method: GET
 
-URL: {BASE_URL}/users/{userID}
+`URL: {BASE_URL}/users/{userID}`
 
 ---
-PUT /users/{userID}/status
+`PUT /users/{userID}/status`
 
 ##### **Purpose:**
 Updates a user’s activity status during a Live Share session.
@@ -251,7 +251,7 @@ Updates a user’s activity status during a Live Share session.
 
 Method: PUT
 
-URL: {BASE_URL}/users/{userID}/status
+`URL: {BASE_URL}/users/{userID}/status`
 
 ---
 
