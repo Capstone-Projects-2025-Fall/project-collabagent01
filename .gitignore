@@ -1,6 +1,14 @@
 # Generated files
 .docusaurus
 
+# Dependencies
+node_modules/
+extension/node_modules/
+server/node_modules/
+
+# Build output for VS Code extension (can be regenerated with npm run compile)
+extension/dist/
+
 # Environment variables (IMPORTANT: Protects API keys and secrets)
 .env
 .env.local
@@ -8,12 +16,14 @@
 .env.test.local
 .env.production.local
 server/.env
-website/.env
 
 # Allow example files (these should be committed)
 !*.env.example
 !server/.env.example
-!website/.env.example
+# (website/.env.example removed as website app is no longer used)
 
 # Misc
 .DS_Store
+
+# Generated documentation (can be regenerated with npm run docs:generate)
+extension/docs/

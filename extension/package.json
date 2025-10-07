@@ -14,33 +14,28 @@
     "onStartupFinished",
     "*"
   ],
+  
   "repository": {
     "type": "git",
     "url": "https://github.com/Capstone-Projects-2025-Fall/project-collabagent01"
   },
   "main": "./dist/extension.js",
   "contributes": {
-    "keybindings": [
-      {
-        "command": "collabAgent.acceptInlineSuggestion",
-        "key": "tab",
-        "when": "inlineSuggestionVisible"
-      },
-      {
-        "command": "collabAgent.rejectInlineSuggestion",
-        "key": "ctrl+space",
-        "when": "inlineSuggestionVisible"
-      },
-      {
-        "command": "collabAgent.rejectInlineSuggestion",
-        "key": "cmd+r",
-        "when": "inlineSuggestionVisible"
-      }
-    ],
+    "keybindings": [],
     "configuration": [
       {
         "title": "Collab Agent",
         "properties": {
+          "collabAgent.supabase.url": {
+            "type": "string",
+            "default": "",
+            "description": "Supabase project URL (https://xxxxx.supabase.co). Required for authentication."
+          },
+          "collabAgent.supabase.anonKey": {
+            "type": "string",
+            "default": "",
+            "description": "Supabase anon/public API key (NEVER the service role key). Required for authentication."
+          },
           "collabAgent.general.vendor": {
             "type": "string",
             "default": "google",
@@ -81,6 +76,10 @@
         "title": "Debug: Test fetchSuggestions"
       },
       {
+        "command": "collabAgent.setDisplayName",
+        "title": "Collab Agent: Set Display Name"
+      },
+      {
         "command": "collabAgent.signIn",
         "title": "Collab Agent: Sign In to Collab Agent"
       },
@@ -95,24 +94,32 @@
       {
         "command": "collabAgent.refreshPanel",
         "title": "Collab Agent: Refresh Panel"
+      },
+      {
+        "command": "collabAgent.supabaseSignIn",
+        "title": "Collab Agent: Sign In (OAuth)"
+      },
+      {
+        "command": "collabAgent.authCallback",
+        "title": "Handle Auth Callback"
       }
     ],
-    "views": {
-      "collabAgent": [
-        {
-          "id": "collabAgent.teamActivity",
-          "name": "Team Activity",
-          "icon": "$(organization)",
-          "type": "webview"
-        }
-      ]
-    },
+      "views": {
+        "collabAgent": [
+          {
+            "id": "collabAgent.teamActivity",
+            "name": "Collab Agent",
+            "icon": "$(organization)",
+            "type": "webview"
+          }
+        ]
+      },
     "viewsContainers": {
       "activitybar": [
         {
           "id": "collabAgent",
           "title": "Collab Agent",
-          "icon": "$(people)"
+          "icon": "$(organization)"
         }
       ]
     }
@@ -127,7 +134,10 @@
     "watch:esbuild": "node esbuild.js",
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "vscode:prepublish": "npm run package",
-    "package": "npm run check-types && node esbuild.js --production"
+    "package": "npm run check-types && node esbuild.js --production",
+    "docs:generate": "typedoc",
+    "docs:serve": "npx http-server docs -p 8080 -o",
+    "docs:clean": "rimraf docs"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
@@ -139,14 +149,20 @@
     "@vscode/test-electron": "^2.4.1",
     "esbuild": "^0.25.1",
     "eslint": "^9.19.0",
+    "http-server": "^14.1.1",
     "jest": "^29.7.0",
+    "npx": "^10.2.2",
+    "package": "^1.0.1",
+    "rimraf": "^6.0.1",
     "ts-jest": "^29.2.6",
     "ts-node": "^10.9.2",
-    "typedoc": "^0.27.8",
+    "typedoc": "^0.27.9",
     "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.58.0",
     "axios": "^1.7.9",
-    "typedoc-theme-hierarchy": "^5.0.4"
+    "typedoc-theme-hierarchy": "^5.0.4",
+    "vsls": "^1.0.4753"
   }
 }

@@ -86,14 +86,6 @@ export async function checkUserSignIn() {
     await showAuthNotification(`Welcome back, ${user.first_name}! 🎉`);
     return;
   }
-
-  // if (sessionData?.session?.user) {
-  //     const user = sessionData.session.user;
-  //     await setAuthContext({ id: user.id, email: user.email }, sessionData.session, true);
-  //     vscode.window.showInformationMessage(`Welcome back, ${user.email}! 🎉`);
-  // } else {
-
-  // }
 }
 
 /**
@@ -125,9 +117,8 @@ export async function signInOrUpMenu() {
 }
 
 /**
- * Signs the user out and clears their authentication context.
+ * Displays the sign-out confirmation menu.
  */
-
 export async function signOutMenu() {
   const { context: user, error } = await getAuthContext();
   if (error) {
@@ -219,13 +210,7 @@ export async function handleSignIn() {
 
   await showAuthNotification("Sign In successfully! 🎉");
 
-  vscode.commands.executeCommand("clover.authStateChanged");
-
-  trackEvent({
-    event: LogEvent.USER_LOGIN,
-    timeLapse: 0,
-    metadata: { user_id: user.id, email },
-  });
+  vscode.commands.executeCommand("collabAgent.authStateChanged");
 }
 
 /**
@@ -268,13 +253,7 @@ export async function handleSignUpProvided(email: string, password: string) {
 
   await showAuthNotification("Sign Up successfully! 🎉");
 
-  vscode.commands.executeCommand("clover.authStateChanged");
-
-  trackEvent({
-    event: LogEvent.USER_SIGNUP,
-    timeLapse: 0,
-    metadata: { user_id: user.id, email },
-  });
+  vscode.commands.executeCommand("collabAgent.authStateChanged");
 }
 
 /**
@@ -286,13 +265,6 @@ export async function handleSignOut() {
     await errorNotification(`Failed to get user context: ${contextError}`);
     return;
   }
-  // Add this back later
-  // const { error: signOutError } = await signOut(user.id);
-  // if (signOutError) {
-  //     vscode.window.showErrorMessage(`Sign Out failed: ${signOutError}`);
-  //     return;
-  // }
-
   const { error: setAuthError } = await setAuthContext(undefined);
   if (setAuthError) {
     await errorNotification(`Failed to set user context: ${setAuthError}`);
@@ -300,13 +272,7 @@ export async function handleSignOut() {
   }
   await showAuthNotification(`Sign Out Successfully! 👋`);
 
-  vscode.commands.executeCommand("clover.authStateChanged");
-
-  trackEvent({
-    event: LogEvent.USER_LOGOUT,
-    timeLapse: 0,
-    metadata: { user_id: user.id },
-  });
+  vscode.commands.executeCommand("collabAgent.authStateChanged");
 }
 
 /**
@@ -365,28 +331,32 @@ export async function handleSignUp() {
       await errorNotification(`Failed to register user in backend: ${error}`);
     }
 
-    vscode.commands.executeCommand("clover.authStateChanged");
-
-    trackEvent({
-      event: LogEvent.USER_SIGNUP,
-      timeLapse: 0,
-      metadata: { user_id: user.id, email: email },
-    });
+  vscode.commands.executeCommand("collabAgent.authStateChanged");
   }
 }
 
 /**
- /**
  * Signs in a user through GitHub OAuth authentication flow.
+ * Opens external browser for OAuth flow and handles the callback.
  */
 export async function signInWithGithub() {
   try {
-    // Redirect to GitHub for authentication
-    await vscode.env.openExternal(
-      vscode.Uri.parse(
-        `https://backend-639487598928.us-east5.run.app/auth/login?provider=github&next=vscode://capstone-team-2.temple-capstone-clover/auth-complete`
-      )
-    );
+  // Use require to avoid needing explicit .js extension under nodenext resolution
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { getSupabase } = require("../auth/supabaseClient");
+    const supabase = getSupabase();
+    // Deep link registered in package.json: vscode://capstone-team-2.collab-agent01/auth/callback
+    const redirectTo = "vscode://capstone-team-2.collab-agent01/auth/callback";
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: { redirectTo }
+    });
+    if (error) throw error;
+    if (data?.url) {
+      await vscode.env.openExternal(vscode.Uri.parse(data.url));
+    } else {
+      throw new Error("No OAuth URL returned from Supabase");
+    }
   } catch (error: any) {
     await errorNotification(`GitHub Sign In failed: ${error.message}`);
     await authNotification();

@@ -402,7 +402,7 @@ describe("Auth Service", () => {
       await signInWithGithub();
       expect(mockOpenExternal).toHaveBeenCalledWith(
         expect.stringContaining(
-          "https://ai.nickrucinski.com/auth/login?provider=github"
+          "https://backend-639487598928.us-east5.run.app/auth/login?provider=github"
         )
       );
     });

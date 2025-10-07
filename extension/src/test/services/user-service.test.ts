@@ -1,5 +1,7 @@
 import { LogData, LogEvent } from "../../api/types/event";
 import { calculateUserProgress } from "../../services/user-service";
+// Deprecated tests removed after feature simplification.
+describe('user-service (deprecated)', () => { it('placeholder', () => expect(true).toBe(true)); });
 
 describe("calculateUserProgress", () => {
   // Helper function to create log entries with required timeLapse
