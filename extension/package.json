@@ -14,9 +14,7 @@
     "onStartupFinished",
     "*"
   ],
-  "extensionDependencies": [
-    "ms-vsliveshare.vsliveshare"
-  ],
+  
   "repository": {
     "type": "git",
     "url": "https://github.com/Capstone-Projects-2025-Fall/project-collabagent01"
@@ -106,22 +104,16 @@
         "title": "Handle Auth Callback"
       }
     ],
-    "views": {
-      "collabAgent": [
-        {
-          "id": "collabAgent.teamActivity",
-          "name": "Team Activity",
-          "icon": "$(people)",
-          "type": "webview"
-        },
-        {
-          "id": "collabAgent.agentPanel",
-          "name": "Agent Panel",
-          "icon": "$(robot)",
-          "type": "webview"
-        }
-      ]
-    },
+      "views": {
+        "collabAgent": [
+          {
+            "id": "collabAgent.teamActivity",
+            "name": "Collab Agent",
+            "icon": "$(organization)",
+            "type": "webview"
+          }
+        ]
+      },
     "viewsContainers": {
       "activitybar": [
         {

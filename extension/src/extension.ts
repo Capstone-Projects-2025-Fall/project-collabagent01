@@ -29,11 +29,6 @@ export async function activate(context: vscode.ExtensionContext) {
   const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
   const teamView = vscode.window.registerWebviewViewProvider('collabAgent.teamActivity', collabPanelProvider);
   context.subscriptions.push(teamView);
-
-  // Register Agent Panel (separate from Live Share)
-  const agentPanelProvider = new AgentPanelProvider(context.extensionUri, context);
-  const agentView = vscode.window.registerWebviewViewProvider(AgentPanelProvider.viewType, agentPanelProvider);
-  context.subscriptions.push(agentView);
   
   const refreshCommand = vscode.commands.registerCommand('collabAgent.refreshPanel', () => {
     vscode.commands.executeCommand('workbench.view.extension.collabAgent');

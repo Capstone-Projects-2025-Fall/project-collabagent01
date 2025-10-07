@@ -1,5 +1,12 @@
 import * as vscode from 'vscode';
-import * as vsls from 'vsls';
+// Live Share is optional; only require if present to avoid activation failure
+let vsls: typeof import('vsls') | undefined;
+try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    vsls = require('vsls');
+} catch {
+    vsls = undefined;
+}
 import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-service';
 
 /**
@@ -14,8 +21,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** The webview view instance for displaying the panel */
     private _view?: vscode.WebviewView;
     
-    /** Live Share API instance for managing collaboration sessions */
-    private _liveShareApi?: vsls.LiveShare | null = null;
+    /** Live Share API instance (optional) */
+    private _liveShareApi?: any | null = null;
     
     /** Name of the shared service for propagating session metadata between participants */
     private readonly _sharedServiceName = 'collabAgentSessionInfo';
@@ -31,6 +38,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     
     /** Map of participant user IDs/emails to their display names */
     private _participantNameMap: Map<string, string> = new Map();
+    /** Interval to monitor auth state changes */
+    private _authMonitorInterval: any | undefined;
+    /** Cached last known auth state */
+    private _lastAuthState: boolean | undefined;
 
     /**
      * Creates a new CollabAgentPanelProvider instance.
@@ -62,50 +73,77 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
 
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+    webviewView.webview.html = await this._getHtmlForWebview(webviewView.webview);
         console.log("CollabAgentPanel: HTML set, webview should be ready");
 
-        await this.initializeLiveShare();
+    await this.initializeLiveShare();
+    this.startAuthMonitor();
 
         webviewView.webview.onDidReceiveMessage(
-            (message: any) => {
+            async (message: any) => {
                 console.log('Received message from webview:', message);
                 switch (message.command) {
                     case 'startLiveShare':
-                        console.log('Handling startLiveShare command');
                         this.startLiveShareSession();
                         return;
                     case 'joinLiveShare':
-                        console.log('Handling joinLiveShare command');
                         this.joinLiveShareSession();
                         return;
                     case 'endLiveShare':
-                        console.log('Handling endLiveShare command');
                         this.endLiveShareSession();
                         return;
                     case 'leaveLiveShare':
-                        console.log('Handling leaveLiveShare command');
                         this.leaveLiveShareSession();
                         return;
                     case 'sendTeamMessage':
-                        console.log('Handling sendTeamMessage command');
                         this.sendTeamMessage(message.text);
                         return;
                     case 'manualSetInviteLink':
-                        console.log('Handling manualSetInviteLink command');
                         this.setManualInviteLink(message.link);
                         return;
                     case 'manualClearInviteLink':
-                        console.log('Handling manualClearInviteLink command');
                         this.clearManualInviteLink();
                         return;
                     case 'requestStoredLink':
-                        console.log('Handling requestStoredLink command');
                         this.sendStoredLinkToWebview();
                         return;
                     case 'manualPasteInviteLink':
-                        console.log('Handling manualPasteInviteLink command');
                         this.pasteInviteLinkFromClipboard();
+                        return;
+                    case 'installLiveShare':
+                        // Install Live Share extension
+                        await vscode.commands.executeCommand('workbench.extensions.installExtension', 'ms-vsliveshare.vsliveshare');
+                        vscode.window.showInformationMessage('Live Share extension installation triggered. Reloading to finalize installation...');
+                        // Inform webview before reload
+                        this._view?.webview.postMessage({ command: 'liveShareInstalling' });
+                        // Small delay to allow message to render
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        await vscode.commands.executeCommand('workbench.action.reloadWindow');
+                        return;
+                    case 'loginOrSignup':
+                        // Trigger sign-in or sign-up flow
+                        try {
+                            const { signInOrUpMenu } = require('../services/auth-service');
+                            await signInOrUpMenu();
+                            // Small delay to allow auth state to persist
+                            await new Promise(resolve => setTimeout(resolve, 300));
+                            // Refresh the panel HTML to reflect logged-in status
+                            if (this._view) {
+                                this._view.webview.html = await this._getHtmlForWebview(this._view.webview);
+                            }
+                        } catch (err) {
+                            let msg = 'Failed to start login/signup flow.';
+                            if (err && typeof err === 'object') {
+                                if ('message' in err && typeof (err as any).message === 'string') {
+                                    msg += ' ' + (err as any).message;
+                                } else {
+                                    msg += ' ' + JSON.stringify(err);
+                                }
+                            } else if (typeof err === 'string') {
+                                msg += ' ' + err;
+                            }
+                            vscode.window.showErrorMessage(msg);
+                        }
                         return;
                     // Agent chat box and aiQuery logic moved to AgentPanelProvider
                     // ...existing code...
@@ -141,7 +179,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 command: 'manualLinkUpdated',
                 link: this._sessionLink
             });
-            const status = this._liveShareApi?.session?.role === vsls.Role.Host ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
+            const status = this._liveShareApi?.session?.role === (vsls?.Role?.Host) ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
             this._view.webview.postMessage({
                 command: 'updateSessionStatus',
                 status,
@@ -161,7 +199,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         this._context.globalState.update(this._persistedLinkKey, undefined);
         if (this._view) {
             this._view.webview.postMessage({ command: 'manualLinkCleared' });
-            const status = this._liveShareApi?.session?.role === vsls.Role.Host ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
+            const status = this._liveShareApi?.session?.role === (vsls?.Role?.Host) ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
             this._view.webview.postMessage({
                 command: 'updateSessionStatus',
                 status,
@@ -185,9 +223,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 this._view.webview.postMessage({ command: 'storedLink', link: stored });
                 if (this._liveShareApi?.session) {
                     const s = this._liveShareApi.session;
-                    this._view.webview.postMessage({
+                    this._view?.webview.postMessage({
                         command: 'updateSessionStatus',
-                        status: s.role === vsls.Role.Host ? 'hosting' : 'joined',
+                        status: s.role === (vsls?.Role?.Host) ? 'hosting' : 'joined',
                         link: stored,
                         participants: (this._liveShareApi.peers?.length || 0) + 1,
                         role: s.role,
@@ -230,35 +268,29 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      * @returns Promise that resolves to true if initialization succeeds, false otherwise
      */
     private async initializeLiveShare(): Promise<boolean> {
-        try {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        if (!vsls || typeof vsls.getApi !== 'function') {
+            console.log('Live Share module not available. Skipping initialization.');
+            return false;
+        }
+        this._liveShareApi = await vsls.getApi();
+        if (this._liveShareApi) {
+            console.log('Live Share API initialized successfully.');
             
-            this._liveShareApi = await vsls.getApi();
-            if (this._liveShareApi) {
-                console.log('Live Share API initialized successfully.');
-                
-                this.setupLiveShareEventListeners();
+            this.setupLiveShareEventListeners();
 
-                if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
-                    console.log('[initializeLiveShare] Guest detected, setting up participantUpdate listener.');
-                    this.setupGuestParticipantListener();
-                }
-                
-                return true;
-            } else {
-                console.log('Live Share extension not available.');
-                setTimeout(() => {
-                    console.log('Retrying Live Share initialization...');
-                    this.initializeLiveShare();
-                }, 3000);
-                return false;
+            if (this._liveShareApi?.session?.role === (vsls?.Role?.Guest)) {
+                console.log('[initializeLiveShare] Guest detected, setting up participantUpdate listener.');
+                this.setupGuestParticipantListener();
             }
-        } catch (error) {
-            console.error('Failed to initialize Live Share API:', error);
+            
+            return true;
+        } else {
+            console.log('Live Share extension not available.');
             setTimeout(() => {
-                console.log('Retrying Live Share initialization after error...');
+                console.log('Retrying Live Share initialization...');
                 this.initializeLiveShare();
-            }, 5000);
+            }, 3000);
             return false;
         }
     }
@@ -281,7 +313,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 (this._liveShareApi as any).onDidChangePeers((peerChangeEvent: any) => {
                     console.log('Live Share peers changed:', peerChangeEvent);
                     this.updateParticipantInfo();
-                    if (this._liveShareApi?.session?.role === vsls.Role.Guest) {
+                    if (this._liveShareApi?.session?.role === (vsls?.Role?.Guest)) {
                         this.updateGuestParticipantFallback();
                     }
                 });
@@ -350,18 +382,18 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 this.sessionStartTime = new Date();
                 console.log('Session start time set to (local clock):', this.sessionStartTime, 'changeType:', sessionChangeEvent.changeType);
             }
-            if (session.role === vsls.Role.Host) {
+            if (session.role === (vsls?.Role?.Host)) {
                 this.registerSessionInfoServiceIfHost();
-            } else if (session.role === vsls.Role.Guest && !this._requestedHostStartTime) {
+            } else if (session.role === (vsls?.Role?.Guest) && !this._requestedHostStartTime) {
                 this.requestHostSessionStartTime();
             }
 
-            const isHost = session.role === vsls.Role.Host;
+            const isHost = session.role === (vsls?.Role?.Host);
             let status = 'joined';
             
             if (isHost) {
                 status = 'hosting';
-            } else if (session.role === vsls.Role.Guest) {
+            } else if (session.role === (vsls?.Role?.Guest)) {
                 status = 'joined';
                 this.setupGuestParticipantListener();
                 this.updateGuestParticipantFallback();
@@ -444,7 +476,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      */
     private async setupGuestParticipantListener() {
         try {
-            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Guest) {
+            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Guest)) {
                 return;
             }
             const anyApi: any = this._liveShareApi;
@@ -565,10 +597,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             console.log('monitorSessionState: Session details:', {
                 id: session.id,
                 role: session.role,
-                isValid: !!(session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest))
+                isValid: !!(session.id && (session.role === (vsls?.Role?.Host) || session.role === (vsls?.Role?.Guest)))
             });
             
-            if (session.id && (session.role === vsls.Role.Host || session.role === vsls.Role.Guest)) {
+            if (session.id && (session.role === (vsls?.Role?.Host) || session.role === (vsls?.Role?.Guest))) {
                 console.log('Found existing active session:', session);
                 this.handleSessionChange({ session: session, changeType: 'existing' });
             } else {
@@ -624,7 +656,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         const hasSession = !!this._liveShareApi.session;
         const hasValidSession = hasSession && 
             this._liveShareApi.session.id && 
-            (this._liveShareApi.session.role === vsls.Role.Host || this._liveShareApi.session.role === vsls.Role.Guest);
+            (this._liveShareApi.session.role === (vsls?.Role?.Host) || this._liveShareApi.session.role === (vsls?.Role?.Guest));
         
         console.log('periodicSessionCheck:', { hasSession, hasValidSession, sessionId: this._liveShareApi.session?.id });
         
@@ -698,7 +730,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
 
         const session = this._liveShareApi.session;
-        const isHost = session.role === vsls.Role.Host;
+    const isHost = session.role === (vsls?.Role?.Host);
         console.log(`[updateParticipantInfo] Triggered. Role=${session.role}, Peer count=${this._liveShareApi.peers?.length || 0}`);
 
         if (!isHost) {
@@ -708,7 +740,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
 
         try {
-            const peers = (this._liveShareApi.peers || []).filter(p => !!p);
+            const peers = (this._liveShareApi.peers || []).filter(Boolean);
             const participantCount = peers.length + 1;
             console.log(`[updateParticipantInfo] Host sees ${participantCount} participants.`);
 
@@ -815,8 +847,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      */
     private updateGuestParticipantFallback() {
         try {
-            if (!this._liveShareApi?.session || this._liveShareApi.session.role !== vsls.Role.Guest) return;
-            const peers = (this._liveShareApi.peers || []).filter(p => !!p);
+            if (!this._liveShareApi?.session || this._liveShareApi.session.role !== (vsls?.Role?.Guest)) return;
+            const peers = (this._liveShareApi.peers || []).filter(Boolean);
             const count = Math.max(2, (peers.length + 1));
             const participants: any[] = [];
             const selfName = this._liveShareApi.session.user?.displayName || 'You';
@@ -859,9 +891,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
 
             console.log('Current session role:', this._liveShareApi.session.role);
-            console.log('Host role constant:', vsls.Role.Host);
+            console.log('Host role constant:', vsls?.Role?.Host);
             
-            if (this._liveShareApi.session.role !== vsls.Role.Host) {
+            if (this._liveShareApi.session.role !== (vsls?.Role?.Host)) {
                 vscode.window.showWarningMessage('Only the session host can end the session.');
                 return;
             }
@@ -934,7 +966,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const session = this._liveShareApi.session;
             console.log('Current session role:', session.role);
             
-            if (session.role === vsls.Role.Host) {
+            if (session.role === (vsls?.Role?.Host)) {
                 vscode.window.showWarningMessage('Hosts cannot leave their own session. Use "End Session" instead.');
                 return;
             }
@@ -1144,7 +1176,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      * @param activity - The activity data to update
      */
     public updateTeamActivity(activity: any) {
-        if (this._liveShareApi?.session?.role !== vsls.Role.Host) return;
+        if (this._liveShareApi?.session?.role !== (vsls?.Role?.Host)) return;
         if (this._view) {
             this._view.webview.postMessage({
                 command: 'updateActivity',
@@ -1159,9 +1191,41 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      */
     dispose() {
         this.stopParticipantMonitoring();
+        this.stopAuthMonitor();
         
         this._view = undefined;
         this._liveShareApi = undefined;
+    }
+
+    /** Starts monitoring auth state and refreshes panel on changes */
+    private startAuthMonitor() {
+        this.stopAuthMonitor();
+        this._authMonitorInterval = setInterval(async () => {
+            try {
+                const { getAuthContext } = require('../services/auth-service');
+                const result = await getAuthContext();
+                const isAuthed = !!(result && result.context && result.context.isAuthenticated);
+                if (this._lastAuthState === undefined) {
+                    this._lastAuthState = isAuthed;
+                } else if (this._lastAuthState !== isAuthed) {
+                    this._lastAuthState = isAuthed;
+                    if (this._view) {
+                        // Rebuild HTML to update Home tab login status
+                        this._view.webview.html = await this._getHtmlForWebview(this._view.webview);
+                    }
+                }
+            } catch {
+                // ignore transient errors
+            }
+        }, 2000);
+    }
+
+    /** Stops monitoring auth state */
+    private stopAuthMonitor() {
+        if (this._authMonitorInterval) {
+            clearInterval(this._authMonitorInterval);
+            this._authMonitorInterval = undefined;
+        }
     }
 
     /**
@@ -1171,7 +1235,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private async registerSessionInfoServiceIfHost() {
         try {
             console.log('[registerSessionInfoServiceIfHost] Attempting to register shared service.');
-            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) {
+            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Host)) {
                 return;
             }
             if (this._sharedService) {
@@ -1203,7 +1267,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                         });
                         this._sharedService.onRequest('getParticipants', async () => {
                             try {
-                                const peers = (this._liveShareApi?.peers || []).filter(p => !!p);
+                                const peers = (this._liveShareApi?.peers || []).filter(Boolean);
                                 const participantCount = peers.length + 1;
                                 const participants: any[] = [];
                                 let selfName = getCachedDisplayName();
@@ -1271,7 +1335,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
         this._requestedHostStartTime = true;
         try {
-            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Guest) {
+            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Guest)) {
                 return;
             }
             const anyApi: any = this._liveShareApi as any;
@@ -1289,7 +1353,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                                     const s = this._liveShareApi.session;
                                     this._view.webview.postMessage({
                                         command: 'updateSessionStatus',
-                                        status: s.role === vsls.Role.Host ? 'hosting' : 'joined',
+                                        status: s.role === (vsls?.Role?.Host) ? 'hosting' : 'joined',
                                         link: this._sessionLink || '',
                                         participants: (this._liveShareApi.peers?.length || 0) + 1,
                                         role: s.role,
@@ -1321,9 +1385,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      */
     private startDurationUpdater() {
         this.stopDurationUpdater();
-        if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) return;
+    if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Host)) return;
         this._durationUpdateInterval = setInterval(() => {
-            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== vsls.Role.Host) {
+            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Host)) {
                 this.stopDurationUpdater();
                 return;
             }
@@ -1358,45 +1422,125 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      * @returns The complete HTML string for the panel
      */
     private _getHtmlForWebview(webview: vscode.Webview) {
-        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.js'));
-        const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.css'));
-        const nonce = Date.now().toString();
-        return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Collab Agent</title>
-        <link href="${styleUri}" rel="stylesheet" />
-        </head>
-        <body>
-        <div class="agent-heading">Live Share</div>
-        <div class="section">
-            <div class="section-title">🚀 Live Share Session</div>
-            <div id="sessionButtons">
-            <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
-            <button class="button" id="joinLiveShareBtn" onclick="joinLiveShare()">Join Session</button>
+        // Example: you would check for Live Share and login status here
+        // This function is now async to allow awaiting getHtml()
+        return (async () => {
+            // Dynamically check Live Share install status
+            let liveShareInstalled = false;
+            try {
+                liveShareInstalled = !!vscode.extensions.getExtension('ms-vsliveshare.vsliveshare');
+            } catch {}
+
+            // Dynamically check login status
+            let loggedIn = false;
+            let userInfo = undefined;
+            try {
+                const { getAuthContext } = require('../services/auth-service');
+                const result = await getAuthContext();
+                if (result && result.context && result.context.isAuthenticated) {
+                    loggedIn = true;
+                    userInfo = { email: result.context.email, username: result.context.first_name };
+                }
+            } catch {}
+
+            const homeScreen = new (require('./HomeScreenPanel')).HomeScreenPanel(this._extensionUri, this._context);
+            const homeHtml = await homeScreen.getHtml(webview, liveShareInstalled, loggedIn, userInfo);
+            const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.js'));
+            const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.css'));
+            const nonce = Date.now().toString();
+            return `<!DOCTYPE html>
+            <html lang="en">
+            <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <title>Collab Agent</title>
+            <link href="${styleUri}" rel="stylesheet" />
+            <style>
+            .tab-header { display: flex; gap: 8px; margin-bottom: 16px; justify-content: center; }
+            .tab-btn { padding: 6px 18px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 6px 6px 0 0; cursor: pointer; font-weight: 500; font-size: 15px; }
+            .tab-btn.active { background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); border-bottom: 2px solid var(--vscode-tab-activeBorder); }
+            .tab-panel { display: none; }
+            .back-btn { position: absolute; top: 16px; left: 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 4px; border: none; padding: 6px 14px; font-size: 13px; cursor: pointer; }
+            .back-btn:hover { background: var(--vscode-button-hoverBackground); }
+            </style>
+            </head>
+            <body>
+            <div class="tab-header">
+                <button class="tab-btn" id="tab-home" data-tab="home">Home</button>
+                <button class="tab-btn" id="tab-live" data-tab="live">Live Share</button>
+                <button class="tab-btn" id="tab-agent" data-tab="agent">Agent Bot</button>
             </div>
-            <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
-        </div>
-        <div class="section">
-            <div class="section-title">👥 Team Activity</div>
-            <div id="teamActivity">
-            <div class="activity-item">
-                <span class="status-indicator"></span>
-                <strong>You:</strong> Ready to collaborate
+            <div id="panel-home" class="tab-panel" style="display:block;">${homeHtml}</div>
+            <div id="panel-live" class="tab-panel">
+                <div class="agent-heading">Live Share</div>
+                <div class="section">
+                    <div class="section-title">🚀 Live Share Session</div>
+                    <div id="sessionButtons">
+                    <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
+                    <button class="button" id="joinLiveShareBtn" onclick="joinLiveShare()">Join Session</button>
+                    </div>
+                    <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
+                </div>
+                <div class="section">
+                    <div class="section-title">👥 Team Activity</div>
+                    <div id="teamActivity">
+                    <div class="activity-item">
+                        <span class="status-indicator"></span>
+                        <strong>You:</strong> Ready to collaborate
+                    </div>
+                    </div>
+                </div>
+                <div class="section">
+                    <div class="section-title">💬 Team Chat</div>
+                    <div id="chatMessages" class="chat-messages">
+                    <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
+                    </div>
+                    <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
+                </div>
             </div>
+            <div id="panel-agent" class="tab-panel">
+                <div class="agent-heading">Agent Bot</div>
+                <div class="section">
+                    <div class="section-title">🏢 Team & Project Management</div>
+                    <div id="teamProduct">
+                        <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
+                        <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
+                        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                            <button class="button" id="switchTeamBtn">Switch Team</button>
+                            <button class="button" id="createTeamBtn">Create Team</button>
+                            <button class="button" id="joinTeamBtn">Join Team</button>
+                        </div>
+                    </div>
+                </div>
+                <div id="ai-agent-box" class="section">
+                    <h3>🤖 AI Agent</h3>
+                    <div id="ai-chat-log" class="chat-log"></div>
+                    <div class="chat-input-container">
+                        <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
+                        <button id="ai-chat-send">Send</button>
+                    </div>
+                </div>
             </div>
-        </div>
-        <div class="section">
-            <div class="section-title">💬 Team Chat</div>
-            <div id="chatMessages" class="chat-messages">
-            <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
-            </div>
-            <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
-        </div>
-        <script nonce="${nonce}" src="${scriptUri}"></script>
-        </body>
-        </html>`;
+            <script nonce="${nonce}" src="${scriptUri}"></script>
+            <script nonce="${nonce}">
+            (function(){
+                function showTab(tab) {
+                    document.getElementById('panel-home').style.display = tab==='home' ? 'block' : 'none';
+                    document.getElementById('panel-live').style.display = tab==='live' ? 'block' : 'none';
+                    document.getElementById('panel-agent').style.display = tab==='agent' ? 'block' : 'none';
+                    document.getElementById('tab-home').classList.toggle('active', tab==='home');
+                    document.getElementById('tab-live').classList.toggle('active', tab==='live');
+                    document.getElementById('tab-agent').classList.toggle('active', tab==='agent');
+                }
+                document.getElementById('tab-home').addEventListener('click', function(){ showTab('home'); });
+                document.getElementById('tab-live').addEventListener('click', function(){ showTab('live'); });
+                document.getElementById('tab-agent').addEventListener('click', function(){ showTab('agent'); });
+                // Initial state: home only
+                showTab('home');
+            })();
+            </script>
+            </body>
+            </html>`;
+        })();
     }
 }

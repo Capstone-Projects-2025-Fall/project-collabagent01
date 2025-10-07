@@ -12,6 +12,28 @@
 	window.startLiveShare = () => post('startLiveShare');
 	window.joinLiveShare = () => post('joinLiveShare');
 
+	// Home tab: Install Live Share and Login buttons
+	function setupHomePanelButtons() {
+		const installBtn = document.getElementById('installLiveShareBtn');
+		if (installBtn) {
+			installBtn.addEventListener('click', function() {
+				post('installLiveShare');
+			});
+		}
+		const loginBtn = document.getElementById('loginBtn');
+		if (loginBtn) {
+			loginBtn.addEventListener('click', function() {
+				post('loginOrSignup');
+			});
+		}
+	}
+	// Run on DOMContentLoaded or immediately if loaded
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', setupHomePanelButtons);
+	} else {
+		setupHomePanelButtons();
+	}
+
 	window.handleChatInput = (e) => {
 		if (e.key === 'Enter') {
 			const value = e.target.value.trim();
