@@ -8,20 +8,12 @@ try {
     vsls = undefined;
 }
 import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-service';
-import { createTeam, joinTeam, getUserTeams, type TeamWithMembership } from '../services/team-service';
 
 /**
- * Provides the webview panel for the Collab Agent extension.
- * Manages Live Share sessions, participant monitoring, and team collaboration features.  
- * This class implements the VS Code WebviewViewProvider interface.
+ * Provides Live Share functionality for the Collab Agent extension.
+ * Manages Live Share sessions, participant monitoring, and session communication.
  */
-export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
-    /** The unique identifier for this webview view type */
-    public static readonly viewType = 'collabAgent.teamActivity';
-
-    /** The webview view instance for displaying the panel */
-    private _view?: vscode.WebviewView;
-    
+export class LiveShareManager {
     /** Live Share API instance (optional) */
     private _liveShareApi?: any | null = null;
     
@@ -39,253 +31,43 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     
     /** Map of participant user IDs/emails to their display names */
     private _participantNameMap: Map<string, string> = new Map();
-    /** Interval to monitor auth state changes */
-    private _authMonitorInterval: any | undefined;
-    /** Cached last known auth state */
-    private _lastAuthState: boolean | undefined;
-
-    /** Global state keys */
-    private readonly _teamStateKey = 'collabAgent.currentTeam';
-    
-    /** Current teams cache */
-    private _userTeams: TeamWithMembership[] = [];
-
-    /**
-     * Creates a new CollabAgentPanelProvider instance.
-     * 
-     * @param _extensionUri - The URI of the extension for loading resources
-     * @param _context - The extension context for state management
-     */
-    constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
-    }
-
-    /**
-     * Resolves the webview view when it becomes visible.
-     * Sets up the webview HTML, message handlers, and initializes Live Share.
-     * 
-     * @param webviewView - The webview view to resolve
-     * @param context - The resolution context
-     * @param _token - Cancellation token (unused)
-     */
-    public async resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken,
-    ) {
-        console.log("CollabAgentPanel: resolveWebviewView called");
-        this._view = webviewView;
-
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [this._extensionUri]
-        };
-
-    webviewView.webview.html = await this._getHtmlForWebview(webviewView.webview);
-        console.log("CollabAgentPanel: HTML set, webview should be ready");
-
-    await this.initializeLiveShare();
-    this.startAuthMonitor();
-
-        // Initialize with team info from database
-        await this.refreshTeams();
-
-        webviewView.webview.onDidReceiveMessage(
-            async (message: any) => {
-                console.log('Received message from webview:', message);
-                switch (message.command) {
-                    case 'startLiveShare':
-                        this.startLiveShareSession();
-                        return;
-                    case 'joinLiveShare':
-                        this.joinLiveShareSession();
-                        return;
-                    case 'endLiveShare':
-                        this.endLiveShareSession();
-                        return;
-                    case 'leaveLiveShare':
-                        this.leaveLiveShareSession();
-                        return;
-                    case 'sendTeamMessage':
-                        this.sendTeamMessage(message.text);
-                        return;
-                    case 'manualSetInviteLink':
-                        this.setManualInviteLink(message.link);
-                        return;
-                    case 'manualClearInviteLink':
-                        this.clearManualInviteLink();
-                        return;
-                    case 'requestStoredLink':
-                        this.sendStoredLinkToWebview();
-                        return;
-                    case 'manualPasteInviteLink':
-                        this.pasteInviteLinkFromClipboard();
-                        return;
-                    case 'installLiveShare':
-                        // Install Live Share extension
-                        await vscode.commands.executeCommand('workbench.extensions.installExtension', 'ms-vsliveshare.vsliveshare');
-                        vscode.window.showInformationMessage('Live Share extension installation triggered. Reloading to finalize installation...');
-                        // Inform webview before reload
-                        this._view?.webview.postMessage({ command: 'liveShareInstalling' });
-                        // Small delay to allow message to render
-                        await new Promise(resolve => setTimeout(resolve, 500));
-                        await vscode.commands.executeCommand('workbench.action.reloadWindow');
-                        return;
-                    case 'loginOrSignup':
-                        // Trigger sign-in or sign-up flow
-                        try {
-                            const { signInOrUpMenu } = require('../services/auth-service');
-                            await signInOrUpMenu();
-                            // Small delay to allow auth state to persist
-                            await new Promise(resolve => setTimeout(resolve, 300));
-                            // Refresh the panel HTML to reflect logged-in status
-                            if (this._view) {
-                                this._view.webview.html = await this._getHtmlForWebview(this._view.webview);
-                            }
-                        } catch (err) {
-                            let msg = 'Failed to start login/signup flow.';
-                            if (err && typeof err === 'object') {
-                                if ('message' in err && typeof (err as any).message === 'string') {
-                                    msg += ' ' + (err as any).message;
-                                } else {
-                                    msg += ' ' + JSON.stringify(err);
-                                }
-                            } else if (typeof err === 'string') {
-                                msg += ' ' + err;
-                            }
-                            vscode.window.showErrorMessage(msg);
-                        }
-                        return;
-                    case 'createTeam':
-                        console.log('Handling createTeam command in LiveSharePanel');
-                        this.handleCreateTeam();
-                        return;
-                    case 'joinTeam':
-                        console.log('Handling joinTeam command in LiveSharePanel');
-                        this.handleJoinTeam();
-                        return;
-                    case 'switchTeam':
-                        console.log('Handling switchTeam command in LiveSharePanel');
-                        this.handleSwitchTeam();
-                        return;
-                    case 'refreshTeams':
-                        console.log('Handling refreshTeams command in LiveSharePanel');
-                        this.refreshTeams();
-                        return;
-                    // Agent chat box and aiQuery logic moved to AgentPanelProvider
-                    // ...existing code...
-                    default:
-                        console.log('Unknown command received:', message.command);
-                }
-            },
-            undefined,
-            []
-        );
-    }
 
     /** Key for persisting manual invite links in global state */
     private readonly _persistedLinkKey = 'collabAgent.manualInviteLink';
 
+    /** Interval timer for monitoring participant changes */
+    private participantMonitoringInterval?: NodeJS.Timeout;
+    
+    /** Timestamp when the current session started */
+    private sessionStartTime?: Date;
+    
+    /** Flag to prevent duplicate requests for host session start time */
+    private _requestedHostStartTime = false;
+    
+    /** Interval timer for pushing duration updates to the UI */
+    private _durationUpdateInterval?: NodeJS.Timeout;
+    
+    /** Number of retry attempts for fetching host session start time */
+    private _hostStartTimeRetryCount = 0;
+
+    /** Reference to the webview view for sending messages */
+    private _view?: vscode.WebviewView;
+
     /**
-     * Sets a manual invite link as fallback when Live Share API doesn't expose the link.
+     * Creates a new LiveShareManager instance.
      * 
-     * @param link - The invite link to set, or undefined to clear
+     * @param _context - The extension context for state management
      */
-    private setManualInviteLink(link: string | undefined) {
-        if (!link || !link.trim()) {
-            if (this._view) {
-                this._view.webview.postMessage({ command: 'manualLinkInvalid', reason: 'empty' });
-            }
-            return;
-        }
-        const trimmed = link.trim();
-        this._sessionLink = trimmed;
-        this._context.globalState.update(this._persistedLinkKey, this._sessionLink);
-        if (this._view) {
-            this._view.webview.postMessage({
-                command: 'manualLinkUpdated',
-                link: this._sessionLink
-            });
-            const status = this._liveShareApi?.session?.role === (vsls?.Role?.Host) ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
-            this._view.webview.postMessage({
-                command: 'updateSessionStatus',
-                status,
-                link: this._sessionLink,
-                participants: (this._liveShareApi?.peers?.length || 0) + (this._liveShareApi?.session ? 1 : 0),
-                role: this._liveShareApi?.session?.role,
-                duration: this.getSessionDuration()
-            });
-        }
+    constructor(private readonly _context: vscode.ExtensionContext) {
     }
 
     /**
-     * Clears the manually set invite link and updates the UI.
+     * Sets the webview reference for UI updates
+     * @param view - The webview view instance
      */
-    private clearManualInviteLink() {
-        this._sessionLink = undefined;
-        this._context.globalState.update(this._persistedLinkKey, undefined);
-        if (this._view) {
-            this._view.webview.postMessage({ command: 'manualLinkCleared' });
-            const status = this._liveShareApi?.session?.role === (vsls?.Role?.Host) ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
-            this._view.webview.postMessage({
-                command: 'updateSessionStatus',
-                status,
-                link: '',
-                participants: (this._liveShareApi?.peers?.length || 0) + (this._liveShareApi?.session ? 1 : 0),
-                role: this._liveShareApi?.session?.role,
-                duration: this.getSessionDuration()
-            });
-        }
+    public setView(view: vscode.WebviewView) {
+        this._view = view;
     }
-
-    /**
-     * Sends any stored invite link from global state to the webview.
-     * Used for restoring session state after extension reload.
-     */
-    private sendStoredLinkToWebview() {
-        const stored = this._context.globalState.get<string | undefined>(this._persistedLinkKey);
-        if (stored) {
-            this._sessionLink = stored;
-            if (this._view) {
-                this._view.webview.postMessage({ command: 'storedLink', link: stored });
-                if (this._liveShareApi?.session) {
-                    const s = this._liveShareApi.session;
-                    this._view?.webview.postMessage({
-                        command: 'updateSessionStatus',
-                        status: s.role === (vsls?.Role?.Host) ? 'hosting' : 'joined',
-                        link: stored,
-                        participants: (this._liveShareApi.peers?.length || 0) + 1,
-                        role: s.role,
-                        duration: this.getSessionDuration()
-                    });
-                }
-            }
-        }
-    }
-
-    /**
-     * Attempts to paste an invite link from the system clipboard.
-     * Shows appropriate error messages for invalid or empty clipboard content.
-     */
-    private async pasteInviteLinkFromClipboard() {
-        try {
-            const clip = await vscode.env.clipboard.readText();
-            if (clip && clip.trim()) {
-                const trimmed = clip.trim();
-                this.setManualInviteLink(trimmed);
-                if (this._view) {
-                    this._view.webview.postMessage({ command: 'manualLinkPasted', link: trimmed });
-                }
-            } else {
-                if (this._view) {
-                    this._view.webview.postMessage({ command: 'manualLinkPasteInvalid' });
-                }
-                vscode.window.showWarningMessage('Clipboard is empty or does not contain text.');
-            }
-        } catch (err) {
-            console.warn('Failed reading clipboard for invite link:', err);
-            vscode.window.showErrorMessage('Could not read clipboard for invite link.');
-        }
-    } 
 
     /**
      * Initializes the Live Share API and sets up event listeners.
@@ -293,7 +75,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      * 
      * @returns Promise that resolves to true if initialization succeeds, false otherwise
      */
-    private async initializeLiveShare(): Promise<boolean> {
+    public async initializeLiveShare(): Promise<boolean> {
         await new Promise(resolve => setTimeout(resolve, 1000));
         if (!vsls || typeof vsls.getApi !== 'function') {
             console.log('Live Share module not available. Skipping initialization.');
@@ -706,21 +488,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    /** Interval timer for monitoring participant changes */
-    private participantMonitoringInterval?: NodeJS.Timeout;
-    
-    /** Timestamp when the current session started */
-    private sessionStartTime?: Date;
-    
-    /** Flag to prevent duplicate requests for host session start time */
-    private _requestedHostStartTime = false;
-    
-    /** Interval timer for pushing duration updates to the UI */
-    private _durationUpdateInterval?: NodeJS.Timeout;
-    
-    /** Number of retry attempts for fetching host session start time */
-    private _hostStartTimeRetryCount = 0;
-
     /**
      * Starts monitoring participants in the Live Share session.
      * Updates participant information every 2 seconds for responsive UI updates.
@@ -897,10 +664,112 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Sets a manual invite link as fallback when Live Share API doesn't expose the link.
+     * 
+     * @param link - The invite link to set, or undefined to clear
+     */
+    public setManualInviteLink(link: string | undefined) {
+        if (!link || !link.trim()) {
+            if (this._view) {
+                this._view.webview.postMessage({ command: 'manualLinkInvalid', reason: 'empty' });
+            }
+            return;
+        }
+        const trimmed = link.trim();
+        this._sessionLink = trimmed;
+        this._context.globalState.update(this._persistedLinkKey, this._sessionLink);
+        if (this._view) {
+            this._view.webview.postMessage({
+                command: 'manualLinkUpdated',
+                link: this._sessionLink
+            });
+            const status = this._liveShareApi?.session?.role === (vsls?.Role?.Host) ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
+            this._view.webview.postMessage({
+                command: 'updateSessionStatus',
+                status,
+                link: this._sessionLink,
+                participants: (this._liveShareApi?.peers?.length || 0) + (this._liveShareApi?.session ? 1 : 0),
+                role: this._liveShareApi?.session?.role,
+                duration: this.getSessionDuration()
+            });
+        }
+    }
+
+    /**
+     * Clears the manually set invite link and updates the UI.
+     */
+    public clearManualInviteLink() {
+        this._sessionLink = undefined;
+        this._context.globalState.update(this._persistedLinkKey, undefined);
+        if (this._view) {
+            this._view.webview.postMessage({ command: 'manualLinkCleared' });
+            const status = this._liveShareApi?.session?.role === (vsls?.Role?.Host) ? 'hosting' : (this._liveShareApi?.session ? 'joined' : 'none');
+            this._view.webview.postMessage({
+                command: 'updateSessionStatus',
+                status,
+                link: '',
+                participants: (this._liveShareApi?.peers?.length || 0) + (this._liveShareApi?.session ? 1 : 0),
+                role: this._liveShareApi?.session?.role,
+                duration: this.getSessionDuration()
+            });
+        }
+    }
+
+    /**
+     * Sends any stored invite link from global state to the webview.
+     * Used for restoring session state after extension reload.
+     */
+    public sendStoredLinkToWebview() {
+        const stored = this._context.globalState.get<string | undefined>(this._persistedLinkKey);
+        if (stored) {
+            this._sessionLink = stored;
+            if (this._view) {
+                this._view.webview.postMessage({ command: 'storedLink', link: stored });
+                if (this._liveShareApi?.session) {
+                    const s = this._liveShareApi.session;
+                    this._view?.webview.postMessage({
+                        command: 'updateSessionStatus',
+                        status: s.role === (vsls?.Role?.Host) ? 'hosting' : 'joined',
+                        link: stored,
+                        participants: (this._liveShareApi.peers?.length || 0) + 1,
+                        role: s.role,
+                        duration: this.getSessionDuration()
+                    });
+                }
+            }
+        }
+    }
+
+    /**
+     * Attempts to paste an invite link from the system clipboard.
+     * Shows appropriate error messages for invalid or empty clipboard content.
+     */
+    public async pasteInviteLinkFromClipboard() {
+        try {
+            const clip = await vscode.env.clipboard.readText();
+            if (clip && clip.trim()) {
+                const trimmed = clip.trim();
+                this.setManualInviteLink(trimmed);
+                if (this._view) {
+                    this._view.webview.postMessage({ command: 'manualLinkPasted', link: trimmed });
+                }
+            } else {
+                if (this._view) {
+                    this._view.webview.postMessage({ command: 'manualLinkPasteInvalid' });
+                }
+                vscode.window.showWarningMessage('Clipboard is empty or does not contain text.');
+            }
+        } catch (err) {
+            console.warn('Failed reading clipboard for invite link:', err);
+            vscode.window.showErrorMessage('Could not read clipboard for invite link.');
+        }
+    } 
+
+    /**
      * Ends the current Live Share session (host only).
      * Updates UI state and notifies participants.
      */
-    private async endLiveShareSession() {
+    public async endLiveShareSession() {
         try {
             console.log('Attempting to end Live Share session...');
             
@@ -973,7 +842,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      * Leaves the current Live Share session (guest only).
      * Clears local session state and updates UI.
      */
-    private async leaveLiveShareSession() {
+    public async leaveLiveShareSession() {
         try {
             console.log('Attempting to leave Live Share session...');
             
@@ -1054,7 +923,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      * Starts a new Live Share session as host.
      * Validates workspace state, creates session, and sets up monitoring.
      */
-    private async startLiveShareSession() {
+    public async startLiveShareSession() {
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
             vscode.window.showErrorMessage('Please open a project folder before starting a Live Share session.');
             return;
@@ -1072,7 +941,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         );
 
         if (confirm !== 'OK') {
-            // User cancelled, don’t start session
+            // User cancelled, don't start session
             return;
         }
 
@@ -1129,7 +998,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      * Joins an existing Live Share session as guest.
      * Prompts for invite link and establishes connection.
      */
-    private async joinLiveShareSession() {
+    public async joinLiveShareSession() {
         if (!this._liveShareApi) {
             vscode.window.showErrorMessage('Live Share API not available. Please install Live Share extension.');
             return;
@@ -1180,7 +1049,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      * 
      * @param message - The message text to send
      */
-    private sendTeamMessage(message: string) {
+    public sendTeamMessage(message: string) {
         if (!this._liveShareApi?.session) {
             vscode.window.showWarningMessage('Start or join a Live Share session to use team chat.');
             return;
@@ -1208,49 +1077,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 command: 'updateActivity',
                 activity: activity
             });
-        }
-    }
-
-    /**
-     * Disposes of the panel provider and cleans up resources.
-     * Stops monitoring intervals and clears references.
-     */
-    dispose() {
-        this.stopParticipantMonitoring();
-        this.stopAuthMonitor();
-        
-        this._view = undefined;
-        this._liveShareApi = undefined;
-    }
-
-    /** Starts monitoring auth state and refreshes panel on changes */
-    private startAuthMonitor() {
-        this.stopAuthMonitor();
-        this._authMonitorInterval = setInterval(async () => {
-            try {
-                const { getAuthContext } = require('../services/auth-service');
-                const result = await getAuthContext();
-                const isAuthed = !!(result && result.context && result.context.isAuthenticated);
-                if (this._lastAuthState === undefined) {
-                    this._lastAuthState = isAuthed;
-                } else if (this._lastAuthState !== isAuthed) {
-                    this._lastAuthState = isAuthed;
-                    if (this._view) {
-                        // Rebuild HTML to update Home tab login status
-                        this._view.webview.html = await this._getHtmlForWebview(this._view.webview);
-                    }
-                }
-            } catch {
-                // ignore transient errors
-            }
-        }, 2000);
-    }
-
-    /** Stops monitoring auth state */
-    private stopAuthMonitor() {
-        if (this._authMonitorInterval) {
-            clearInterval(this._authMonitorInterval);
-            this._authMonitorInterval = undefined;
         }
     }
 
@@ -1442,306 +1268,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     /**
-     * Refreshes teams from database and updates UI
+     * Disposes of the Live Share manager and cleans up resources.
+     * Stops monitoring intervals and clears references.
      */
-    private async refreshTeams() {
-        const result = await getUserTeams();
-        if (result.error) {
-            vscode.window.showErrorMessage(`Failed to load teams: ${result.error}`);
-            this._userTeams = [];
-        } else {
-            this._userTeams = result.teams || [];
-        }
-        this.postTeamInfo();
-    }
-
-    /**
-     * Posts current team info to webview
-     */
-    private postTeamInfo() {
-        // Get currently selected team from storage or default to first team
-        const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
-        let currentTeam = this._userTeams.find(t => t.id === currentTeamId);
+    public dispose() {
+        this.stopParticipantMonitoring();
+        this.stopDurationUpdater();
         
-        // If no stored team or team not found, use first available team
-        if (!currentTeam && this._userTeams.length > 0) {
-            currentTeam = this._userTeams[0];
-            this._context.globalState.update(this._teamStateKey, currentTeam.id);
-        }
-
-        const teamInfo = currentTeam 
-            ? { 
-                name: currentTeam.lobby_name, 
-                role: currentTeam.role === 'admin' ? 'Admin' : 'Member',
-                joinCode: currentTeam.join_code,
-                id: currentTeam.id
-              }
-            : { name: 'No Team', role: '—', joinCode: '', id: '' };
-
-        this._view?.webview.postMessage({
-            command: 'updateTeamInfo',
-            team: teamInfo,
-            allTeams: this._userTeams.map(t => ({
-                id: t.id,
-                name: t.lobby_name,
-                role: t.role === 'admin' ? 'Admin' : 'Member',
-                joinCode: t.join_code
-            }))
-        });
-    }
-
-    /**
-     * Handles team creation with database persistence
-     */
-    private async handleCreateTeam() {
-        const name = await vscode.window.showInputBox({ 
-            prompt: 'Enter new team name',
-            placeHolder: 'My Team',
-            validateInput: (value) => {
-                if (!value || value.trim().length === 0) {
-                    return 'Team name cannot be empty';
-                }
-                if (value.trim().length > 50) {
-                    return 'Team name must be 50 characters or less';
-                }
-                return null;
-            }
-        });
-        
-        if (!name?.trim()) return;
-
-        // Show progress
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: 'Creating team...',
-            cancellable: false
-        }, async () => {
-            const result = await createTeam(name.trim());
-            
-            if (result.error) {
-                vscode.window.showErrorMessage(`Failed to create team: ${result.error}`);
-            } else if (result.team && result.joinCode) {
-                vscode.window.showInformationMessage(
-                    `Created team "${result.team.lobby_name}" with join code: ${result.joinCode}`,
-                    'Copy Join Code'
-                ).then(action => {
-                    if (action === 'Copy Join Code') {
-                        vscode.env.clipboard.writeText(result.joinCode!);
-                        vscode.window.showInformationMessage('Join code copied to clipboard');
-                    }
-                });
-                
-                // Refresh teams and set new team as current
-                await this.refreshTeams();
-                if (result.team) {
-                    await this._context.globalState.update(this._teamStateKey, result.team.id);
-                    this.postTeamInfo();
-                }
-            }
-        });
-    }
-
-    /**
-     * Handles joining a team by join code
-     */
-    private async handleJoinTeam() {
-        const joinCode = await vscode.window.showInputBox({ 
-            prompt: 'Enter 6-character team join code',
-            placeHolder: 'ABC123',
-            validateInput: (value) => {
-                if (!value || value.trim().length === 0) {
-                    return 'Join code cannot be empty';
-                }
-                if (value.trim().length !== 6) {
-                    return 'Join code must be exactly 6 characters';
-                }
-                if (!/^[A-Z0-9]+$/i.test(value.trim())) {
-                    return 'Join code must contain only letters and numbers';
-                }
-                return null;
-            }
-        });
-        
-        if (!joinCode?.trim()) return;
-
-        // Show progress
-        await vscode.window.withProgress({
-            location: vscode.ProgressLocation.Notification,
-            title: 'Joining team...',
-            cancellable: false
-        }, async () => {
-            const result = await joinTeam(joinCode.trim());
-            
-            if (result.error) {
-                vscode.window.showErrorMessage(`Failed to join team: ${result.error}`);
-            } else if (result.team) {
-                vscode.window.showInformationMessage(`Successfully joined team "${result.team.lobby_name}"`);
-                
-                // Refresh teams and set new team as current
-                await this.refreshTeams();
-                await this._context.globalState.update(this._teamStateKey, result.team.id);
-                this.postTeamInfo();
-            }
-        });
-    }
-
-    /**
-     * Handles switching between user's teams
-     */
-    private async handleSwitchTeam() {
-        if (this._userTeams.length === 0) {
-            vscode.window.showInformationMessage('You are not a member of any teams. Create or join a team first.');
-            return;
-        }
-
-        if (this._userTeams.length === 1) {
-            vscode.window.showInformationMessage('You only belong to one team.');
-            return;
-        }
-
-        const teamOptions = this._userTeams.map(team => ({
-            label: team.lobby_name,
-            description: `${team.role === 'admin' ? 'Admin' : 'Member'} • Code: ${team.join_code}`,
-            team: team
-        }));
-
-        const selected = await vscode.window.showQuickPick(teamOptions, {
-            placeHolder: 'Select a team to switch to'
-        });
-
-        if (selected) {
-            await this._context.globalState.update(this._teamStateKey, selected.team.id);
-            vscode.window.showInformationMessage(`Switched to team "${selected.team.lobby_name}"`);
-            this.postTeamInfo();
-        }
-    }
-    
-    /**
-     * Generates the HTML content for the webview panel.
-     * 
-     * @param webview - The webview instance for generating resource URIs
-     * @returns The complete HTML string for the panel
-     */
-    private _getHtmlForWebview(webview: vscode.Webview) {
-        // Example: you would check for Live Share and login status here
-        // This function is now async to allow awaiting getHtml()
-        return (async () => {
-            // Dynamically check Live Share install status
-            let liveShareInstalled = false;
-            try {
-                liveShareInstalled = !!vscode.extensions.getExtension('ms-vsliveshare.vsliveshare');
-            } catch {}
-
-            // Dynamically check login status
-            let loggedIn = false;
-            let userInfo = undefined;
-            try {
-                const { getAuthContext } = require('../services/auth-service');
-                const result = await getAuthContext();
-                if (result && result.context && result.context.isAuthenticated) {
-                    loggedIn = true;
-                    userInfo = { email: result.context.email, username: result.context.first_name };
-                }
-            } catch {}
-
-            const homeScreen = new (require('./HomeScreenPanel')).HomeScreenPanel(this._extensionUri, this._context);
-            const homeHtml = await homeScreen.getHtml(webview, liveShareInstalled, loggedIn, userInfo);
-            const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.js'));
-            const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.css'));
-            const nonce = Date.now().toString();
-            return `<!DOCTYPE html>
-            <html lang="en">
-            <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>Collab Agent</title>
-            <link href="${styleUri}" rel="stylesheet" />
-            <style>
-            .tab-header { display: flex; gap: 8px; margin-bottom: 16px; justify-content: center; }
-            .tab-btn { padding: 6px 18px; border: none; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 6px 6px 0 0; cursor: pointer; font-weight: 500; font-size: 15px; }
-            .tab-btn.active { background: var(--vscode-editor-background); color: var(--vscode-editor-foreground); border-bottom: 2px solid var(--vscode-tab-activeBorder); }
-            .tab-panel { display: none; }
-            .back-btn { position: absolute; top: 16px; left: 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border-radius: 4px; border: none; padding: 6px 14px; font-size: 13px; cursor: pointer; }
-            .back-btn:hover { background: var(--vscode-button-hoverBackground); }
-            </style>
-            </head>
-            <body>
-            <div class="tab-header">
-                <button class="tab-btn" id="tab-home" data-tab="home">Home</button>
-                <button class="tab-btn" id="tab-live" data-tab="live">Live Share</button>
-                <button class="tab-btn" id="tab-agent" data-tab="agent">Agent Bot</button>
-            </div>
-            <div id="panel-home" class="tab-panel" style="display:block;">${homeHtml}</div>
-            <div id="panel-live" class="tab-panel">
-                <div class="agent-heading">Live Share</div>
-                <div class="section">
-                    <div class="section-title">🚀 Live Share Session</div>
-                    <div id="sessionButtons">
-                    <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
-                    <button class="button" id="joinLiveShareBtn" onclick="joinLiveShare()">Join Session</button>
-                    </div>
-                    <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
-                </div>
-                <div class="section">
-                    <div class="section-title">👥 Team Activity</div>
-                    <div id="teamActivity">
-                    <div class="activity-item">
-                        <span class="status-indicator"></span>
-                        <strong>You:</strong> Ready to collaborate
-                    </div>
-                    </div>
-                </div>
-                <div class="section">
-                    <div class="section-title">💬 Team Chat</div>
-                    <div id="chatMessages" class="chat-messages">
-                    <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
-                    </div>
-                    <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
-                </div>
-            </div>
-            <div id="panel-agent" class="tab-panel">
-                <div class="agent-heading">Agent Bot</div>
-                <div class="section">
-                    <div class="section-title">🏢 Team & Project Management</div>
-                    <div id="teamProduct">
-                        <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
-                        <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
-                        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                            <button class="button" id="switchTeamBtn">Switch Team</button>
-                            <button class="button" id="createTeamBtn">Create Team</button>
-                            <button class="button" id="joinTeamBtn">Join Team</button>
-                        </div>
-                    </div>
-                </div>
-                <div id="ai-agent-box" class="section">
-                    <h3>🤖 AI Agent</h3>
-                    <div id="ai-chat-log" class="chat-log"></div>
-                    <div class="chat-input-container">
-                        <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
-                        <button id="ai-chat-send">Send</button>
-                    </div>
-                </div>
-            </div>
-            <script nonce="${nonce}" src="${scriptUri}"></script>
-            <script nonce="${nonce}">
-            (function(){
-                function showTab(tab) {
-                    document.getElementById('panel-home').style.display = tab==='home' ? 'block' : 'none';
-                    document.getElementById('panel-live').style.display = tab==='live' ? 'block' : 'none';
-                    document.getElementById('panel-agent').style.display = tab==='agent' ? 'block' : 'none';
-                    document.getElementById('tab-home').classList.toggle('active', tab==='home');
-                    document.getElementById('tab-live').classList.toggle('active', tab==='live');
-                    document.getElementById('tab-agent').classList.toggle('active', tab==='agent');
-                }
-                document.getElementById('tab-home').addEventListener('click', function(){ showTab('home'); });
-                document.getElementById('tab-live').addEventListener('click', function(){ showTab('live'); });
-                document.getElementById('tab-agent').addEventListener('click', function(){ showTab('agent'); });
-                // Initial state: home only
-                showTab('home');
-            })();
-            </script>
-            </body>
-            </html>`;
-        })();
+        this._view = undefined;
+        this._liveShareApi = undefined;
+        this._sharedService = undefined;
     }
 }

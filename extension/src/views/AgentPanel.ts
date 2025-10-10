@@ -115,6 +115,31 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         });
     }
 
+    // Public methods for MainPanel delegation
+    public setWebviewForDelegation(view: vscode.WebviewView) {
+        this._view = view;
+    }
+
+    public async createTeam() {
+        return await this.handleCreateTeam();
+    }
+
+    public async joinTeam() {
+        return await this.handleJoinTeam();
+    }
+
+    public async switchTeam() {
+        return await this.handleSwitchTeam();
+    }
+
+    public async refreshTeamsList() {
+        return await this.refreshTeams();
+    }
+
+    public async processAiQuery(text: string) {
+        return this.handleAiQuery(text);
+    }
+
     /**
      * Handles team creation with database persistence
      */
@@ -244,6 +269,42 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
     private handleAiQuery(text: string) {
         const reply = `Agent received: "${text}"`;
         this._view?.webview.postMessage({ command: 'aiResponse', text: reply });
+    }
+
+    /**
+     * Gets the inner HTML content for embedding in the main panel
+     */
+    public getInnerHtml(): string {
+        return `
+            <div class="agent-heading">Agent</div>
+            <div class="section">
+                <div class="section-title">🏢 Team & Product Management</div>
+                <div id="teamProduct">
+                    <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
+                    <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
+                    <div id="joinCodeSection" style="display:none;">
+                        <strong>Join Code:</strong> 
+                        <span id="teamJoinCode">—</span>
+                        <button class="button-small" id="copyJoinCodeBtn" title="Copy join code">📋</button>
+                    </div>
+                    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                        <button class="button" id="switchTeamBtn">Switch Team</button>
+                        <button class="button" id="createTeamBtn">Create Team</button>
+                        <button class="button" id="joinTeamBtn">Join Team</button>
+                        <button class="button-small" id="refreshTeamsBtn" title="Refresh teams">🔄</button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="ai-agent-box" class="section">
+                <h3>AI Agent</h3>
+                <div id="ai-chat-log" class="chat-log"></div>
+                <div class="chat-input-container">
+                    <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
+                    <button id="ai-chat-send">Send</button>
+                </div>
+            </div>
+        `;
     }
 
     private _getHtmlForWebview(webview: vscode.Webview) {

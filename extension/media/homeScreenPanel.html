@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Collab Agent Home</title>
+    <link href="{{PANEL_STYLE_URI}}" rel="stylesheet" />
+    <link href="{{HOME_STYLE_URI}}" rel="stylesheet" />
+</head>
+<body>
+    <div class="panel-content">
+        <div class="welcome">
+            <div class="welcome-title">Welcome to Collab Agent</div>
+            <div class="welcome-desc">Collaboration made easy.<br>To get started, please install Live Share and log in.</div>
+            <div class="welcome-options">For <strong>real-time collaboration</strong>, choose <span style="color:#4f8cff;font-weight:600;">Live Share</span>.<br>For <strong>async collaboration</strong>, choose <span style="color:#4f8cff;font-weight:600;">Agent</span>.</div>
+        </div>
+        {{LIVE_SHARE_STATUS}}
+        {{LOGIN_STATUS}}
+    </div>
+</body>
+</html>

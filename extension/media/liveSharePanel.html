@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Collab Agent</title>
+<link href="{{STYLE_URI}}" rel="stylesheet" />
+</head>
+<body>
+<div class="tab-header">
+    <button class="tab-btn" id="tab-home" data-tab="home">Home</button>
+    <button class="tab-btn" id="tab-live" data-tab="live">Live Share</button>
+    <button class="tab-btn" id="tab-agent" data-tab="agent">Agent Bot</button>
+</div>
+<div id="panel-home" class="tab-panel" style="display:block;">{{HOME_HTML}}</div>
+<div id="panel-live" class="tab-panel">
+    <div class="agent-heading">Live Share</div>
+    <div class="section">
+        <div class="section-title">🚀 Live Share Session</div>
+        <div id="sessionButtons">
+        <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
+        <button class="button" id="joinLiveShareBtn" onclick="joinLiveShare()">Join Session</button>
+        </div>
+        <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
+    </div>
+    <div class="section">
+        <div class="section-title">👥 Team Activity</div>
+        <div id="teamActivity">
+        <div class="activity-item">
+            <span class="status-indicator"></span>
+            <strong>You:</strong> Ready to collaborate
+        </div>
+        </div>
+    </div>
+    <div class="section">
+        <div class="section-title">💬 Team Chat</div>
+        <div id="chatMessages" class="chat-messages">
+        <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
+        </div>
+        <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
+    </div>
+</div>
+<div id="panel-agent" class="tab-panel">{{AGENT_HTML}}</div>
+<script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
+<script nonce="{{NONCE}}">
+(function(){
+    function showTab(tab) {
+        document.getElementById('panel-home').style.display = tab==='home' ? 'block' : 'none';
+        document.getElementById('panel-live').style.display = tab==='live' ? 'block' : 'none';
+        document.getElementById('panel-agent').style.display = tab==='agent' ? 'block' : 'none';
+        document.getElementById('tab-home').classList.toggle('active', tab==='home');
+        document.getElementById('tab-live').classList.toggle('active', tab==='live');
+        document.getElementById('tab-agent').classList.toggle('active', tab==='agent');
+    }
+    document.getElementById('tab-home').addEventListener('click', function(){ showTab('home'); });
+    document.getElementById('tab-live').addEventListener('click', function(){ showTab('live'); });
+    document.getElementById('tab-agent').addEventListener('click', function(){ showTab('agent'); });
+    showTab('home');
+})();
+</script>
+</body>
+</html>

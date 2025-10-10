@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import * as vsls from 'vsls';
 import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
 import { checkUserSignIn } from "./services/auth-service";
-import { CollabAgentPanelProvider } from "./views/LiveSharePanel";
+import { CollabAgentPanelProvider } from "./views/MainPanel";
 import { setDisplayNameExplicit, getOrInitDisplayName } from './services/profile-service';
 
 /** Global extension context for state management and subscriptions */
