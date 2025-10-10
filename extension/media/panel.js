@@ -27,12 +27,108 @@
 			});
 		}
 	}
+	// Agent tab: Team management buttons
+	function setupAgentPanelButtons() {
+		console.log('Setting up Agent Panel buttons');
+		
+		const createTeamBtn = document.getElementById('createTeamBtn');
+		if (createTeamBtn && !createTeamBtn.hasAttribute('data-listener-added')) {
+			createTeamBtn.addEventListener('click', function() {
+				console.log('Create Team button clicked');
+				post('createTeam');
+			});
+			createTeamBtn.setAttribute('data-listener-added', 'true');
+			console.log('Create Team button listener added');
+		} else if (!createTeamBtn) {
+			console.log('Create Team button not found');
+		}
+		
+		const joinTeamBtn = document.getElementById('joinTeamBtn');
+		if (joinTeamBtn && !joinTeamBtn.hasAttribute('data-listener-added')) {
+			joinTeamBtn.addEventListener('click', function() {
+				console.log('Join Team button clicked');
+				post('joinTeam');
+			});
+			joinTeamBtn.setAttribute('data-listener-added', 'true');
+			console.log('Join Team button listener added');
+		} else if (!joinTeamBtn) {
+			console.log('Join Team button not found');
+		}
+		
+		const switchTeamBtn = document.getElementById('switchTeamBtn');
+		if (switchTeamBtn && !switchTeamBtn.hasAttribute('data-listener-added')) {
+			switchTeamBtn.addEventListener('click', function() {
+				console.log('Switch Team button clicked');
+				post('switchTeam');
+			});
+			switchTeamBtn.setAttribute('data-listener-added', 'true');
+			console.log('Switch Team button listener added');
+		} else if (!switchTeamBtn) {
+			console.log('Switch Team button not found');
+		}
+		
+		const refreshTeamsBtn = document.getElementById('refreshTeamsBtn');
+		if (refreshTeamsBtn && !refreshTeamsBtn.hasAttribute('data-listener-added')) {
+			refreshTeamsBtn.addEventListener('click', function() {
+				console.log('Refresh Teams button clicked');
+				post('refreshTeams');
+			});
+			refreshTeamsBtn.setAttribute('data-listener-added', 'true');
+			console.log('Refresh Teams button listener added');
+		} else if (!refreshTeamsBtn) {
+			console.log('Refresh Teams button not found');
+		}
+		
+		const copyJoinCodeBtn = document.getElementById('copyJoinCodeBtn');
+		if (copyJoinCodeBtn && !copyJoinCodeBtn.hasAttribute('data-listener-added')) {
+			copyJoinCodeBtn.addEventListener('click', copyJoinCode);
+			copyJoinCodeBtn.setAttribute('data-listener-added', 'true');
+			console.log('Copy Join Code button listener added');
+		} else if (!copyJoinCodeBtn) {
+			console.log('Copy Join Code button not found');
+		}
+	}
+	
+	function copyJoinCode() {
+		const joinCodeElement = document.getElementById('teamJoinCode');
+		if (joinCodeElement && joinCodeElement.textContent !== '—') {
+			navigator.clipboard.writeText(joinCodeElement.textContent).then(() => {
+				const btn = document.getElementById('copyJoinCodeBtn');
+				if (btn) {
+					const originalText = btn.textContent;
+					btn.textContent = '✓';
+					setTimeout(() => {
+						btn.textContent = originalText;
+					}, 1000);
+				}
+			}).catch(() => {
+				const textArea = document.createElement('textarea');
+				textArea.value = joinCodeElement.textContent;
+				document.body.appendChild(textArea);
+				textArea.select();
+				document.execCommand('copy');
+				document.body.removeChild(textArea);
+			});
+		}
+	}
+
+	function setupAllButtons() {
+		setupHomePanelButtons();
+		setupAgentPanelButtons();
+	}
+
 	// Run on DOMContentLoaded or immediately if loaded
 	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', setupHomePanelButtons);
+		document.addEventListener('DOMContentLoaded', setupAllButtons);
 	} else {
-		setupHomePanelButtons();
+		setupAllButtons();
 	}
+	
+	// Additional fallback: try again after a short delay
+	setTimeout(() => {
+		console.log('Fallback initialization after 100ms');
+		setupAllButtons();
+	}, 100);
 
 	window.handleChatInput = (e) => {
 		if (e.key === 'Enter') {
@@ -78,10 +174,36 @@
 		const message = event.data;
 		switch (message.command) {
 			case 'aiResponse':
-			appendAIMessage(message.text);
-			break;
+				appendAIMessage(message.text);
+				break;
+			case 'updateTeamInfo':
+				updateTeamInfo(message.team);
+				break;
 		}
-		});
+	});
+
+	function updateTeamInfo(team) {
+		console.log('Updating team info:', team);
+		
+		const teamName = document.getElementById('teamName');
+		const teamRole = document.getElementById('teamRole');
+		const teamJoinCode = document.getElementById('teamJoinCode');
+		const joinCodeSection = document.getElementById('joinCodeSection');
+		
+		if (teamName) teamName.textContent = team?.name ?? '—';
+		if (teamRole) teamRole.textContent = team?.role ?? '—';
+		
+		// Show/hide join code section based on whether user has a team
+		if (teamJoinCode && joinCodeSection) {
+			if (team?.joinCode && team.name !== 'No Team') {
+				teamJoinCode.textContent = team.joinCode;
+				joinCodeSection.style.display = 'block';
+			} else {
+				teamJoinCode.textContent = '—';
+				joinCodeSection.style.display = 'none';
+			}
+		}
+	}
 
 	function appendAIMessage(text) {
 		const chatLog = document.getElementById('ai-chat-log');

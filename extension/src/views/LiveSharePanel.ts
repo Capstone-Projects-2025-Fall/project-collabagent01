@@ -8,6 +8,7 @@ try {
     vsls = undefined;
 }
 import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-service';
+import { createTeam, joinTeam, getUserTeams, type TeamWithMembership } from '../services/team-service';
 
 /**
  * Provides the webview panel for the Collab Agent extension.
@@ -42,6 +43,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private _authMonitorInterval: any | undefined;
     /** Cached last known auth state */
     private _lastAuthState: boolean | undefined;
+
+    /** Global state keys */
+    private readonly _teamStateKey = 'collabAgent.currentTeam';
+    
+    /** Current teams cache */
+    private _userTeams: TeamWithMembership[] = [];
 
     /**
      * Creates a new CollabAgentPanelProvider instance.
@@ -78,6 +85,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
     await this.initializeLiveShare();
     this.startAuthMonitor();
+
+        // Initialize with team info from database
+        await this.refreshTeams();
 
         webviewView.webview.onDidReceiveMessage(
             async (message: any) => {
@@ -144,6 +154,22 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                             }
                             vscode.window.showErrorMessage(msg);
                         }
+                        return;
+                    case 'createTeam':
+                        console.log('Handling createTeam command in LiveSharePanel');
+                        this.handleCreateTeam();
+                        return;
+                    case 'joinTeam':
+                        console.log('Handling joinTeam command in LiveSharePanel');
+                        this.handleJoinTeam();
+                        return;
+                    case 'switchTeam':
+                        console.log('Handling switchTeam command in LiveSharePanel');
+                        this.handleSwitchTeam();
+                        return;
+                    case 'refreshTeams':
+                        console.log('Handling refreshTeams command in LiveSharePanel');
+                        this.refreshTeams();
                         return;
                     // Agent chat box and aiQuery logic moved to AgentPanelProvider
                     // ...existing code...
@@ -1412,6 +1438,181 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         if (this._durationUpdateInterval) {
             clearInterval(this._durationUpdateInterval);
             this._durationUpdateInterval = undefined;
+        }
+    }
+
+    /**
+     * Refreshes teams from database and updates UI
+     */
+    private async refreshTeams() {
+        const result = await getUserTeams();
+        if (result.error) {
+            vscode.window.showErrorMessage(`Failed to load teams: ${result.error}`);
+            this._userTeams = [];
+        } else {
+            this._userTeams = result.teams || [];
+        }
+        this.postTeamInfo();
+    }
+
+    /**
+     * Posts current team info to webview
+     */
+    private postTeamInfo() {
+        // Get currently selected team from storage or default to first team
+        const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+        let currentTeam = this._userTeams.find(t => t.id === currentTeamId);
+        
+        // If no stored team or team not found, use first available team
+        if (!currentTeam && this._userTeams.length > 0) {
+            currentTeam = this._userTeams[0];
+            this._context.globalState.update(this._teamStateKey, currentTeam.id);
+        }
+
+        const teamInfo = currentTeam 
+            ? { 
+                name: currentTeam.lobby_name, 
+                role: currentTeam.role === 'admin' ? 'Admin' : 'Member',
+                joinCode: currentTeam.join_code,
+                id: currentTeam.id
+              }
+            : { name: 'No Team', role: '—', joinCode: '', id: '' };
+
+        this._view?.webview.postMessage({
+            command: 'updateTeamInfo',
+            team: teamInfo,
+            allTeams: this._userTeams.map(t => ({
+                id: t.id,
+                name: t.lobby_name,
+                role: t.role === 'admin' ? 'Admin' : 'Member',
+                joinCode: t.join_code
+            }))
+        });
+    }
+
+    /**
+     * Handles team creation with database persistence
+     */
+    private async handleCreateTeam() {
+        const name = await vscode.window.showInputBox({ 
+            prompt: 'Enter new team name',
+            placeHolder: 'My Team',
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Team name cannot be empty';
+                }
+                if (value.trim().length > 50) {
+                    return 'Team name must be 50 characters or less';
+                }
+                return null;
+            }
+        });
+        
+        if (!name?.trim()) return;
+
+        // Show progress
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Creating team...',
+            cancellable: false
+        }, async () => {
+            const result = await createTeam(name.trim());
+            
+            if (result.error) {
+                vscode.window.showErrorMessage(`Failed to create team: ${result.error}`);
+            } else if (result.team && result.joinCode) {
+                vscode.window.showInformationMessage(
+                    `Created team "${result.team.lobby_name}" with join code: ${result.joinCode}`,
+                    'Copy Join Code'
+                ).then(action => {
+                    if (action === 'Copy Join Code') {
+                        vscode.env.clipboard.writeText(result.joinCode!);
+                        vscode.window.showInformationMessage('Join code copied to clipboard');
+                    }
+                });
+                
+                // Refresh teams and set new team as current
+                await this.refreshTeams();
+                if (result.team) {
+                    await this._context.globalState.update(this._teamStateKey, result.team.id);
+                    this.postTeamInfo();
+                }
+            }
+        });
+    }
+
+    /**
+     * Handles joining a team by join code
+     */
+    private async handleJoinTeam() {
+        const joinCode = await vscode.window.showInputBox({ 
+            prompt: 'Enter 6-character team join code',
+            placeHolder: 'ABC123',
+            validateInput: (value) => {
+                if (!value || value.trim().length === 0) {
+                    return 'Join code cannot be empty';
+                }
+                if (value.trim().length !== 6) {
+                    return 'Join code must be exactly 6 characters';
+                }
+                if (!/^[A-Z0-9]+$/i.test(value.trim())) {
+                    return 'Join code must contain only letters and numbers';
+                }
+                return null;
+            }
+        });
+        
+        if (!joinCode?.trim()) return;
+
+        // Show progress
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: 'Joining team...',
+            cancellable: false
+        }, async () => {
+            const result = await joinTeam(joinCode.trim());
+            
+            if (result.error) {
+                vscode.window.showErrorMessage(`Failed to join team: ${result.error}`);
+            } else if (result.team) {
+                vscode.window.showInformationMessage(`Successfully joined team "${result.team.lobby_name}"`);
+                
+                // Refresh teams and set new team as current
+                await this.refreshTeams();
+                await this._context.globalState.update(this._teamStateKey, result.team.id);
+                this.postTeamInfo();
+            }
+        });
+    }
+
+    /**
+     * Handles switching between user's teams
+     */
+    private async handleSwitchTeam() {
+        if (this._userTeams.length === 0) {
+            vscode.window.showInformationMessage('You are not a member of any teams. Create or join a team first.');
+            return;
+        }
+
+        if (this._userTeams.length === 1) {
+            vscode.window.showInformationMessage('You only belong to one team.');
+            return;
+        }
+
+        const teamOptions = this._userTeams.map(team => ({
+            label: team.lobby_name,
+            description: `${team.role === 'admin' ? 'Admin' : 'Member'} • Code: ${team.join_code}`,
+            team: team
+        }));
+
+        const selected = await vscode.window.showQuickPick(teamOptions, {
+            placeHolder: 'Select a team to switch to'
+        });
+
+        if (selected) {
+            await this._context.globalState.update(this._teamStateKey, selected.team.id);
+            vscode.window.showInformationMessage(`Switched to team "${selected.team.lobby_name}"`);
+            this.postTeamInfo();
         }
     }
     

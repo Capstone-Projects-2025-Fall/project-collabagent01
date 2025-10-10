@@ -35,7 +35,7 @@ function generateJoinCode(): string {
 }
 
 /**
- * Gets Supabase client instance for database operations
+ * Gets Supabase client instance for database operations with proper authentication
  */
 async function getSupabaseClient() {
     try {
@@ -43,12 +43,17 @@ async function getSupabaseClient() {
         const config = vscode.workspace.getConfiguration('collabAgent');
         const supabaseUrl = config.get<string>('supabase.url');
         const supabaseKey = config.get<string>('supabase.anonKey');
+        const serviceRoleKey = config.get<string>('supabase.serviceRoleKey');
         
         if (!supabaseUrl || !supabaseKey) {
             throw new Error('Supabase configuration missing. Please configure supabase.url and supabase.anonKey in settings.');
         }
         
-        return createClient(supabaseUrl, supabaseKey);
+        // Use service role key if available (bypasses RLS)
+        const keyToUse = serviceRoleKey || supabaseKey;
+        const supabase = createClient(supabaseUrl, keyToUse);
+        
+        return supabase;
     } catch (error) {
         throw new Error(`Failed to initialize Supabase client: ${error}`);
     }
@@ -68,12 +73,24 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
         const supabase = await getSupabaseClient();
         const joinCode = generateJoinCode();
 
+        // Get the Supabase auth user ID (this should match the user in auth.users)
+        // For now, we'll use the email to find the correct auth user
+        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
+        if (authUserError) {
+            return { error: `Failed to get auth users: ${authUserError.message}` };
+        }
+        
+        const authUser = authUsers.users.find((u: any) => u.email === user.email);
+        if (!authUser) {
+            return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        }
+
         // Create team record
         const { data: teamData, error: teamError } = await supabase
             .from('teams')
             .insert({
                 lobby_name: lobbyName,
-                created_by: user.id,
+                created_by: authUser.id,
                 join_code: joinCode
             })
             .select()
@@ -92,7 +109,7 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
             .from('team_membership')
             .insert({
                 team_id: teamData.id,
-                user_id: user.id,
+                user_id: authUser.id, // Use the Supabase auth user ID
                 role: 'admin'
             });
 
@@ -121,6 +138,17 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
 
         const supabase = await getSupabaseClient();
 
+        // Get the Supabase auth user ID
+        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
+        if (authUserError) {
+            return { error: `Failed to get auth users: ${authUserError.message}` };
+        }
+        
+        const authUser = authUsers.users.find((u: any) => u.email === user.email);
+        if (!authUser) {
+            return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        }
+
         // Find team by join code
         const { data: teamData, error: teamError } = await supabase
             .from('teams')
@@ -137,7 +165,7 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
             .from('team_membership')
             .select('*')
             .eq('team_id', teamData.id)
-            .eq('user_id', user.id)
+            .eq('user_id', authUser.id) // Use Supabase auth user ID
             .single();
 
         if (existingMembership) {
@@ -149,7 +177,7 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
             .from('team_membership')
             .insert({
                 team_id: teamData.id,
-                user_id: user.id,
+                user_id: authUser.id, // Use Supabase auth user ID
                 role: 'member'
             });
 
@@ -175,6 +203,17 @@ export async function getUserTeams(): Promise<{ teams?: TeamWithMembership[]; er
 
         const supabase = await getSupabaseClient();
 
+        // Get the Supabase auth user ID
+        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
+        if (authUserError) {
+            return { error: `Failed to get auth users: ${authUserError.message}` };
+        }
+        
+        const authUser = authUsers.users.find((u: any) => u.email === user.email);
+        if (!authUser) {
+            return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        }
+
         const { data, error } = await supabase
             .from('team_membership')
             .select(`
@@ -187,7 +226,7 @@ export async function getUserTeams(): Promise<{ teams?: TeamWithMembership[]; er
                     created_at
                 )
             `)
-            .eq('user_id', user.id);
+            .eq('user_id', authUser.id);
 
         if (error) {
             return { error: `Failed to get teams: ${error.message}` };

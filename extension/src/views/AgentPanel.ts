@@ -37,24 +37,30 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         await this.refreshTeams();
 
         webviewView.webview.onDidReceiveMessage((message: any) => {
+            console.log('AgentPanel received message:', message);
             switch (message.command) {
                 case 'createTeam':
+                    console.log('Handling createTeam command');
                     this.handleCreateTeam();
                     break;
                 case 'joinTeam':
+                    console.log('Handling joinTeam command');
                     this.handleJoinTeam();
                     break;
                 case 'switchTeam':
+                    console.log('Handling switchTeam command');
                     this.handleSwitchTeam();
                     break;
                 case 'refreshTeams':
+                    console.log('Handling refreshTeams command');
                     this.refreshTeams();
                     break;
                 case 'aiQuery':
+                    console.log('Handling aiQuery command');
                     this.handleAiQuery(message.text);
                     break;
                 default:
-                    // noop
+                    console.log('Unknown command received:', message.command);
                     break;
             }
         });

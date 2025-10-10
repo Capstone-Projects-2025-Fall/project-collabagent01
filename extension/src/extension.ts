@@ -3,7 +3,6 @@ import * as vsls from 'vsls';
 import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
 import { checkUserSignIn } from "./services/auth-service";
 import { CollabAgentPanelProvider } from "./views/LiveSharePanel";
-import { AgentPanelProvider } from "./views/AgentPanel";
 import { setDisplayNameExplicit, getOrInitDisplayName } from './services/profile-service';
 
 /** Global extension context for state management and subscriptions */
