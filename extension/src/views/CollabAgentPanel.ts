@@ -324,22 +324,83 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             if (typeof (this._liveShareApi as any).onActivity === 'function') {
                 (this._liveShareApi as any).onActivity((activity: any) => {
                     try {
+                        // Log the full activity to see what data we get
+                        console.log('[Activity] Raw activity:', JSON.stringify(activity, null, 2));
+
                         if (!activity) return;
-                        const nameStr = String(activity.name || '');
-                        if (/session\/(guestJoin|join)/i.test(nameStr)) {
-                            const d = activity.data || activity.payload || {};
-                            const user = d.user || d.actor || d.participant || {};
-                            const key = (user.emailAddress || user.id || user.peerId || '').toLowerCase();
-                            const disp = user.displayName || user.loginName || user.userName || d.displayName || d.name;
-                            if (key && disp) {
-                                this._participantNameMap.set(key, disp);
+
+                        // Extract all possible data locations
+                        const activityName = activity.name || '';
+                        const activityData = activity.data || {};
+                        const activityArgs = activity.args || [];
+
+                        // Try to find user info in various locations
+                        let userName: string | undefined;
+                        let userIdentifier: string | undefined;
+
+                        // Check if this is a join/participant event
+                        if (/join|participant|peer/i.test(activityName)) {
+                            // Try to extract from various possible structures
+                            const possibleUserObjects = [
+                                activityData.user,
+                                activityData.peer?.user,
+                                activityData.participant,
+                                activityArgs[0]?.user,
+                                activityArgs[0]
+                            ].filter(Boolean);
+
+                            for (const userObj of possibleUserObjects) {
+                                // Try to get display name
+                                if (!userName) {
+                                    userName = userObj.displayName
+                                        || userObj.name
+                                        || userObj.userName
+                                        || userObj.loginName;
+                                }
+
+                                // Try to get identifier
+                                if (!userIdentifier) {
+                                    userIdentifier = userObj.emailAddress
+                                        || userObj.email
+                                        || userObj.id
+                                        || userObj.peerId;
+                                }
+
+                                if (userName && userIdentifier) break;
                             }
-                            console.log('Activity hinting at potential participant change:', { name: activity.name, user: user });
-                            this.updateParticipantInfo();
-                        } else if (/session\/(guestLeave|leave)/i.test(nameStr)) {
-                            this.updateParticipantInfo();
+
+                            // Also check top-level activity properties
+                            if (!userName) {
+                                userName = activityData.displayName || activityData.name;
+                            }
+                            if (!userIdentifier) {
+                                userIdentifier = activityData.peerId || activityData.peerNumber?.toString();
+                            }
+
+                            // If we found both name and identifier, save it
+                            if (userName && userIdentifier) {
+                                const key = String(userIdentifier).toLowerCase();
+                                this._participantNameMap.set(key, userName);
+                                console.log(`[Activity] ✅ Captured participant: ${key} -> ${userName}`);
+
+                                // Also try peer number if available
+                                if (activityData.peerNumber) {
+                                    this._participantNameMap.set(`peer_${activityData.peerNumber}`, userName);
+                                    console.log(`[Activity] ✅ Also mapped peer_${activityData.peerNumber} -> ${userName}`);
+                                }
+
+                                // Trigger participant update
+                                setTimeout(() => this.updateParticipantInfo(), 300);
+                            } else {
+                                console.log('[Activity] ⚠️ Join event but could not extract name/identifier', {
+                                    userName,
+                                    userIdentifier,
+                                    activityData
+                                });
+                            }
                         }
-                    } catch {
+                    } catch (err) {
+                        console.error('[Activity] Error processing activity:', err);
                     }
                 });
             }
@@ -730,59 +791,95 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
 
         const session = this._liveShareApi.session;
-    const isHost = session.role === (vsls?.Role?.Host);
-        console.log(`[updateParticipantInfo] Triggered. Role=${session.role}, Peer count=${this._liveShareApi.peers?.length || 0}`);
+        const isHost = session.role === (vsls?.Role?.Host);
+        const isGuest = session.role === (vsls?.Role?.Guest);
 
-        if (!isHost) {
-            console.log('[updateParticipantInfo] Skipping update because this client is not host.');
-            this.updateGuestParticipantFallback();
-            return;
-        }
+        console.log(`[updateParticipantInfo] Triggered. Role=${session.role}, Peer count=${this._liveShareApi.peers?.length || 0}`);
 
         try {
             const peers = (this._liveShareApi.peers || []).filter(Boolean);
             const participantCount = peers.length + 1;
-            console.log(`[updateParticipantInfo] Host sees ${participantCount} participants.`);
+
+            console.log(`[updateParticipantInfo] Total participants: ${participantCount}`);
 
             const participants: any[] = [];
-            let selfName = getCachedDisplayName();
+
+            // Add self - try multiple sources
+            let selfName: string | undefined;
+
+            // Try cached name first
+            selfName = getCachedDisplayName();
+
+            // If no cached name, try to get from VS Code/system
             if (!selfName) {
                 try {
-                    const r = await getOrInitDisplayName(true);
-                    selfName = r.displayName;
-                } catch {
-                    selfName = undefined;
-                }
+                    // Try to get from git config
+                    try {
+                        const data = await vscode.workspace.fs.readFile(
+                            vscode.Uri.file(require('os').homedir() + '/.gitconfig')
+                        );
+                        const content = Buffer.from(data).toString();
+                        const match = content.match(/name\s*=\s*(.+)/);
+                        if (match) {
+                            selfName = match[1].trim();
+                        }
+                    } catch {
+                        // Git config not found or not readable
+                    }
+                } catch { }
             }
 
-            const hostIdKey = (session.user?.emailAddress || (session as any)?.user?.id || '').toLowerCase();
-            const announcedHostName = hostIdKey ? this._participantNameMap.get(hostIdKey) : undefined;
-            const hostResolvedName = announcedHostName
+            // If still no name, try system username
+            if (!selfName) {
+                try {
+                    selfName = require('os').userInfo().username;
+                } catch { }
+            }
+
+            // Last resort: use a placeholder
+            if (!selfName) {
+                selfName = 'Me';
+            }
+
+            const selfIdKey = (session.user?.emailAddress || (session as any)?.user?.id || '').toLowerCase();
+            const announcedSelfName = selfIdKey ? this._participantNameMap.get(selfIdKey) : undefined;
+            const selfResolvedName = announcedSelfName
                 || selfName
                 || session.user?.displayName
                 || (session as any)?.user?.loginName
                 || (session as any)?.user?.userName
                 || session.user?.emailAddress
                 || 'You';
+
             participants.push({
-                name: hostResolvedName,
+                name: selfResolvedName,
                 email: session.user?.emailAddress || '',
-                role: 'Host'
+                role: isHost ? 'Host' : 'Guest'  // ← FIXED: Use actual role
             });
 
+            // Add peers
             for (const peer of peers) {
                 console.log('[updateParticipantInfo] Peer object:', JSON.stringify(peer, null, 2));
                 const resolvedName = this.resolvePeerDisplayName(peer);
+
+                // Determine peer role: if we're guest, peers are likely host or other guests
+                // If we're host, peers are guests
+                const peerRole = isHost ? 'Guest' : (peers.length === 1 ? 'Host' : 'Guest');  // ← FIXED
+
                 participants.push({
                     name: resolvedName,
                     email: peer?.user?.emailAddress || '',
-                    role: 'Guest'
+                    role: peerRole
                 });
             }
 
-            if (this._sharedService?.notify) {
+            console.log('[updateParticipantInfo] Final participants list:', participants);
+
+            // Only host sends notifications via shared service
+            if (isHost && this._sharedService?.notify) {
                 console.log('[updateParticipantInfo] Sending participantUpdate notification via shared service:', {
                     count: participantCount,
+                    participants: participants,
                     duration: this.getSessionDuration()
                 });
                 this._sharedService.notify('participantUpdate', {
@@ -790,10 +887,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     participants,
                     duration: this.getSessionDuration()
                 });
-            } else {
-                console.warn('[updateParticipantInfo] Shared service not registered yet, cannot notify guests.');
             }
 
+            // Update UI for both host and guest
             if (this._view) {
                 console.log('[updateParticipantInfo] Sending updateParticipants message to webview.');
                 this._view.webview.postMessage({
@@ -801,10 +897,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     participants,
                     count: participantCount
                 });
-                const session = this._liveShareApi.session;
+
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
-                    status: 'hosting',
+                    status: isHost ? 'hosting' : 'joined',  // ← FIXED: Use actual status
                     link: this._sessionLink || '',
                     participants: participantCount,
                     role: session.role,
@@ -814,7 +910,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         } catch (error) {
             console.error('[updateParticipantInfo] Error:', error);
         }
-    }
+}
 
     /**
      * Resolves the display name for a Live Share peer.
@@ -825,18 +921,36 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
      */
     private resolvePeerDisplayName(peer: any): string {
         try {
-            const key = (peer?.user?.emailAddress || peer?.user?.id || peer?.id || '').toLowerCase();
-            const announced = key ? this._participantNameMap.get(key) : undefined;
-            if (announced) return announced;
-            return (
-                peer?.user?.displayName
+            // Try all possible keys
+            const possibleKeys = [
+                peer?.user?.emailAddress,
+                peer?.user?.id,
+                peer?.id,
+                peer?.peerNumber ? `peer_${peer.peerNumber}` : null
+            ].filter(Boolean).map(k => String(k).toLowerCase());
+
+            // Check if we have a name for any of these keys
+            for (const key of possibleKeys) {
+                const name = this._participantNameMap.get(key);
+                if (name) {
+                    console.log(`[resolvePeerDisplayName] Found name for ${key}: ${name}`);
+                    return name;
+                }
+            }
+
+            // Fallback to peer object properties
+            const fallbackName = peer?.user?.displayName
                 || peer?.displayName
                 || (peer as any)?.user?.loginName
                 || (peer as any)?.user?.userName
-                || peer?.user?.emailAddress
-                || 'Unknown'
-            );
-        } catch {
+                || peer?.user?.emailAddress;
+
+            if (fallbackName) return fallbackName;
+
+            console.log('[resolvePeerDisplayName] No name found, peer object:', JSON.stringify(peer, null, 2));
+            return 'Unknown';
+        } catch (err) {
+            console.error('[resolvePeerDisplayName] Error:', err);
             return 'Unknown';
         }
     }
