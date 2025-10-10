@@ -79,6 +79,36 @@ body {
 	background: var(--vscode-button-hoverBackground);
 }
 
+.button-small {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	padding: 4px 8px;
+	margin: 2px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 11px;
+	min-width: 24px;
+	text-align: center;
+}
+
+.button-small:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+#joinCodeSection {
+	margin-top: 4px;
+	font-size: 12px;
+}
+
+#teamJoinCode {
+	font-family: 'Courier New', monospace;
+	background: var(--vscode-textCodeBlock-background);
+	padding: 1px 4px;
+	border-radius: 2px;
+	margin: 0 4px;
+}
+
 /* Status Indicators */
 .status-indicator {
 	display: inline-block;
