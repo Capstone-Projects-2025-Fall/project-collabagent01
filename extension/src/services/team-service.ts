@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getAuthContext } from './auth-service';
+import { ProjectInfo, getCurrentProjectInfo, validateCurrentProject, getProjectDescription } from './project-detection-service';
 
 // Team-related types
 export interface Team {
@@ -8,6 +9,9 @@ export interface Team {
     created_by: string;
     join_code: string;
     created_at: string;
+    project_repo_url?: string;
+    project_identifier: string;
+    project_name?: string;
 }
 
 export interface TeamMembership {
@@ -22,9 +26,9 @@ export interface TeamWithMembership extends Team {
     role: 'member' | 'admin';
 }
 
-/**
- * Generates a random 6-character alphanumeric team join code
- */
+
+//Generates a random 6-character alphanumeric team join code
+ 
 function generateJoinCode(): string {
     const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
     let result = '';
@@ -34,9 +38,9 @@ function generateJoinCode(): string {
     return result;
 }
 
-/**
- * Gets Supabase client instance for database operations with proper authentication
- */
+
+//Gets Supabase client instance for database operations with proper authentication
+ 
 async function getSupabaseClient() {
     try {
         const { createClient } = require('@supabase/supabase-js');
@@ -59,9 +63,9 @@ async function getSupabaseClient() {
     }
 }
 
-/**
- * Creates a new team with the authenticated user as admin
- */
+
+//Creates a new team with the authenticated user as admin, automatically linking it to the current project
+
 export async function createTeam(lobbyName: string): Promise<{ team?: Team; joinCode?: string; error?: string }> {
     try {
         // Check authentication
@@ -70,11 +74,16 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
             return { error: 'User must be authenticated to create a team' };
         }
 
+        // Get current project information
+        const currentProject = getCurrentProjectInfo();
+        if (!currentProject) {
+            return { error: 'No workspace folder is open. Please open a project folder to create a team.' };
+        }
+
         const supabase = await getSupabaseClient();
         const joinCode = generateJoinCode();
 
         // Get the Supabase auth user ID (this should match the user in auth.users)
-        // For now, we'll use the email to find the correct auth user
         const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
         if (authUserError) {
             return { error: `Failed to get auth users: ${authUserError.message}` };
@@ -85,13 +94,16 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
             return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
         }
 
-        // Create team record
+        // Create team record with project information
         const { data: teamData, error: teamError } = await supabase
             .from('teams')
             .insert({
                 lobby_name: lobbyName,
                 created_by: authUser.id,
-                join_code: joinCode
+                join_code: joinCode,
+                project_repo_url: currentProject.remoteUrl,
+                project_identifier: currentProject.projectHash,
+                project_name: currentProject.projectName
             })
             .select()
             .single();
@@ -125,9 +137,9 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
     }
 }
 
-/**
- * Joins a team using a join code
- */
+
+//Joins a team using a join code
+
 export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?: string }> {
     try {
         // Check authentication
@@ -191,9 +203,9 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
     }
 }
 
-/**
- * Gets all teams the current user is a member of
- */
+
+//Gets all teams the current user is a member of
+
 export async function getUserTeams(): Promise<{ teams?: TeamWithMembership[]; error?: string }> {
     try {
         const { context: user, error: authError } = await getAuthContext();
@@ -243,9 +255,7 @@ export async function getUserTeams(): Promise<{ teams?: TeamWithMembership[]; er
     }
 }
 
-/**
- * Gets team details by ID (only if user is a member)
- */
+//Gets team details by ID (only if user is a member)
 export async function getTeamById(teamId: string): Promise<{ team?: TeamWithMembership; error?: string }> {
     try {
         const { context: user, error: authError } = await getAuthContext();
@@ -283,5 +293,159 @@ export async function getTeamById(teamId: string): Promise<{ team?: TeamWithMemb
         return { team };
     } catch (error) {
         return { error: `Get team failed: ${error}` };
+    }
+}
+
+
+//Validates if the current workspace matches the team's project
+export async function validateTeamProject(teamId: string): Promise<{
+    isValid: boolean;
+    team?: Team;
+    currentProject?: ProjectInfo;
+    error?: string;
+    validationMessage?: string;
+}> {
+    try {
+        // Get team information
+        const { team, error: teamError } = await getTeamById(teamId);
+        if (teamError || !team) {
+            return { isValid: false, error: teamError || 'Team not found' };
+        }
+
+        // Get current project info
+        const currentProject = getCurrentProjectInfo();
+        if (!currentProject) {
+            return {
+                isValid: false,
+                team,
+                error: 'No workspace folder is currently open'
+            };
+        }
+
+        // Validate project match
+        const validation = validateCurrentProject(team.project_identifier, team.project_repo_url);
+        
+        return {
+            isValid: validation.isMatch,
+            team,
+            currentProject: validation.currentProject || undefined,
+            validationMessage: validation.reason
+        };
+    } catch (error) {
+        return { isValid: false, error: `Validation failed: ${error}` };
+    }
+}
+
+//Shows a warning dialog when project mismatch is detected
+export async function handleProjectMismatch(team: Team, currentProject: ProjectInfo): Promise<'continue' | 'switch' | 'cancel'> {
+    const teamProjectDesc = team.project_repo_url 
+        ? `${team.project_name || 'Team Project'} (${team.project_repo_url})`
+        : team.project_name || 'Team Project';
+    
+    const currentProjectDesc = getProjectDescription(currentProject);
+    
+    const action = await vscode.window.showWarningMessage(
+        `⚠️ Project Mismatch Detected!\n\n` +
+        `Your team is linked to: ${teamProjectDesc}\n` +
+        `But you have open: ${currentProjectDesc}\n\n` +
+        `This could lead to tracking issues or unintended changes being shared with your team.`,
+        { modal: true },
+        'Continue Anyway',
+        'Switch to Team Project',
+        'Cancel'
+    );
+
+    switch (action) {
+        case 'Continue Anyway':
+            return 'continue';
+        case 'Switch to Team Project':
+            return 'switch';
+        default:
+            return 'cancel';
+    }
+}
+
+
+//Attempts to open the team's project in VS Code
+export async function openTeamProject(team: Team): Promise<{ success: boolean; error?: string }> {
+    try {
+        if (team.project_repo_url) {
+            // If it's a Git repository, suggest cloning it
+            const cloneAction = await vscode.window.showInformationMessage(
+                `To work on the team project, you need to clone the repository:\n${team.project_repo_url}`,
+                'Clone Repository',
+                'Cancel'
+            );
+
+            if (cloneAction === 'Clone Repository') {
+                await vscode.commands.executeCommand('git.clone', team.project_repo_url);
+                return { success: true };
+            }
+        } else {
+            // If it's not a Git repo, we can't automatically switch
+            await vscode.window.showInformationMessage(
+                `This team is linked to a local project: ${team.project_name}\n\n` +
+                `Please manually open the correct project folder in VS Code.`,
+                'OK'
+            );
+        }
+        
+        return { success: false };
+    } catch (error) {
+        return { success: false, error: `Failed to open project: ${error}` };
+    }
+}
+
+//Gets a user-friendly description of the team's project
+export function getTeamProjectDescription(team: Team): string {
+    if (team.project_repo_url) {
+        return `${team.project_name || 'Team Project'} (${team.project_repo_url})`;
+    }
+    return team.project_name || 'Local Project';
+}
+
+
+//Updates a team's project information (admin only)
+export async function updateTeamProject(teamId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Check if user is admin of the team
+        const { team, error: teamError } = await getTeamById(teamId);
+        if (teamError || !team) {
+            return { success: false, error: teamError || 'Team not found' };
+        }
+
+        if (team.role !== 'admin') {
+            return { success: false, error: 'Only team admins can update project information' };
+        }
+
+        // Get current project information
+        const currentProject = getCurrentProjectInfo();
+        if (!currentProject) {
+            return { success: false, error: 'No workspace folder is open. Please open the project you want to link to this team.' };
+        }
+
+        const supabase = await getSupabaseClient();
+
+        // Update team with new project information
+        const { error: updateError } = await supabase
+            .from('teams')
+            .update({
+                project_repo_url: currentProject.remoteUrl,
+                project_identifier: currentProject.projectHash,
+                project_name: currentProject.projectName
+            })
+            .eq('id', teamId);
+
+        if (updateError) {
+            return { success: false, error: `Failed to update team project: ${updateError.message}` };
+        }
+
+        await vscode.window.showInformationMessage(
+            `✅ Team project updated!\n\nTeam "${team.lobby_name}" is now linked to: ${getProjectDescription(currentProject)}`
+        );
+
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: `Update failed: ${error}` };
     }
 }

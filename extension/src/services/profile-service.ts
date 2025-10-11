@@ -2,16 +2,13 @@ import * as vscode from 'vscode';
 import { getSupabase } from '../auth/supabaseClient';
 import { globalContext } from '../extension';
 
-/** Global state key for storing user's display name */
+//storing user's display name
 const DISPLAY_NAME_KEY = 'collabAgent.displayName';
 
-/**
- * Result object containing display name and its source.
- */
+
+//Result object containing display name and its source.
 export interface DisplayNameResult {
-  /** The display name to use */
   displayName: string;
-  /** Where the display name was obtained from */
   source: 'supabase' | 'cached' | 'prompt' | 'fallback';
 }
 
@@ -20,8 +17,9 @@ export interface DisplayNameResult {
  * Tries multiple sources: cached, Supabase metadata, user prompt, or fallback.
  * 
  * @param nonInteractive - If true, won't prompt user for input
- * @returns Promise resolving to display name result with source
+ * @returns
  */
+
 export async function getOrInitDisplayName(nonInteractive = false): Promise<DisplayNameResult> {
   // 1. If cached in globalState, return it.
   const cached = globalContext?.globalState.get<string>(DISPLAY_NAME_KEY);

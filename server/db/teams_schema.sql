@@ -4,6 +4,9 @@ CREATE TABLE teams (
     lobby_name VARCHAR(255) NOT NULL,
     created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
     join_code VARCHAR(6) UNIQUE NOT NULL,
+    project_repo_url TEXT, -- Git repository URL (nullable for local projects)
+    project_identifier VARCHAR(32) NOT NULL DEFAULT '', -- Unique project hash (16-char hex)
+    project_name VARCHAR(255), -- User-friendly project name
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -20,6 +23,7 @@ CREATE TABLE team_membership (
 -- Indexes for better query performance
 CREATE INDEX idx_teams_join_code ON teams(join_code);
 CREATE INDEX idx_teams_created_by ON teams(created_by);
+CREATE INDEX idx_teams_project_identifier ON teams(project_identifier);
 CREATE INDEX idx_team_membership_team_id ON team_membership(team_id);
 CREATE INDEX idx_team_membership_user_id ON team_membership(user_id);
 
@@ -133,6 +137,30 @@ CREATE TRIGGER teams_set_join_code
     BEFORE INSERT ON teams
     FOR EACH ROW
     EXECUTE FUNCTION set_join_code();
+
+-- Add constraints for project fields
+ALTER TABLE teams 
+ADD CONSTRAINT check_project_identifier_not_empty 
+CHECK (project_identifier != '');
+
+-- Function to validate project identifiers
+CREATE OR REPLACE FUNCTION is_valid_project_identifier(identifier TEXT)
+RETURNS BOOLEAN AS $$
+BEGIN
+    -- Check if the identifier is a valid hexadecimal string of length 16
+    RETURN identifier ~ '^[a-fA-F0-9]{16}$';
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+-- Add constraint to validate project_identifier format
+ALTER TABLE teams 
+ADD CONSTRAINT check_valid_project_identifier 
+CHECK (is_valid_project_identifier(project_identifier));
+
+-- Add comments for documentation
+COMMENT ON COLUMN teams.project_repo_url IS 'The Git repository URL for the team project (nullable for local projects)';
+COMMENT ON COLUMN teams.project_identifier IS 'A unique hash identifying the project (16-char hex string)';
+COMMENT ON COLUMN teams.project_name IS 'User-friendly name of the project';
 
 -- Grant necessary permissions
 GRANT USAGE ON SCHEMA public TO anon, authenticated;
