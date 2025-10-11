@@ -312,13 +312,25 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const homeHtml = await this._homeScreen.getHtml(webview, liveShareInstalled, loggedIn, userInfo);
             const agentHtml = this._agentPanel.getInnerHtml();
             
+            // Get Live Share panel content
+            const fs = require('fs');
+            const liveShareContentPath = vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.html').fsPath;
+            let liveShareHtml = '';
+            try {
+                liveShareHtml = fs.readFileSync(liveShareContentPath, 'utf8');
+            } catch (e) {
+                console.warn('Failed to read liveSharePanel.html:', e);
+                liveShareHtml = '<div>Failed to load Live Share panel.</div>';
+            }
+            
             const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.js'));
-            const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.css'));
+            const mainStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'mainPanel.css'));
+            const liveShareStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.css'));
+            const agentStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.css'));
             const nonce = Date.now().toString();
 
-            // Load main panel template (use liveSharePanel.html for now since it has the tab structure)
-            const fs = require('fs');
-            const templatePath = vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.html').fsPath;
+            // Load main panel template
+            const templatePath = vscode.Uri.joinPath(this._extensionUri, 'media', 'mainPanel.html').fsPath;
             let template = '';
             try {
                 template = fs.readFileSync(templatePath, 'utf8');
@@ -328,10 +340,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
 
             const html = template
-                .replace('{{STYLE_URI}}', styleUri.toString())
+                .replace('{{MAIN_STYLE_URI}}', mainStyleUri.toString())
+                .replace('{{LIVESHARE_STYLE_URI}}', liveShareStyleUri.toString())
+                .replace('{{AGENT_STYLE_URI}}', agentStyleUri.toString())
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)
                 .replace('{{HOME_HTML}}', homeHtml)
+                .replace('{{LIVESHARE_HTML}}', liveShareHtml)
                 .replace('{{AGENT_HTML}}', agentHtml);
 
             return html;

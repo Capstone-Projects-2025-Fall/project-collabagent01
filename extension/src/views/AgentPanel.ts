@@ -278,20 +278,20 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         return `
             <div class="agent-heading">Agent</div>
             <div class="section">
-                <div class="section-title">🏢 Team & Product Management</div>
+                <div class="section-title">Team & Product Management</div>
                 <div id="teamProduct">
                     <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
                     <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
                     <div id="joinCodeSection" style="display:none;">
                         <strong>Join Code:</strong> 
                         <span id="teamJoinCode">—</span>
-                        <button class="button-small" id="copyJoinCodeBtn" title="Copy join code">📋</button>
+                        <button class="button" id="copyJoinCodeBtn" title="Copy join code">Copy</button>
                     </div>
                     <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
                         <button class="button" id="switchTeamBtn">Switch Team</button>
                         <button class="button" id="createTeamBtn">Create Team</button>
                         <button class="button" id="joinTeamBtn">Join Team</button>
-                        <button class="button-small" id="refreshTeamsBtn" title="Refresh teams">🔄</button>
+                        <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
                     </div>
                 </div>
             </div>
@@ -322,20 +322,20 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         <body>
             <div class="agent-heading">Agent</div>
             <div class="section">
-                <div class="section-title">🏢 Team & Product Management</div>
+                <div class="section-title">Team & Product Management</div>
                 <div id="teamProduct">
                     <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
                     <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
                     <div id="joinCodeSection" style="display:none;">
                         <strong>Join Code:</strong> 
                         <span id="teamJoinCode">—</span>
-                        <button class="button-small" id="copyJoinCodeBtn" title="Copy join code">📋</button>
+                        <button class="button" id="copyJoinCodeBtn" title="Copy join code">Copy</button>
                     </div>
                     <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
                         <button class="button" id="switchTeamBtn">Switch Team</button>
                         <button class="button" id="createTeamBtn">Create Team</button>
                         <button class="button" id="joinTeamBtn">Join Team</button>
-                        <button class="button-small" id="refreshTeamsBtn" title="Refresh teams">🔄</button>
+                        <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
                     </div>
                 </div>
             </div>

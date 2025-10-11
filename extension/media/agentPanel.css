@@ -63,3 +63,36 @@
   border-radius: 4px;
   cursor: pointer;
 }
+
+/* Buttons */
+.button {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	padding: 8px 12px;
+	margin: 4px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.button-small {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	padding: 4px 8px;
+	margin: 2px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 11px;
+	min-width: 24px;
+	text-align: center;
+}
+
+.button-small:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}

@@ -13,44 +13,45 @@ import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-
  * Provides Live Share functionality for the Collab Agent extension.
  * Manages Live Share sessions, participant monitoring, and session communication.
  */
+
 export class LiveShareManager {
-    /** Live Share API instance (optional) */
+    //Live Share API instance (optional)
     private _liveShareApi?: any | null = null;
     
-    /** Name of the shared service for propagating session metadata between participants */
+    //Name of the shared service for propagating session metadata between participants
     private readonly _sharedServiceName = 'collabAgentSessionInfo';
     
-    /** Shared service instance for host-guest communication */
+    //Shared service instance for host-guest communication
     private _sharedService: any | undefined;
     
-    /** Current session invite link for persistence and display */
+    //Current session invite link for persistence and display
     private _sessionLink: string | undefined;
     
-    /** Flag to track if initial session check has been completed */
+    //Flag to track if initial session check has been completed
     private _initialSessionCheckDone = false;
     
-    /** Map of participant user IDs/emails to their display names */
+    //Map of participant user IDs/emails to their display names
     private _participantNameMap: Map<string, string> = new Map();
 
-    /** Key for persisting manual invite links in global state */
+    //Key for persisting manual invite links in global state
     private readonly _persistedLinkKey = 'collabAgent.manualInviteLink';
 
-    /** Interval timer for monitoring participant changes */
+    //Interval timer for monitoring participant changes
     private participantMonitoringInterval?: NodeJS.Timeout;
     
-    /** Timestamp when the current session started */
+    //Timestamp when the current session started
     private sessionStartTime?: Date;
     
-    /** Flag to prevent duplicate requests for host session start time */
+    //Flag to prevent duplicate requests for host session start time
     private _requestedHostStartTime = false;
     
-    /** Interval timer for pushing duration updates to the UI */
+    //Interval timer for pushing duration updates to the UI
     private _durationUpdateInterval?: NodeJS.Timeout;
     
-    /** Number of retry attempts for fetching host session start time */
+    //Number of retry attempts for fetching host session start time
     private _hostStartTimeRetryCount = 0;
 
-    /** Reference to the webview view for sending messages */
+    //Reference to the webview view for sending messages
     private _view?: vscode.WebviewView;
 
     /**
@@ -975,7 +976,7 @@ export class LiveShareManager {
                     });
                 }
 
-                // 🧩 Ensure shared service is registered AFTER session starts
+                //Ensure shared service is registered AFTER session starts
                 setTimeout(() => {
                     console.log('[startLiveShareSession] Ensuring shared service is registered after share().');
                     this.registerSessionInfoServiceIfHost();
