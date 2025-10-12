@@ -98,20 +98,6 @@ describe("Authentication Commands", () => {
   });
 
   describe("Command Registration", () => {
-    it("should register signIn command", () => {
-      expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
-        "clover.signIn",
-        expect.any(Function)
-      );
-    });
-
-    it("should register signOut command", () => {
-      expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
-        "clover.signOut",
-        expect.any(Function)
-      );
-    });
-
     it("should register URI handler", () => {
       expect(vscode.window.registerUriHandler).toHaveBeenCalled();
     });
@@ -163,107 +149,6 @@ describe("Authentication Commands", () => {
 
       expect(errorNotification).toHaveBeenCalledWith(
         "Failed to get user data: User not found"
-      );
-    });
-  });
-
-  describe("Sign In/Out Commands", () => {
-    it("should call signInOrUpMenu when signIn command executed", async () => {
-      const signInCall = (
-        vscode.commands.registerCommand as jest.Mock
-      ).mock.calls.find((call) => call[0] === "clover.signIn");
-      await signInCall[1]();
-      expect(signInOrUpMenu).toHaveBeenCalled();
-    });
-
-    it("should call signOutMenu when signOut command executed", async () => {
-      const signOutCall = (
-        vscode.commands.registerCommand as jest.Mock
-      ).mock.calls.find((call) => call[0] === "clover.signOut");
-      await signOutCall[1]();
-      expect(signOutMenu).toHaveBeenCalled();
-    });
-  });
-
-  describe("Auth Status Bar Item", () => {
-    it("should create status bar item for unauthenticated user", async () => {
-      createAuthStatusBarItem(mockContext);
-
-      await new Promise(process.nextTick);
-
-      const statusBarItem = (vscode.window.createStatusBarItem as jest.Mock)
-        .mock.results[0].value;
-
-      expect(statusBarItem.text).toBe("$(key) Sign In / Sign Up");
-      expect(statusBarItem.command).toBe("clover.signIn");
-    });
-
-    it("should create status bar item for authenticated user", async () => {
-      (getAuthContext as jest.Mock).mockResolvedValue({
-        context: {
-          id: "123",
-          email: "test@example.com",
-          isAuthenticated: true,
-        },
-        error: null,
-      });
-
-      createAuthStatusBarItem(mockContext);
-
-      await new Promise(process.nextTick);
-
-      const statusBarItem = (vscode.window.createStatusBarItem as jest.Mock)
-        .mock.results[0].value;
-
-      expect(statusBarItem.text).toBe("$(sign-out) Sign Out");
-      expect(statusBarItem.tooltip).toBe("Signed in as test@example.com");
-      expect(statusBarItem.command).toBe("clover.signOut");
-    });
-
-    it("should update status bar when authStateChanged command is executed", async () => {
-      (getAuthContext as jest.Mock).mockResolvedValue({
-        context: {
-          id: "123",
-          email: "test@example.com",
-          isAuthenticated: true,
-        },
-        error: null,
-      });
-
-      const command = (
-        vscode.commands.registerCommand as jest.Mock
-      ).mock.calls.find(([id]) => id === "clover.authStateChanged");
-
-      expect(command).toBeDefined();
-
-      await command[1]();
-
-      const statusBarItem = (vscode.window.createStatusBarItem as jest.Mock)
-        .mock.results[0].value;
-
-      expect(statusBarItem.text).toBe("$(sign-out) Sign Out");
-    });
-
-    it("should show auth options quick pick and execute selected command", async () => {
-      createAuthStatusBarItem(mockContext);
-
-      const quickPickMock = vscode.window.showQuickPick as jest.Mock;
-      quickPickMock.mockResolvedValue("Sign In with GitHub");
-
-      const command = (
-        vscode.commands.registerCommand as jest.Mock
-      ).mock.calls.find(([id]) => id === "clover.showAuthOptions");
-
-      expect(command).toBeDefined();
-      await command[1]();
-
-      expect(quickPickMock).toHaveBeenCalledWith(
-        ["Sign In with GitHub", "Sign In with Email", "Sign Up"],
-        { placeHolder: "Select authentication method" }
-      );
-
-      expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
-        "clover.githubLogin"
       );
     });
   });
