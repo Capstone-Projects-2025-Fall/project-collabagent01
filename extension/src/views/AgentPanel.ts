@@ -233,18 +233,54 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         
         if (!joinCode?.trim()) return;
 
-        // Show progress
+        // First, validate project compatibility before joining
         await vscode.window.withProgress({
             location: vscode.ProgressLocation.Notification,
-            title: 'Joining team...',
+            title: 'Validating team...',
             cancellable: false
         }, async () => {
+            // Get team info first without joining
+            const teamLookupResult = await this.lookupTeamByJoinCode(joinCode.trim());
+            
+            if (teamLookupResult.error) {
+                vscode.window.showErrorMessage(`Failed to find team: ${teamLookupResult.error}`);
+                return;
+            }
+            
+            if (!teamLookupResult.team) {
+                vscode.window.showErrorMessage('Team not found with that join code');
+                return;
+            }
+
+            // Validate project match BEFORE joining
+            if (teamLookupResult.team.project_identifier) {
+                const validation = this.validateTeamProjectForJoin(teamLookupResult.team);
+                
+                if (!validation.isMatch) {
+                    const action = await vscode.window.showErrorMessage(
+                        `❌ Cannot join team "${teamLookupResult.team.lobby_name}"`,
+                        {
+                            modal: true,
+                            detail: `${validation.message}\n\n${validation.details}\n\nYou must have the correct project folder open to join this team.`
+                        },
+                        'Open Correct Project',
+                        'Cancel'
+                    );
+                    
+                    if (action === 'Open Correct Project') {
+                        this.showProjectGuidance(teamLookupResult.team as TeamWithMembership);
+                    }
+                    return; // Don't proceed with join
+                }
+            }
+
+            // Project matches or team has no project requirement, proceed with join
             const result = await joinTeam(joinCode.trim());
             
             if (result.error) {
                 vscode.window.showErrorMessage(`Failed to join team: ${result.error}`);
             } else if (result.team) {
-                vscode.window.showInformationMessage(`Successfully joined team "${result.team.lobby_name}"`);
+                vscode.window.showInformationMessage(`✅ Successfully joined team "${result.team.lobby_name}"`);
                 
                 // Refresh teams and set new team as current
                 await this.refreshTeams();
@@ -418,12 +454,12 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         message: string;
         details: string;
     } {
-        // If team has no project information, can't validate
-        if (!team.project_identifier) {
+        // All teams now require Git projects - no project info means old team
+        if (!team.project_identifier || !team.project_repo_url) {
             return {
-                isMatch: true, // Allow switch if team has no project constraint
-                message: 'Team has no specific project requirements',
-                details: 'This team is not linked to a specific project, so any workspace is acceptable.'
+                isMatch: false,
+                message: `⚠️ Team "${team.lobby_name}" requires Git repository`,
+                details: 'This team was created before Git requirements were enforced. Contact the team admin to recreate the team with a Git repository.'
             };
         }
 
@@ -448,8 +484,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
         return {
             isMatch: false,
-            message: `⚠️ Wrong project folder open for team "${team.lobby_name}"`,
-            details: `Current: ${currentDesc}\nRequired: ${teamDesc}\n\n${validation.reason || 'Project fingerprints do not match'}`
+            message: `⚠️ Wrong Git repository open for team "${team.lobby_name}"`,
+            details: `Current: ${currentDesc}\nRequired: ${teamDesc}\n\n${validation.reason || 'Git repositories do not match'}\n\nPlease clone the correct repository and open it in VS Code.`
         };
     }
 
@@ -457,20 +493,91 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
      * Shows guidance on how to open the correct project for the team
      */
     private showProjectGuidance(team: TeamWithMembership) {
-        const teamProject = team.project_repo_url || team.project_name || 'the team project';
+        const teamRepoUrl = team.project_repo_url || 'the team repository';
         
         vscode.window.showInformationMessage(
-            `To collaborate with team "${team.lobby_name}", you need to open the correct project folder.`,
+            `To collaborate with team "${team.lobby_name}", you must have the correct Git repository cloned locally.`,
             {
                 modal: true,
-                detail: `Team Project: ${teamProject}\n\nSteps:\n1. Clone or locate the project repository\n2. Open the project folder in VS Code\n3. Switch back to this team\n\nAll team members must have the same project open to collaborate effectively.`
+                detail: `Team Repository: ${teamRepoUrl}\n\nRequired Steps:\n1. Clone the repository: git clone ${teamRepoUrl}\n2. Open the cloned folder in VS Code\n3. Switch back to this team\n\n⚠️ Team functionality only works with Git repositories.\nAll members must have the same repository cloned locally.`
             },
             'Open Folder',
+            'Copy Git URL',
             'Got It'
         ).then(action => {
             if (action === 'Open Folder') {
                 vscode.commands.executeCommand('vscode.openFolder');
+            } else if (action === 'Copy Git URL' && team.project_repo_url) {
+                vscode.env.clipboard.writeText(team.project_repo_url);
+                vscode.window.showInformationMessage('Git repository URL copied to clipboard');
             }
         });
+    }
+
+    /**
+     * Looks up a team by join code without joining it (for validation)
+     */
+    private async lookupTeamByJoinCode(joinCode: string): Promise<{ team?: any; error?: string }> {
+        try {
+            const { getSupabaseClient } = require('../auth/supabaseClient');
+            const supabase = await getSupabaseClient();
+
+            const { data: teamData, error: teamError } = await supabase
+                .from('teams')
+                .select('*')
+                .eq('join_code', joinCode.toUpperCase())
+                .single();
+
+            if (teamError || !teamData) {
+                return { error: 'Invalid join code or team not found' };
+            }
+
+            return { team: teamData };
+        } catch (error) {
+            return { error: `Team lookup failed: ${error}` };
+        }
+    }
+
+    /**
+     * Validates project for join operation (stricter than switch validation)
+     */
+    private validateTeamProjectForJoin(team: any): {
+        isMatch: boolean;
+        message: string;
+        details: string;
+    } {
+        // If team has no project information, allow join
+        if (!team.project_identifier) {
+            return {
+                isMatch: true,
+                message: 'Team has no specific project requirements',
+                details: 'This team is not linked to a specific project.'
+            };
+        }
+
+        const validation = validateCurrentProject(team.project_identifier, team.project_repo_url);
+        
+        if (validation.isMatch) {
+            return {
+                isMatch: true,
+                message: `✅ Project matches team "${team.lobby_name}"`,
+                details: validation.currentProject ? 
+                    `Current project: ${getProjectDescription(validation.currentProject)}` : 
+                    'Project validation successful'
+            };
+        }
+
+        // Strict validation for join - require exact match
+        const currentDesc = validation.currentProject ? 
+            getProjectDescription(validation.currentProject) : 
+            'No workspace open';
+        
+        const teamDesc = team.project_repo_url || team.project_name || 'Unknown project';
+
+        return {
+            isMatch: false,
+            message: `Project mismatch detected`,
+            details: `Current: ${currentDesc}\nRequired: ${teamDesc}\n\nReason: ${validation.reason || 'Project fingerprints do not match'}`
+        };
     }
 }

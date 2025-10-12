@@ -80,6 +80,18 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
             return { error: 'No workspace folder is open. Please open a project folder to create a team.' };
         }
 
+        // Enforce Git requirement for team functionality
+        if (!currentProject.isGitRepo || !currentProject.remoteUrl) {
+            return { 
+                error: 'Team functionality requires a Git repository with a remote origin.\n\n' +
+                       'To create a team:\n' +
+                       '1. Initialize Git: git init\n' +
+                       '2. Add remote origin: git remote add origin <repository-url>\n' +
+                       '3. Push your code to the remote repository\n\n' +
+                       'All team members must have the same Git repository cloned locally.'
+            };
+        }
+
         const supabase = await getSupabaseClient();
         const joinCode = generateJoinCode();
 
@@ -148,6 +160,23 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
             return { error: 'User must be authenticated to join a team' };
         }
 
+        // Check current project Git requirements
+        const currentProject = getCurrentProjectInfo();
+        if (!currentProject) {
+            return { error: 'No workspace folder is open. Please open the project folder to join a team.' };
+        }
+
+        if (!currentProject.isGitRepo || !currentProject.remoteUrl) {
+            return { 
+                error: 'Team functionality requires a Git repository with a remote origin.\n\n' +
+                       'To join a team, you must have the team\'s Git repository cloned locally:\n' +
+                       '1. Clone the team\'s repository: git clone <repository-url>\n' +
+                       '2. Open the cloned project folder in VS Code\n' +
+                       '3. Then try joining the team again\n\n' +
+                       'Make sure you have the correct repository that matches the team\'s project.'
+            };
+        }
+
         const supabase = await getSupabaseClient();
 
         // Get the Supabase auth user ID
@@ -170,6 +199,26 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
 
         if (teamError || !teamData) {
             return { error: 'Invalid join code or team not found' };
+        }
+
+        // CRITICAL: Validate that user's current project matches team's project
+        const { validateCurrentProject } = require('./project-detection-service');
+        const validation = validateCurrentProject(teamData.project_identifier, teamData.project_repo_url);
+        
+        if (!validation.isMatch) {
+            const teamRepoUrl = teamData.project_repo_url || 'the team repository';
+            const currentRepoUrl = validation.currentProject?.remoteUrl || 'your current project';
+            
+            return { 
+                error: `Project mismatch! You cannot join this team.\n\n` +
+                       `Team Repository: ${teamRepoUrl}\n` +
+                       `Your Repository: ${currentRepoUrl}\n\n` +
+                       `To join team "${teamData.lobby_name}":\n` +
+                       `1. Clone the team repository: git clone ${teamRepoUrl}\n` +
+                       `2. Open the cloned folder in VS Code\n` +
+                       `3. Try joining again with the same join code\n\n` +
+                       `${validation.reason || 'Repository URLs do not match'}`
+            };
         }
 
         // Check if user is already a member
