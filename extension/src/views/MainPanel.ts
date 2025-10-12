@@ -241,6 +241,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 } else if (this._lastAuthState !== isAuthed) {
                     this._lastAuthState = isAuthed;
                     if (this._view) {
+                        // Send auth state update to webview for immediate UI response
+                        this._view.webview.postMessage({ 
+                            command: 'updateAuthState', 
+                            authenticated: isAuthed 
+                        });
                         // Rebuild HTML to update Home tab login status
                         this._view.webview.html = await this._getHtmlForWebview(this._view.webview);
                     }
@@ -345,6 +350,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{AGENT_STYLE_URI}}', agentStyleUri.toString())
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)
+                .replace('{{IS_AUTHENTICATED}}', loggedIn.toString())
                 .replace('{{HOME_HTML}}', homeHtml)
                 .replace('{{LIVESHARE_HTML}}', liveShareHtml)
                 .replace('{{AGENT_HTML}}', agentHtml);

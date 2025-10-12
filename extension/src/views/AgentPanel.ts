@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { createTeam, joinTeam, getUserTeams, type TeamWithMembership } from '../services/team-service';
+import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
 
 /**
  * Provides the webview panel for Agent-specific features (separate from Live Share).
@@ -18,7 +19,13 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
     /** Current teams cache */
     private _userTeams: TeamWithMembership[] = [];
 
-    constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {}
+    constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
+        // Monitor workspace changes for project validation
+        vscode.workspace.onDidChangeWorkspaceFolders(() => {
+            // Refresh project validation when workspace changes
+            setTimeout(() => this.postTeamInfo(), 500); // Small delay to let workspace settle
+        });
+    }
 
     public async resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -94,14 +101,26 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             this._context.globalState.update(this._teamStateKey, currentTeam.id);
         }
 
+        // Validate current project if we have an active team
+        let projectValidation = null;
+        if (currentTeam) {
+            const validation = this.validateTeamProject(currentTeam);
+            projectValidation = {
+                isMatch: validation.isMatch,
+                message: validation.message,
+                details: validation.details
+            };
+        }
+
         const teamInfo = currentTeam 
             ? { 
                 name: currentTeam.lobby_name, 
                 role: currentTeam.role === 'admin' ? 'Admin' : 'Member',
                 joinCode: currentTeam.join_code,
-                id: currentTeam.id
+                id: currentTeam.id,
+                projectValidation: projectValidation
               }
-            : { name: 'No Team', role: '—', joinCode: '', id: '' };
+            : { name: 'No Team', role: '—', joinCode: '', id: '', projectValidation: null };
 
         this._view?.webview.postMessage({
             command: 'updateTeamInfo',
@@ -260,8 +279,42 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         });
 
         if (selected) {
+            // Validate that the current project matches the team's project
+            const validation = this.validateTeamProject(selected.team);
+            
+            if (!validation.isMatch) {
+                // Show warning but allow the switch
+                const action = await vscode.window.showWarningMessage(
+                    validation.message,
+                    {
+                        modal: true,
+                        detail: validation.details
+                    },
+                    'Switch Anyway',
+                    'Cancel'
+                );
+                
+                if (action !== 'Switch Anyway') {
+                    return; // User cancelled
+                }
+            }
+            
+            // Proceed with team switch
             await this._context.globalState.update(this._teamStateKey, selected.team.id);
-            vscode.window.showInformationMessage(`Switched to team "${selected.team.lobby_name}"`);
+            
+            if (validation.isMatch) {
+                vscode.window.showInformationMessage(`✅ Switched to team "${selected.team.lobby_name}"`);
+            } else {
+                vscode.window.showWarningMessage(
+                    `⚠️ Switched to team "${selected.team.lobby_name}" but project mismatch detected`,
+                    'Open Correct Project'
+                ).then(action => {
+                    if (action === 'Open Correct Project') {
+                        this.showProjectGuidance(selected.team);
+                    }
+                });
+            }
+            
             this.postTeamInfo();
         }
     }
@@ -282,6 +335,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 <div id="teamProduct">
                     <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
                     <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
+                    <div id="projectStatus" style="display:none; margin-top:4px;">
+                        <div id="projectStatusIndicator" style="font-size:12px;"></div>
+                    </div>
                     <div id="joinCodeSection" style="display:none;">
                         <strong>Join Code:</strong> 
                         <span id="teamJoinCode">—</span>
@@ -352,5 +408,69 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             <script nonce="${nonce}" src="${scriptUri}"></script>
         </body>
         </html>`;
+    }
+
+    /**
+     * Validates if the current workspace project matches the team's project
+     */
+    private validateTeamProject(team: TeamWithMembership): {
+        isMatch: boolean;
+        message: string;
+        details: string;
+    } {
+        // If team has no project information, can't validate
+        if (!team.project_identifier) {
+            return {
+                isMatch: true, // Allow switch if team has no project constraint
+                message: 'Team has no specific project requirements',
+                details: 'This team is not linked to a specific project, so any workspace is acceptable.'
+            };
+        }
+
+        const validation = validateCurrentProject(team.project_identifier, team.project_repo_url);
+        
+        if (validation.isMatch) {
+            return {
+                isMatch: true,
+                message: `✅ Project matches team "${team.lobby_name}"`,
+                details: validation.currentProject ? 
+                    `Current project: ${getProjectDescription(validation.currentProject)}` : 
+                    'Project validation successful'
+            };
+        }
+
+        // Project mismatch
+        const currentDesc = validation.currentProject ? 
+            getProjectDescription(validation.currentProject) : 
+            'No workspace open';
+        
+        const teamDesc = team.project_repo_url || team.project_name || 'Unknown project';
+
+        return {
+            isMatch: false,
+            message: `⚠️ Wrong project folder open for team "${team.lobby_name}"`,
+            details: `Current: ${currentDesc}\nRequired: ${teamDesc}\n\n${validation.reason || 'Project fingerprints do not match'}`
+        };
+    }
+
+    /**
+     * Shows guidance on how to open the correct project for the team
+     */
+    private showProjectGuidance(team: TeamWithMembership) {
+        const teamProject = team.project_repo_url || team.project_name || 'the team project';
+        
+        vscode.window.showInformationMessage(
+            `To collaborate with team "${team.lobby_name}", you need to open the correct project folder.`,
+            {
+                modal: true,
+                detail: `Team Project: ${teamProject}\n\nSteps:\n1. Clone or locate the project repository\n2. Open the project folder in VS Code\n3. Switch back to this team\n\nAll team members must have the same project open to collaborate effectively.`
+            },
+            'Open Folder',
+            'Got It'
+        ).then(action => {
+            if (action === 'Open Folder') {
+                vscode.commands.executeCommand('vscode.openFolder');
+            }
+        });
     }
 }

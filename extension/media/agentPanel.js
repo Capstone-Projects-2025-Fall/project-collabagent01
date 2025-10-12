@@ -160,6 +160,8 @@
         const tr = document.getElementById('teamRole');
         const tc = document.getElementById('teamJoinCode');
         const jcs = document.getElementById('joinCodeSection');
+        const ps = document.getElementById('projectStatus');
+        const psi = document.getElementById('projectStatusIndicator');
         
         if (tn) tn.textContent = m.team?.name ?? '—';
         if (tr) tr.textContent = m.team?.role ?? '—';
@@ -172,6 +174,25 @@
           } else {
             tc.textContent = '—';
             jcs.style.display = 'none';
+          }
+        }
+        
+        // Show/hide project validation status
+        if (ps && psi) {
+          if (m.team?.projectValidation && m.team.name !== 'No Team') {
+            const validation = m.team.projectValidation;
+            ps.style.display = 'block';
+            
+            if (validation.isMatch) {
+              psi.innerHTML = `<span style="color: var(--vscode-testing-iconPassed);">✅ Project: Correct folder open</span>`;
+              psi.title = validation.details;
+            } else {
+              psi.innerHTML = `<span style="color: var(--vscode-testing-iconFailed);">⚠️ Project: Wrong folder open</span>`;
+              psi.title = validation.details;
+              psi.style.cursor = 'help';
+            }
+          } else {
+            ps.style.display = 'none';
           }
         }
         break;
