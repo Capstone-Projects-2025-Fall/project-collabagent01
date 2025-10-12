@@ -283,7 +283,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 
                 if (!validation.isMatch) {
                     const action = await vscode.window.showErrorMessage(
-                        `❌ Cannot join team "${teamLookupResult.team.lobby_name}"`,
+                        `Cannot join team "${teamLookupResult.team.lobby_name}"`,
                         {
                             modal: true,
                             detail: `${validation.message}\n\n${validation.details}\n\nYou must have the correct project folder open to join this team.`
@@ -305,7 +305,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             if (result.error) {
                 vscode.window.showErrorMessage(`Failed to join team: ${result.error}`);
             } else if (result.team) {
-                vscode.window.showInformationMessage(`✅ Successfully joined team "${result.team.lobby_name}"`);
+                vscode.window.showInformationMessage(`Successfully joined team "${result.team.lobby_name}"`);
                 
                 // Refresh teams and set new team as current
                 await this.refreshTeams();
@@ -343,7 +343,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             // Check if workspace folder is open
             if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
                 await vscode.window.showErrorMessage(
-                    `❌ Cannot switch to team "${selected.team.lobby_name}"`,
+                    `Cannot switch to team "${selected.team.lobby_name}"`,
                     {
                         modal: true,
                         detail: 'You must open a project folder first.\n\nPlease open the Git repository folder for the team you want to switch to, then try again.'
@@ -358,12 +358,20 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
+            // Debug: Log team data to see what's missing
+            console.log('Team data for switch:', {
+                name: selected.team.lobby_name,
+                project_identifier: selected.team.project_identifier,
+                project_repo_url: selected.team.project_repo_url,
+                project_name: selected.team.project_name
+            });
+
             // Validate that the current project matches the team's project
             const validation = this.validateTeamProject(selected.team);
             
             if (!validation.isMatch) {
                 await vscode.window.showErrorMessage(
-                    `❌ Cannot switch to team "${selected.team.lobby_name}"`,
+                    `Cannot switch to team "${selected.team.lobby_name}"`,
                     {
                         modal: true,
                         detail: validation.details
@@ -380,7 +388,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             
             // Project matches - allow switch
             await this._context.globalState.update(this._teamStateKey, selected.team.id);
-            vscode.window.showInformationMessage(`✅ Successfully switched to team "${selected.team.lobby_name}"`);
+            vscode.window.showInformationMessage(`Successfully switched to team "${selected.team.lobby_name}"`);
             
             this.postTeamInfo();
         }
@@ -489,7 +497,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
             return {
                 isMatch: false,
-                message: `❌ No project folder open`,
+                message: `No project folder open`,
                 details: `To switch to team "${team.lobby_name}", you must first open the team's Git repository folder in VS Code.\n\nRequired: ${team.project_repo_url || team.project_name || 'Team project'}\n\nPlease:\n1. Open the correct project folder\n2. Try switching teams again`
             };
         }
@@ -498,7 +506,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         if (!team.project_identifier || !team.project_repo_url) {
             return {
                 isMatch: false,
-                message: `❌ Team "${team.lobby_name}" requires Git repository`,
+                message: `Team "${team.lobby_name}" requires Git repository`,
                 details: 'This team was created before Git requirements were enforced.\n\nAll teams must be linked to Git repositories.\nContact the team admin to recreate the team with a Git repository.'
             };
         }
@@ -509,7 +517,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             const folderName = currentProject?.projectName || 'Non-Git folder';
             return {
                 isMatch: false,
-                message: `❌ Current folder is not a Git repository`,
+                message: `Current folder is not a Git repository`,
                 details: `Team "${team.lobby_name}" requires a Git repository, but your current folder is not Git-initialized.\n\nRequired: ${team.project_repo_url}\nCurrent: ${folderName}\n\nPlease:\n1. Close this folder\n2. Open the team's Git repository\n3. Try switching again`
             };
         }
@@ -520,7 +528,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         if (validation.isMatch) {
             return {
                 isMatch: true,
-                message: `✅ Project matches team "${team.lobby_name}"`,
+                message: `Project matches team "${team.lobby_name}"`,
                 details: `Current project: ${getProjectDescription(currentProject)}\nTeam project: ${team.project_repo_url}`
             };
         }
@@ -531,7 +539,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
         return {
             isMatch: false,
-            message: `❌ Wrong Git repository open`,
+            message: `Wrong Git repository open`,
             details: `Team "${team.lobby_name}" requires a specific Git repository, but you have a different one open.\n\nCurrent: ${currentDesc}\nRequired: ${teamDesc}\n\nReason: ${validation.reason || 'Git repository fingerprints do not match'}\n\nPlease:\n1. Clone the correct repository: git clone ${team.project_repo_url}\n2. Open the cloned folder in VS Code\n3. Try switching teams again`
         };
     }
@@ -548,7 +556,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         if (!team.project_identifier || !team.project_repo_url) {
             return {
                 isMatch: false,
-                message: `⚠️ Team "${team.lobby_name}" requires Git repository`,
+                message: `Team "${team.lobby_name}" requires Git repository`,
                 details: 'This team was created before Git requirements were enforced. Contact the team admin to recreate the team with a Git repository.'
             };
         }
@@ -558,7 +566,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         if (validation.isMatch) {
             return {
                 isMatch: true,
-                message: `✅ Project matches team "${team.lobby_name}"`,
+                message: `Project matches team "${team.lobby_name}"`,
                 details: validation.currentProject ? 
                     `Current project: ${getProjectDescription(validation.currentProject)}` : 
                     'Project validation successful'
@@ -574,7 +582,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
         return {
             isMatch: false,
-            message: `⚠️ Wrong Git repository open for team "${team.lobby_name}"`,
+            message: `Wrong Git repository open for team "${team.lobby_name}"`,
             details: `Current: ${currentDesc}\nRequired: ${teamDesc}\n\n${validation.reason || 'Git repositories do not match'}\n\nPlease clone the correct repository and open it in VS Code.`
         };
     }
@@ -589,7 +597,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             `To collaborate with team "${team.lobby_name}", you must have the correct Git repository cloned locally.`,
             {
                 modal: true,
-                detail: `Team Repository: ${teamRepoUrl}\n\nRequired Steps:\n1. Clone the repository: git clone ${teamRepoUrl}\n2. Open the cloned folder in VS Code\n3. Switch back to this team\n\n⚠️ Team functionality only works with Git repositories.\nAll members must have the same repository cloned locally.`
+                detail: `Team Repository: ${teamRepoUrl}\n\nRequired Steps:\n1. Clone the repository: git clone ${teamRepoUrl}\n2. Open the cloned folder in VS Code\n3. Switch back to this team\n\nTeam functionality only works with Git repositories.\nAll members must have the same repository cloned locally.`
             },
             'Open Folder',
             'Copy Git URL',
@@ -660,7 +668,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         if (validation.isMatch) {
             return {
                 isMatch: true,
-                message: `✅ Project matches team "${team.lobby_name}"`,
+                message: `Project matches team "${team.lobby_name}"`,
                 details: validation.currentProject ? 
                     `Current project: ${getProjectDescription(validation.currentProject)}` : 
                     'Project validation successful'

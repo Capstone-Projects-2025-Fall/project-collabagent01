@@ -284,7 +284,10 @@ export async function getUserTeams(): Promise<{ teams?: TeamWithMembership[]; er
                     lobby_name,
                     created_by,
                     join_code,
-                    created_at
+                    created_at,
+                    project_identifier,
+                    project_repo_url,
+                    project_name
                 )
             `)
             .eq('user_id', authUser.id);
@@ -394,7 +397,7 @@ export async function handleProjectMismatch(team: Team, currentProject: ProjectI
     const currentProjectDesc = getProjectDescription(currentProject);
     
     const action = await vscode.window.showWarningMessage(
-        `⚠️ Project Mismatch Detected!\n\n` +
+        `Project Mismatch Detected!\n\n` +
         `Your team is linked to: ${teamProjectDesc}\n` +
         `But you have open: ${currentProjectDesc}\n\n` +
         `This could lead to tracking issues or unintended changes being shared with your team.`,
@@ -490,7 +493,7 @@ export async function updateTeamProject(teamId: string): Promise<{ success: bool
         }
 
         await vscode.window.showInformationMessage(
-            `✅ Team project updated!\n\nTeam "${team.lobby_name}" is now linked to: ${getProjectDescription(currentProject)}`
+            `Team project updated!\n\nTeam "${team.lobby_name}" is now linked to: ${getProjectDescription(currentProject)}`
         );
 
         return { success: true };
