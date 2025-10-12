@@ -519,8 +519,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
      */
     private async lookupTeamByJoinCode(joinCode: string): Promise<{ team?: any; error?: string }> {
         try {
-            const { getSupabaseClient } = require('../auth/supabaseClient');
-            const supabase = await getSupabaseClient();
+            const { getSupabase } = require('../auth/supabaseClient');
+            const supabase = await getSupabase();
 
             const { data: teamData, error: teamError } = await supabase
                 .from('teams')
