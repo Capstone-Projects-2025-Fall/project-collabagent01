@@ -20,10 +20,13 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
     private _userTeams: TeamWithMembership[] = [];
 
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
-        // Monitor workspace changes for project validation
+        // Monitor workspace changes - clear team when no folder open
         vscode.workspace.onDidChangeWorkspaceFolders(() => {
-            // Refresh project validation when workspace changes
-            setTimeout(() => this.postTeamInfo(), 500); // Small delay to let workspace settle
+            // When workspace changes, refresh team info (will clear team if no folders open)
+            setTimeout(() => {
+                console.log('Workspace folders changed, updating team info...');
+                this.postTeamInfo();
+            }, 500); // Small delay to let workspace settle
         });
     }
 
@@ -91,15 +94,37 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
      * Posts current team info to webview
      */
     private postTeamInfo() {
-        // Get currently selected team from storage or default to first team
+        // IMPORTANT: If no workspace folder is open, clear current team
+        if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+            // Clear the current team - user must open a project folder first
+            this._context.globalState.update(this._teamStateKey, undefined);
+            const teamInfo = { 
+                name: null, 
+                role: null, 
+                joinCode: null, 
+                id: null,
+                projectValidation: null
+            };
+            
+            this._view?.webview.postMessage({ 
+                command: 'teamInfo', 
+                teamInfo,
+                teams: this._userTeams.map(t => ({
+                    id: t.id,
+                    name: t.lobby_name,
+                    role: t.role,
+                    joinCode: t.join_code
+                }))
+            });
+            return;
+        }
+
+        // Get currently selected team from storage
         const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
         let currentTeam = this._userTeams.find(t => t.id === currentTeamId);
         
-        // If no stored team or team not found, use first available team
-        if (!currentTeam && this._userTeams.length > 0) {
-            currentTeam = this._userTeams[0];
-            this._context.globalState.update(this._teamStateKey, currentTeam.id);
-        }
+        // Don't auto-select a team - user must explicitly switch to a team
+        // This prevents confusion when switching between projects
 
         // Validate current project if we have an active team
         let projectValidation = null;
@@ -120,7 +145,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 id: currentTeam.id,
                 projectValidation: projectValidation
               }
-            : { name: 'No Team', role: '—', joinCode: '', id: '', projectValidation: null };
+            : { name: null, role: null, joinCode: null, id: null, projectValidation: null };
 
         this._view?.webview.postMessage({
             command: 'updateTeamInfo',
@@ -315,11 +340,28 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         });
 
         if (selected) {
-            // Validate that the current project matches the team's project - STRICT VALIDATION
-            const validation = this.validateTeamProjectForSwitch(selected.team);
+            // Check if workspace folder is open
+            if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+                await vscode.window.showErrorMessage(
+                    `❌ Cannot switch to team "${selected.team.lobby_name}"`,
+                    {
+                        modal: true,
+                        detail: 'You must open a project folder first.\n\nPlease open the Git repository folder for the team you want to switch to, then try again.'
+                    },
+                    'Open Folder',
+                    'Cancel'
+                ).then(action => {
+                    if (action === 'Open Folder') {
+                        vscode.commands.executeCommand('vscode.openFolder');
+                    }
+                });
+                return;
+            }
+
+            // Validate that the current project matches the team's project
+            const validation = this.validateTeamProject(selected.team);
             
             if (!validation.isMatch) {
-                // BLOCK the switch - don't allow "Switch Anyway"
                 await vscode.window.showErrorMessage(
                     `❌ Cannot switch to team "${selected.team.lobby_name}"`,
                     {
@@ -333,10 +375,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         this.showProjectGuidance(selected.team);
                     }
                 });
-                return; // Block the switch completely
+                return;
             }
             
-            // Only allow switch if validation passes
+            // Project matches - allow switch
             await this._context.globalState.update(this._teamStateKey, selected.team.id);
             vscode.window.showInformationMessage(`✅ Successfully switched to team "${selected.team.lobby_name}"`);
             
