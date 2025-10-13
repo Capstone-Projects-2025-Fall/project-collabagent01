@@ -13,16 +13,16 @@ const vslsMock = {
 jest.mock('vsls', () => vslsMock);
 
 // Mock profile-service used by the panel
-jest.mock('../services/profile-service', () => ({
+jest.mock('../services/profile-service', () => ({ 
 	getCachedDisplayName: jest.fn(),
 	getOrInitDisplayName: jest.fn()
 }));
 
-import { CollabAgentPanelProvider } from '../views/LiveSharePanel';
+import { LiveShareManager } from '../views/LiveSharePanel';
 import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-service';
 
-describe('CollabAgentPanelProvider (unit)', () => {
-	let provider: CollabAgentPanelProvider;
+describe('LiveShareManager (unit)', () => {
+	let provider: LiveShareManager;
 	const mockContext: Partial<vscode.ExtensionContext> = {
 		globalState: {
 			get: jest.fn(),
@@ -34,7 +34,7 @@ describe('CollabAgentPanelProvider (unit)', () => {
 
 	beforeEach(() => {
 		jest.clearAllMocks();
-		provider = new CollabAgentPanelProvider(mockUri, mockContext as any);
+		provider = new LiveShareManager(mockContext as any);
 		// Attach a fake view so postMessage calls are captured
 		(provider as any)._view = {
 			webview: {
@@ -201,10 +201,10 @@ describe('CollabAgentPanelProvider (unit)', () => {
 
 			test('dispose clears intervals and references', () => {
 				(provider as any).participantMonitoringInterval = setInterval(() => {}, 1000) as any;
-				(provider as any)._authMonitorInterval = setInterval(() => {}, 1000) as any;
+				(provider as any)._durationUpdateInterval = setInterval(() => {}, 1000) as any;
 				(provider as any).dispose();
 				expect((provider as any).participantMonitoringInterval).toBeUndefined();
-				expect((provider as any)._authMonitorInterval).toBeUndefined();
+				expect((provider as any)._durationUpdateInterval).toBeUndefined();
 				expect((provider as any)._view).toBeUndefined();
 			});
 });
