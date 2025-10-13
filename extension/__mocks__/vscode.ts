@@ -73,6 +73,12 @@ const vscode = {
       path: value,
       scheme: value.split(":")[0] || "",
     })),
+    file: jest.fn((path: string) => ({
+      toString: () => `file://${path}`,
+      fsPath: path,
+      path: path,
+      scheme: "file",
+    })),
     joinPath: jest.fn((base: any, ...pathSegments: string[]) => ({
       toString: () => `${base.toString()}/${pathSegments.join('/')}`,
       fsPath: `${base.fsPath}/${pathSegments.join('/')}`,
