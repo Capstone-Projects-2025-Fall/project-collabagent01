@@ -2,9 +2,16 @@ import * as vscode from "vscode";
 import * as vsls from 'vsls';
 import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
 import { checkUserSignIn } from "./services/auth-service";
-import { CollabAgentPanelProvider } from "./views/CollabAgentPanel";
-import { AgentPanelProvider } from "./views/AgentPanel";
+import { CollabAgentPanelProvider } from "./views/MainPanel";
 import { setDisplayNameExplicit, getOrInitDisplayName } from './services/profile-service';
+import { 
+  validateCurrentProjectCommand, 
+  showCurrentProjectInfoCommand, 
+  updateTeamProjectCommand, 
+  checkTeamProjectCompatibilityCommand, 
+  openTeamProjectCommand 
+} from './commands/team-project-commands';
+import { getCurrentProjectInfo } from './services/project-detection-service';
 
 /** Global extension context for state management and subscriptions */
 export let globalContext: vscode.ExtensionContext;
@@ -80,11 +87,31 @@ export async function activate(context: vscode.ExtensionContext) {
     signOutCommand,
     vscode.commands.registerCommand('collabAgent.setDisplayName', async () => {
       await setDisplayNameExplicit();
-    })
+    }),
+    // Team project management commands
+    validateCurrentProjectCommand,
+    showCurrentProjectInfoCommand,
+    updateTeamProjectCommand,
+    checkTeamProjectCompatibilityCommand,
+    openTeamProjectCommand
   );
 
   // Initialize display name for participant updates
   getOrInitDisplayName(true).catch(err => console.warn('Display name init failed', err));
+
+  // Show current project info in console for debugging
+  const currentProject = getCurrentProjectInfo();
+  if (currentProject) {
+    console.log('Collab Agent - Current Project:', {
+      name: currentProject.projectName,
+      path: currentProject.localPath,
+      hash: currentProject.projectHash,
+      isGitRepo: currentProject.isGitRepo,
+      remoteUrl: currentProject.remoteUrl
+    });
+  } else {
+    console.log('Collab Agent - No workspace folder detected');
+  }
 }
 /**
  * Called when the extension is deactivated.

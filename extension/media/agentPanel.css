@@ -1,0 +1,98 @@
+/* Agent Panel Styles */
+
+.agent-heading {
+	font-size: 24px;
+	font-weight: bold;
+	text-align: center;
+	color: var(--vscode-textLink-foreground);
+	margin-bottom: 20px;
+	padding: 10px 0;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+}
+
+#joinCodeSection {
+	margin-top: 4px;
+	font-size: 12px;
+}
+
+#teamJoinCode {
+	font-family: 'Courier New', monospace;
+	background: var(--vscode-textCodeBlock-background);
+	padding: 1px 4px;
+	border-radius: 2px;
+	margin: 0 4px;
+}
+
+/* AI Agent chat area */
+#ai-agent-box {
+  margin-top: 1rem;
+  background: #1e1e1e;
+  padding: 0.5rem;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 250px;
+}
+
+#ai-chat-log {
+  flex: 1;
+  overflow-y: auto;
+  background: #252526;
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  font-size: 13px;
+}
+
+.chat-input-container {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#ai-chat-input {
+  flex: 1;
+  padding: 0.3rem;
+}
+
+#ai-chat-send {
+  background: #007acc;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Buttons */
+.button {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	padding: 8px 12px;
+	margin: 4px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.button-small {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	padding: 4px 8px;
+	margin: 2px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 11px;
+	min-width: 24px;
+	text-align: center;
+}
+
+.button-small:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
