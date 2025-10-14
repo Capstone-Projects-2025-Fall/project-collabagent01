@@ -34,4 +34,6 @@ Easy to use in CI/CD pipelines.
 
 ## Test Coverage Report
 
-<a href="/test-coverage/index.html" target="_blank">Click here for test coverage report</a>
+<!-- <a href="/test-coverage/index.html" target="_blank">Click here for test coverage report</a> -->
+
+Coverage index: [/test-coverage/index.html](/test-coverage/index.html)
