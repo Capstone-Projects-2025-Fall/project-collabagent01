@@ -32,3 +32,6 @@ Good for VS Code extension testing (webviews, commands, extension lifecycle).
 
 Easy to use in CI/CD pipelines.
 
+## Test Coverage Report
+
+<a href="/test-coverage/index.html" target="_blank">Click here for test coverage report</a>

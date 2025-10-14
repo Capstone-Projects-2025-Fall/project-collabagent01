@@ -1,29 +1,44 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://help.github.com/actions/language-and-framework-guides/using-nodejs-with-github-actions
-
-name: Deploy Docs
+name: Test and Coverage
 
 on:
   push:
     branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
-  deploy:
+  test-and-coverage:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pages: write
-      id-token: write
     steps:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install
+
+      - name: Install extension dependencies
+        run: cd extension && npm ci
+
+      - name: Run tests and generate coverage
+        run: cd extension && npm test -- --coverage --coverageReporters=html
+
+      - name: Copy coverage to Docusaurus static
+        run: |
+          mkdir -p documentation/static/test-coverage
+          cp -r extension/coverage/* documentation/static/test-coverage/
+
+      - name: Install documentation dependencies
         run: cd documentation && yarn install
 
-      - name: Deploy
+      - name: Build documentation
+        run: cd documentation && yarn build
+
+      - name: Deploy documentation (if using GitHub Pages)
         run: |
-          export ORG_NAME=$(echo ${GITHUB_REPOSITORY%/*})
-          export PROJECT_NAME=$(echo ${GITHUB_REPOSITORY#*/})
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cd documentation && NODE_ENV="production" GIT_USER="github-actions[bot]" GIT_PASS="${{ secrets.GITHUB_TOKEN }}" yarn deploy
+          cd documentation
+          NODE_ENV="production" GIT_USER="github-actions[bot]" GIT_PASS="${{ secrets.GITHUB_TOKEN }}" yarn deploy
