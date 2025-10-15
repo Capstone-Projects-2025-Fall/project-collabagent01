@@ -34,5 +34,6 @@ Easy to use in CI/CD pipelines.
 
 ## Test Coverage Report
 
-<img width="647" height="430" alt="image" src="https://github.com/user-attachments/assets/2d9f8810-2322-4e79-8104-9966e588695e" />
+<!-- <a href="/test-coverage/index.html" target="_blank">Click here for test coverage report</a> -->
 
+Coverage index: [/test-coverage/index.html](/test-coverage/index.html)
