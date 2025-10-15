@@ -1,44 +1,48 @@
-name: Test and Coverage
+name: Deploy Docs
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
-
-permissions:
-  contents: write
-  pages: write
-  id-token: write
-
 jobs:
-  test-and-coverage:
+  deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: 'npm'
+          cache-dependency-path: extension/package-lock.json
+
       - name: Install extension dependencies
-        run: cd extension && npm ci
+        run: npm ci
+        working-directory: extension
 
-      - name: Run tests and generate coverage
-        run: cd extension && npm test -- --coverage --coverageReporters=html
+      - name: Run extension tests and generate coverage
+        run: npm test -- --coverage --coverageReporters=html
+        working-directory: extension
 
-      - name: Copy coverage to Docusaurus static
+      - name: Publish coverage into docs static
         run: |
           mkdir -p documentation/static/test-coverage
           cp -r extension/coverage/* documentation/static/test-coverage/
 
       - name: Install documentation dependencies
-        run: cd documentation && yarn install
+        run: yarn install
+        working-directory: documentation
 
-      - name: Build documentation
-        run: cd documentation && yarn build
-
-      - name: Deploy documentation (if using GitHub Pages)
+      - name: Deploy
         run: |
+          export ORG_NAME=$(echo ${GITHUB_REPOSITORY%/*})
+          export PROJECT_NAME=$(echo ${GITHUB_REPOSITORY#*/})
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          cd documentation
-          NODE_ENV="production" GIT_USER="github-actions[bot]" GIT_PASS="${{ secrets.GITHUB_TOKEN }}" yarn deploy
+          cd documentation && NODE_ENV="production" GIT_USER="github-actions[bot]" GIT_PASS="${{ secrets.GITHUB_TOKEN }}" yarn deploy
