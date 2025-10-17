@@ -144,7 +144,6 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "jest",
-    "test:coverage": "jest --coverage --coverageReporters=html",
     "compile": "npm run check-types && node esbuild.js",
     "check-types": "tsc --noEmit",
     "watch": "npm-run-all -p watch:*",
