@@ -12,6 +12,8 @@ import {
   showAuthNotification,
 } from "../views/notifications";
 import { BASE_URL } from "../api/types/endpoints";
+import { getSupabase } from "../auth/supabaseClient";
+
 
 /**
  * Sets the authentication context for the user in the VS Code global state.
@@ -361,4 +363,10 @@ export async function signInWithGithub() {
     await errorNotification(`GitHub Sign In failed: ${error.message}`);
     await authNotification();
   }
+}
+
+export async function getCurrentUserId(): Promise<string | null> {
+  const supabase = getSupabase();
+  const { data } = await supabase.auth.getSession();
+  return data.session?.user?.id ?? null;
 }

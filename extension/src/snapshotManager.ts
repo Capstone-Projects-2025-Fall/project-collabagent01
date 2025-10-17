@@ -2,6 +2,7 @@
 import * as vscode from "vscode";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { diffLines } from "diff";
+import { getCurrentUserId } from "./services/auth-service";
 
 export class SnapshotManager {
   private supabase: SupabaseClient;
@@ -31,8 +32,10 @@ export class SnapshotManager {
     this.idleTimers.set(
       fileKey,
       setTimeout(async () => {
-        const userId = 'temporary-user-id'; // Replace with real user ID later
-        await this.takeIncrementalSnapshot(userId);
+        const userId = await this.requireUser();
+        if (userId) {
+          await this.takeIncrementalSnapshot(userId);
+        }
       }, this.IDLE_DELAY)
     );
   }
@@ -120,3 +123,24 @@ export class SnapshotManager {
       .upsert(
         {
           user_id: userId,
+          file_path: fileUri.fsPath,
+          content,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,file_path" }
+      );
+
+    if (error) {
+      console.error("Failed to upsert snapshot:", error);
+    }
+  }
+
+  private async requireUser(): Promise<string> {
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      console.warn("User is not signed in — skipping snapshot");
+      return "";
+    }
+    return userId;
+  }
+}

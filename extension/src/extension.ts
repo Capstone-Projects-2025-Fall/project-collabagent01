@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import * as vsls from 'vsls';
 import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
-import { checkUserSignIn } from "./services/auth-service";
+import { checkUserSignIn, getCurrentUserId } from "./services/auth-service";
 import { CollabAgentPanelProvider } from "./views/MainPanel";
 import { setDisplayNameExplicit, getOrInitDisplayName } from './services/profile-service';
 import { 
@@ -43,8 +43,10 @@ export async function activate(context: vscode.ExtensionContext) {
   // Take a full snapshot on extension start
   (async () => {
     try {
-      const userId = 'temporary-user-id'; // Replace with logged-in user ID later
-      await snapshotManager.takeSnapshot(userId);
+      const userId = await getCurrentUserId();
+      if (userId) {
+        await snapshotManager.takeSnapshot(userId);
+      }
     } catch (err) {
       console.error('Automatic snapshot failed:', err);
     }
@@ -53,7 +55,11 @@ export async function activate(context: vscode.ExtensionContext) {
   // Register manual snapshot command
   context.subscriptions.push(
     vscode.commands.registerCommand('collabAgent.takeSnapshot', async () => {
-      const userId = 'temporary-user-id'; // Replace with actual logged-in user ID
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        vscode.window.showWarningMessage('Please sign in to take a snapshot.');
+        return;
+      }
       await snapshotManager.takeSnapshot(userId);
     })
   );
