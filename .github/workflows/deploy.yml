@@ -20,9 +20,7 @@ jobs:
         with:
           node-version: '20.x'
           cache: 'npm'
-          cache-dependency-path: |
-            extension/package-lock.json
-            documentation/yarn.lock
+          cache-dependency-path: extension/package-lock.json
 
       - name: Install extension dependencies
         run: npm ci
@@ -38,7 +36,7 @@ jobs:
           cp -r extension/coverage/* documentation/static/test-coverage/
 
       - name: Install documentation dependencies
-        run: yarn install --frozen-lockfile
+        run: yarn install
         working-directory: documentation
 
       - name: Deploy
