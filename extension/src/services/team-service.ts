@@ -190,11 +190,9 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
             return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
         }
 
-        // Find team by join code
+        // Find team by join code via secure RPC (bypasses RLS safely)
         const { data: teamData, error: teamError } = await supabase
-            .from('teams')
-            .select('*')
-            .eq('join_code', joinCode.toUpperCase())
+            .rpc('get_team_by_join_code', { p_join_code: joinCode.toUpperCase() })
             .single();
 
         if (teamError || !teamData) {
