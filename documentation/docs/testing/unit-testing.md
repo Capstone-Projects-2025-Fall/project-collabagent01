@@ -32,7 +32,4 @@ Good for VS Code extension testing (webviews, commands, extension lifecycle).
 
 Easy to use in CI/CD pipelines.
 
-## Test Coverage Report
-
-<img width="647" height="430" alt="image" src="https://github.com/user-attachments/assets/2d9f8810-2322-4e79-8104-9966e588695e" />
-
+[View Coverage Report](https://capstone-projects-2025-fall.github.io/project-collabagent01/test-coverage/index.html)
