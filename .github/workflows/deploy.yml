@@ -17,20 +17,8 @@ jobs:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install extension dependencies
-        run: cd extension && npm ci
-
-      - name: Run tests and generate coverage (HTML)
-        run: cd extension && npm run test:coverage
-
-      - name: Install documentation dependencies
+      - name: Install
         run: cd documentation && yarn install
-
-      - name: Publish coverage into docs static
-        run: |
-          rm -rf documentation/static/test-coverage/* || true
-          mkdir -p documentation/static/test-coverage
-          cp -r extension/coverage/* documentation/static/test-coverage/
 
       - name: Deploy
         run: |
