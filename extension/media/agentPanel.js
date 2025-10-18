@@ -11,6 +11,7 @@
   const joinBtn = () => document.getElementById('joinTeamBtn');
   const refreshBtn = () => document.getElementById('refreshTeamsBtn');
   const copyJoinCodeBtn = () => document.getElementById('copyJoinCodeBtn');
+  const deleteBtn = () => document.getElementById('deleteTeamBtn');
 
   function initializeButtons() {
     console.log('Initializing Agent Panel buttons');
@@ -71,6 +72,18 @@
       console.log('Copy Join Code button listener added');
     } else if (!copy) {
       console.log('Copy Join Code button not found');
+    }
+
+    const d = deleteBtn();
+    if (d && !d.hasAttribute('data-listener-added')) {
+      d.addEventListener('click', () => {
+        console.log('Delete Team button clicked');
+        post('deleteTeam');
+      });
+      d.setAttribute('data-listener-added', 'true');
+      console.log('Delete Team button listener added');
+    } else if (!d) {
+      console.log('Delete Team button not found');
     }
 
     // Initialize AI chat elements
@@ -162,6 +175,7 @@
         const jcs = document.getElementById('joinCodeSection');
         const ps = document.getElementById('projectStatus');
         const psi = document.getElementById('projectStatusIndicator');
+        const del = deleteBtn();
         
         if (tn) tn.textContent = m.team?.name ?? '—';
         if (tr) tr.textContent = m.team?.role ?? '—';
@@ -193,6 +207,14 @@
             }
           } else {
             ps.style.display = 'none';
+          }
+        }
+        // Show delete button only if Admin and a team is selected
+        if (del) {
+          if (m.team?.name && m.team?.role === 'Admin') {
+            del.style.display = 'inline-block';
+          } else {
+            del.style.display = 'none';
           }
         }
         break;

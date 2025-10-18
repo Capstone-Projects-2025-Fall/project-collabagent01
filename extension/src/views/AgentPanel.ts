@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createTeam, joinTeam, getUserTeams, type TeamWithMembership } from '../services/team-service';
+import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, type TeamWithMembership } from '../services/team-service';
 import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
 
 /**
@@ -68,6 +68,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 case 'aiQuery':
                     console.log('Handling aiQuery command');
                     this.handleAiQuery(message.text);
+                    break;
+                case 'deleteTeam':
+                    console.log('Handling deleteTeam command');
+                    this.handleDeleteTeam();
                     break;
                 default:
                     console.log('Unknown command received:', message.command);
@@ -423,6 +427,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         <button class="button" id="createTeamBtn">Create Team</button>
                         <button class="button" id="joinTeamBtn">Join Team</button>
                         <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
+                        <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
                     </div>
                 </div>
             </div>
@@ -467,6 +472,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         <button class="button" id="createTeamBtn">Create Team</button>
                         <button class="button" id="joinTeamBtn">Join Team</button>
                         <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
+                        <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
                     </div>
                 </div>
             </div>
@@ -687,5 +693,54 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             message: `Project mismatch detected`,
             details: `Current: ${currentDesc}\nRequired: ${teamDesc}\n\nReason: ${validation.reason || 'Project fingerprints do not match'}`
         };
+    }
+
+    /**
+     * Delete current team (admin only) with confirmation
+     */
+    private async handleDeleteTeam() {
+        // Determine current team from global state
+        const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+        if (!currentTeamId) {
+            vscode.window.showInformationMessage('No active team selected.');
+            return;
+        }
+
+        const currentTeam = this._userTeams.find(t => t.id === currentTeamId);
+        if (!currentTeam) {
+            vscode.window.showErrorMessage('Current team not found. Please refresh teams.');
+            return;
+        }
+        if (currentTeam.role !== 'admin') {
+            vscode.window.showErrorMessage('Only the Team Admin can delete this team.');
+            return;
+        }
+
+        const confirm = await vscode.window.showWarningMessage(
+            `Delete team "${currentTeam.lobby_name}"?`,
+            {
+                modal: true,
+                detail: 'This will permanently remove the team and all memberships. This action cannot be undone.'
+            },
+            'Yes, Delete',
+            'Cancel'
+        );
+        if (confirm !== 'Yes, Delete') return;
+
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Deleting team "${currentTeam.lobby_name}"...`,
+            cancellable: false
+        }, async () => {
+            const res = await deleteTeamSvc(currentTeamId);
+            if (!res.success) {
+                vscode.window.showErrorMessage(res.error || 'Failed to delete team');
+                return;
+            }
+            // Clear current selection and refresh
+            await this._context.globalState.update(this._teamStateKey, undefined);
+            await this.refreshTeams();
+            vscode.window.showInformationMessage(`Team "${currentTeam.lobby_name}" was deleted.`);
+        });
     }
 }

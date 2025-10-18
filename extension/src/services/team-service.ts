@@ -499,3 +499,63 @@ export async function updateTeamProject(teamId: string): Promise<{ success: bool
         return { success: false, error: `Update failed: ${error}` };
     }
 }
+
+// Deletes a team (admin only). Removes memberships first, then deletes the team.
+export async function deleteTeam(teamId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Ensure authenticated
+        const { context: user, error: authError } = await getAuthContext();
+        if (authError || !user?.isAuthenticated) {
+            return { success: false, error: 'User must be authenticated to delete a team' };
+        }
+
+        const supabase = await getSupabaseClient();
+
+        // Resolve Supabase auth user id
+        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
+        if (authUserError) {
+            return { success: false, error: `Failed to get auth users: ${authUserError.message}` };
+        }
+        const authUser = authUsers.users.find((u: any) => u.email === user.email);
+        if (!authUser) {
+            return { success: false, error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        }
+
+        // Check admin role for this team
+        const { data: membership, error: membershipErr } = await supabase
+            .from('team_membership')
+            .select('role')
+            .eq('team_id', teamId)
+            .eq('user_id', authUser.id)
+            .single();
+
+        if (membershipErr || !membership) {
+            return { success: false, error: 'You are not a member of this team or access is denied' };
+        }
+        if (membership.role !== 'admin') {
+            return { success: false, error: 'Only the Team Admin can delete this team' };
+        }
+
+        // Best-effort delete memberships, then team. If FKs are ON DELETE CASCADE, second step is enough.
+        const { error: deleteMembershipsErr } = await supabase
+            .from('team_membership')
+            .delete()
+            .eq('team_id', teamId);
+        if (deleteMembershipsErr) {
+            // Continue anyway; team delete may cascade
+            console.warn('Warning: deleting memberships failed, attempting to delete team anyway:', deleteMembershipsErr);
+        }
+
+        const { error: deleteTeamErr } = await supabase
+            .from('teams')
+            .delete()
+            .eq('id', teamId);
+        if (deleteTeamErr) {
+            return { success: false, error: `Failed to delete team: ${deleteTeamErr.message}` };
+        }
+
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: `Delete failed: ${error}` };
+    }
+}
