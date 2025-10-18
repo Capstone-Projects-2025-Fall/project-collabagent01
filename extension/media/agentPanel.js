@@ -12,6 +12,7 @@
   const refreshBtn = () => document.getElementById('refreshTeamsBtn');
   const copyJoinCodeBtn = () => document.getElementById('copyJoinCodeBtn');
   const deleteBtn = () => document.getElementById('deleteTeamBtn');
+  const leaveBtn = () => document.getElementById('leaveTeamBtn');
 
   function initializeButtons() {
     console.log('Initializing Agent Panel buttons');
@@ -84,6 +85,18 @@
       console.log('Delete Team button listener added');
     } else if (!d) {
       console.log('Delete Team button not found');
+    }
+
+    const l = leaveBtn();
+    if (l && !l.hasAttribute('data-listener-added')) {
+      l.addEventListener('click', () => {
+        console.log('Leave Team button clicked');
+        post('leaveTeam');
+      });
+      l.setAttribute('data-listener-added', 'true');
+      console.log('Leave Team button listener added');
+    } else if (!l) {
+      console.log('Leave Team button not found');
     }
 
     // Initialize AI chat elements
@@ -176,6 +189,7 @@
         const ps = document.getElementById('projectStatus');
         const psi = document.getElementById('projectStatusIndicator');
         const del = deleteBtn();
+  const leave = leaveBtn();
         
         if (tn) tn.textContent = m.team?.name ?? '—';
         if (tr) tr.textContent = m.team?.role ?? '—';
@@ -209,14 +223,9 @@
             ps.style.display = 'none';
           }
         }
-        // Show delete button only if Admin and a team is selected
-        if (del) {
-          if (m.team?.name && m.team?.role === 'Admin') {
-            del.style.display = 'inline-block';
-          } else {
-            del.style.display = 'none';
-          }
-        }
+        // Show delete button only for Admin; show leave button only for Members
+        if (del) del.style.display = (m.team?.name && m.team?.role === 'Admin') ? 'inline-block' : 'none';
+        if (leave) leave.style.display = (m.team?.name && m.team?.role === 'Member') ? 'inline-block' : 'none';
         break;
       case 'aiResponse':
         const log = document.getElementById('ai-chat-log');

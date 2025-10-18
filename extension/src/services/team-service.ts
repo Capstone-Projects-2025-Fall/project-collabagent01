@@ -562,3 +562,59 @@ export async function deleteTeam(teamId: string): Promise<{ success: boolean; er
         return { success: false, error: `Delete failed: ${error}` };
     }
 }
+
+// Leaves a team (member only): removes the current user's membership row for the team
+export async function leaveTeam(teamId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Ensure authenticated
+        const { context: user, error: authError } = await getAuthContext();
+        if (authError || !user?.isAuthenticated) {
+            return { success: false, error: 'User must be authenticated to leave a team' };
+        }
+
+        const supabase = await getSupabaseClient();
+
+        // Resolve Supabase auth user id (requires service role key)
+        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
+        if (authUserError) {
+            return { success: false, error: `Failed to get auth users: ${authUserError.message}` };
+        }
+        const authUser = authUsers.users.find((u: any) => u.email === user.email);
+        if (!authUser) {
+            return { success: false, error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        }
+
+        // Ensure the user is a member of this team
+        const { data: membership, error: membershipErr } = await supabase
+            .from('team_membership')
+            .select('role')
+            .eq('team_id', teamId)
+            .eq('user_id', authUser.id)
+            .maybeSingle();
+
+        if (membershipErr) {
+            return { success: false, error: `Failed to check membership: ${membershipErr.message}` };
+        }
+        if (!membership) {
+            return { success: false, error: 'You are not a member of this team' };
+        }
+        if (membership.role === 'admin') {
+            return { success: false, error: 'Team admins cannot leave the team they administer. Transfer admin role or delete the team.' };
+        }
+
+        // Delete the membership row
+        const { error: deleteErr } = await supabase
+            .from('team_membership')
+            .delete()
+            .eq('team_id', teamId)
+            .eq('user_id', authUser.id);
+
+        if (deleteErr) {
+            return { success: false, error: `Failed to leave team: ${deleteErr.message}` };
+        }
+
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: `Leave team failed: ${error}` };
+    }
+}

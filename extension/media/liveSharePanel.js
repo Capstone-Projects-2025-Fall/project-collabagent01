@@ -97,6 +97,16 @@
 			deleteTeamBtn.setAttribute('data-listener-added', 'true');
 			console.log('Delete Team button listener added');
 		}
+
+		const leaveTeamBtn = document.getElementById('leaveTeamBtn');
+		if (leaveTeamBtn && !leaveTeamBtn.hasAttribute('data-listener-added')) {
+			leaveTeamBtn.addEventListener('click', function() {
+				console.log('Leave Team button clicked');
+				post('leaveTeam');
+			});
+			leaveTeamBtn.setAttribute('data-listener-added', 'true');
+			console.log('Leave Team button listener added');
+		}
 	}
 	
 	function copyJoinCode() {

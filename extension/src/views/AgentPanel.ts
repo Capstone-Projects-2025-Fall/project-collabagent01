@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, type TeamWithMembership } from '../services/team-service';
+import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, type TeamWithMembership } from '../services/team-service';
 import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
 
 /**
@@ -72,6 +72,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 case 'deleteTeam':
                     console.log('Handling deleteTeam command');
                     this.handleDeleteTeam();
+                    break;
+                case 'leaveTeam':
+                    console.log('Handling leaveTeam command');
+                    this.handleLeaveTeam();
                     break;
                 default:
                     console.log('Unknown command received:', message.command);
@@ -428,6 +432,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         <button class="button" id="joinTeamBtn">Join Team</button>
                         <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
                         <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
+                        <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
                     </div>
                 </div>
             </div>
@@ -473,6 +478,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         <button class="button" id="joinTeamBtn">Join Team</button>
                         <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
                         <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
+                        <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
                     </div>
                 </div>
             </div>
@@ -733,6 +739,53 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             await this._context.globalState.update(this._teamStateKey, undefined);
             await this.refreshTeams();
             vscode.window.showInformationMessage(`Team "${currentTeam.lobby_name}" was deleted.`);
+        });
+    }
+
+    /**
+     * Leave current team (member only) with confirmation
+     */
+    private async handleLeaveTeam() {
+        const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+        if (!currentTeamId) {
+            vscode.window.showInformationMessage('No active team selected.');
+            return;
+        }
+
+        const currentTeam = this._userTeams.find(t => t.id === currentTeamId);
+        if (!currentTeam) {
+            vscode.window.showErrorMessage('Current team not found. Please refresh teams.');
+            return;
+        }
+        if (currentTeam.role === 'admin') {
+            vscode.window.showErrorMessage('Admins cannot leave their own team. You can delete the team instead.');
+            return;
+        }
+
+        const confirm = await vscode.window.showWarningMessage(
+            `Leave team "${currentTeam.lobby_name}"?`,
+            {
+                modal: true,
+                detail: 'You will be removed from this team and lose access to it. You can rejoin later with a valid join code.'
+            },
+            'Yes, Leave',
+            'Cancel'
+        );
+        if (confirm !== 'Yes, Leave') return;
+
+        await vscode.window.withProgress({
+            location: vscode.ProgressLocation.Notification,
+            title: `Leaving team "${currentTeam.lobby_name}"...`,
+            cancellable: false
+        }, async () => {
+            const res = await leaveTeamSvc(currentTeamId);
+            if (!res.success) {
+                vscode.window.showErrorMessage(res.error || 'Failed to leave team');
+                return;
+            }
+            await this._context.globalState.update(this._teamStateKey, undefined);
+            await this.refreshTeams();
+            vscode.window.showInformationMessage(`You have left team "${currentTeam.lobby_name}".`);
         });
     }
 }

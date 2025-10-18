@@ -130,6 +130,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'switchTeam', 
             'refreshTeams',
             'deleteTeam',
+            'leaveTeam',
             'aiQuery'
         ].includes(command);
     }
@@ -190,6 +191,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 if (!(this._agentPanel as any).handleDeleteTeam) {
                     // Fallback: send message to AgentPanel's own handler via webview
                     this._view?.webview.postMessage({ command: 'deleteTeam' });
+                }
+                break;
+            case 'leaveTeam':
+                await (this._agentPanel as any).handleLeaveTeam?.();
+                if (!(this._agentPanel as any).handleLeaveTeam) {
+                    this._view?.webview.postMessage({ command: 'leaveTeam' });
                 }
                 break;
             case 'aiQuery':
