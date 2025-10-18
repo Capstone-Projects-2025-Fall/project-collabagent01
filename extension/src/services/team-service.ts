@@ -43,7 +43,7 @@ function generateJoinCode(): string {
  
 async function getSupabaseClient() {
     try {
-        const { createClient } = require('@supabase/supabase-js');
+    const { createClient } = require('@supabase/supabase-js');
         const config = vscode.workspace.getConfiguration('collabAgent');
         const supabaseUrl = config.get<string>('supabase.url');
         const supabaseKey = config.get<string>('supabase.anonKey');
@@ -53,8 +53,11 @@ async function getSupabaseClient() {
             throw new Error('Supabase configuration missing. Please configure supabase.url and supabase.anonKey in settings.');
         }
         
-        // Use service role key if available (bypasses RLS)
-        const keyToUse = serviceRoleKey || supabaseKey;
+    // Prefer anon key (user session RLS). If service role key is configured, we'll still use it
+    // because this extension runs trusted admin flows (e.g., create team & membership).
+    const keyToUse = serviceRoleKey || supabaseKey;
+    // Helpful debug note:
+    // console.log(`Supabase client initialized with ${serviceRoleKey ? 'service role key' : 'anon key'}`);
         const supabase = createClient(supabaseUrl, keyToUse);
         
         return supabase;
@@ -193,10 +196,10 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
         // Find team by join code via secure RPC (bypasses RLS safely)
         const { data: teamData, error: teamError } = await supabase
             .rpc('get_team_by_join_code', { p_join_code: joinCode.toUpperCase() })
-            .single();
+            .maybeSingle();
 
         if (teamError || !teamData) {
-            return { error: 'Invalid join code or team not found' };
+            return { error: `Invalid join code or team not found${teamError ? `: ${teamError.message}` : ''}` };
         }
 
         // CRITICAL: Validate that user's current project matches team's project

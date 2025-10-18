@@ -626,22 +626,14 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             const { getSupabase } = require('../auth/supabaseClient');
             const supabase = await getSupabase();
 
-            console.log('Looking up team with join code:', joinCode.toUpperCase());
-            
-            // First, let's see all teams to debug
-            const { data: allTeams, error: allError } = await supabase
-                .from('teams')
-                .select('lobby_name, join_code');
-            console.log('All teams in database:', allTeams);
-            
-            // Try a simpler query to avoid RLS policy issues
-            const { data: teamData, error: teamError } = await supabase
-                .from('teams')
-                .select('id, lobby_name, join_code, created_by, project_repo_url, project_identifier, project_name')
-                .eq('join_code', joinCode.toUpperCase())
-                .single();
+            console.log('Looking up team with join code via RPC:', joinCode.toUpperCase());
 
-            console.log('Team lookup result:', { teamData, teamError, searchCode: joinCode.toUpperCase() });
+            // Use secure RPC that bypasses RLS safely (SECURITY DEFINER)
+            const { data: teamData, error: teamError } = await supabase
+                .rpc('get_team_by_join_code', { p_join_code: joinCode.toUpperCase() })
+                .maybeSingle();
+
+            console.log('Team lookup result (rpc):', { teamData, teamError, searchCode: joinCode.toUpperCase() });
             if (teamError || !teamData) {
                 return { error: `Invalid join code or team not found. Error: ${teamError?.message || 'No team found'}` };
             }

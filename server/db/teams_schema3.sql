@@ -116,20 +116,29 @@ CREATE POLICY "Membership: creator can delete" ON public.team_membership
 -- Drop and re-create function idempotently
 DROP FUNCTION IF EXISTS public.get_team_by_join_code(text);
 CREATE OR REPLACE FUNCTION public.get_team_by_join_code(p_join_code text)
-RETURNS SETOF public.teams
+RETURNS public.teams
 LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public AS $$
+DECLARE
+  result public.teams%ROWTYPE;
 BEGIN
-  -- Require authenticated users
-  IF auth.role() <> 'authenticated' THEN
+  -- Allow authenticated, anon (unauthenticated client), or service_role
+  -- Note: The join code is required, so anon access only reveals a team when the code is known.
+  IF auth.role() NOT IN ('authenticated', 'service_role', 'anon') THEN
     RAISE EXCEPTION 'Not authorized';
   END IF;
 
-  RETURN QUERY
-  SELECT t.*
+  SELECT t.* INTO result
   FROM public.teams t
-  WHERE t.join_code = UPPER(p_join_code);
+  WHERE t.join_code = UPPER(p_join_code)
+  LIMIT 1;
+
+  IF NOT FOUND THEN
+    RETURN NULL; -- return null when not found, client may use maybeSingle()
+  END IF;
+
+  RETURN result;
 END;
 $$;
 
