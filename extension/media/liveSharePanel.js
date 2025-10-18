@@ -210,6 +210,7 @@
 		const teamJoinCode = document.getElementById('teamJoinCode');
 		const joinCodeSection = document.getElementById('joinCodeSection');
 		const deleteTeamBtn = document.getElementById('deleteTeamBtn');
+		const leaveTeamBtn = document.getElementById('leaveTeamBtn');
 		
 		if (teamName) teamName.textContent = team?.name ?? '—';
 		if (teamRole) teamRole.textContent = team?.role ?? '—';
@@ -224,13 +225,13 @@
 				joinCodeSection.style.display = 'none';
 			}
 
-			// Show delete button only for Admin with a selected team
+
+			// Show delete button only for Admin; show leave button only for Member
 			if (deleteTeamBtn) {
-				if (team?.name && team?.role === 'Admin') {
-					deleteTeamBtn.style.display = 'inline-block';
-				} else {
-					deleteTeamBtn.style.display = 'none';
-				}
+				deleteTeamBtn.style.display = (team?.name && team?.role === 'Admin') ? 'inline-block' : 'none';
+			}
+			if (leaveTeamBtn) {
+				leaveTeamBtn.style.display = (team?.name && team?.role === 'Member') ? 'inline-block' : 'none';
 			}
 		}
 	}
