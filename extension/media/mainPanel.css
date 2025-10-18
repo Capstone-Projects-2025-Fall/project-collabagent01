@@ -46,6 +46,32 @@
 	background: var(--vscode-button-hoverBackground); 
 }
 
+/* Login tooltip */
+.login-tooltip {
+	position: fixed;
+	background: var(--vscode-editorHoverWidget-background);
+	color: var(--vscode-editorHoverWidget-foreground);
+	border: 1px solid var(--vscode-editorHoverWidget-border);
+	border-radius: 4px;
+	padding: 6px 10px;
+	font-size: 12px;
+	z-index: 1000;
+	white-space: nowrap;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Disabled tab styling */
+.tab-btn.disabled {
+	opacity: 0.5;
+	cursor: not-allowed;
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+}
+
+.tab-btn.disabled:hover {
+	background: var(--vscode-button-secondaryBackground);
+}
+
 /* Base styles */
 body {
 	font-family: var(--vscode-font-family);

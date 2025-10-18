@@ -202,6 +202,15 @@ export function validateCurrentProject(expectedProjectHash: string, expectedRemo
             reason: 'No workspace folder is currently open'
         };
     }
+
+    // Enforce Git requirement for team projects
+    if (!currentProject.isGitRepo || !currentProject.remoteUrl) {
+        return {
+            isMatch: false,
+            currentProject,
+            reason: 'Team functionality requires a Git repository with remote origin. Please clone the team\'s repository.'
+        };
+    }
     
     // Primary check: compare project hashes
     if (isSameProject(currentProject.projectHash, expectedProjectHash)) {

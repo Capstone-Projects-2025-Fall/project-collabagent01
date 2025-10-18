@@ -96,3 +96,20 @@
 .button-small:hover {
 	background: var(--vscode-button-secondaryHoverBackground);
 }
+
+/* Project Status Indicator */
+#projectStatus {
+	border-left: 3px solid var(--vscode-textLink-foreground);
+	padding-left: 8px;
+	background: var(--vscode-textBlockQuote-background);
+	border-radius: 0 4px 4px 0;
+}
+
+#projectStatusIndicator {
+	font-weight: 500;
+}
+
+#projectStatusIndicator[title] {
+	cursor: help;
+	text-decoration: underline dotted;
+}

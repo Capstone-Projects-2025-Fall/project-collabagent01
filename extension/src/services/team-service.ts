@@ -43,7 +43,7 @@ function generateJoinCode(): string {
  
 async function getSupabaseClient() {
     try {
-        const { createClient } = require('@supabase/supabase-js');
+    const { createClient } = require('@supabase/supabase-js');
         const config = vscode.workspace.getConfiguration('collabAgent');
         const supabaseUrl = config.get<string>('supabase.url');
         const supabaseKey = config.get<string>('supabase.anonKey');
@@ -53,8 +53,11 @@ async function getSupabaseClient() {
             throw new Error('Supabase configuration missing. Please configure supabase.url and supabase.anonKey in settings.');
         }
         
-        // Use service role key if available (bypasses RLS)
-        const keyToUse = serviceRoleKey || supabaseKey;
+    // Prefer anon key (user session RLS). If service role key is configured, we'll still use it
+    // because this extension runs trusted admin flows (e.g., create team & membership).
+    const keyToUse = serviceRoleKey || supabaseKey;
+    // Helpful debug note:
+    // console.log(`Supabase client initialized with ${serviceRoleKey ? 'service role key' : 'anon key'}`);
         const supabase = createClient(supabaseUrl, keyToUse);
         
         return supabase;
@@ -78,6 +81,18 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
         const currentProject = getCurrentProjectInfo();
         if (!currentProject) {
             return { error: 'No workspace folder is open. Please open a project folder to create a team.' };
+        }
+
+        // Enforce Git requirement for team functionality
+        if (!currentProject.isGitRepo || !currentProject.remoteUrl) {
+            return { 
+                error: 'Team functionality requires a Git repository with a remote origin.\n\n' +
+                       'To create a team:\n' +
+                       '1. Initialize Git: git init\n' +
+                       '2. Add remote origin: git remote add origin <repository-url>\n' +
+                       '3. Push your code to the remote repository\n\n' +
+                       'All team members must have the same Git repository cloned locally.'
+            };
         }
 
         const supabase = await getSupabaseClient();
@@ -148,6 +163,23 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
             return { error: 'User must be authenticated to join a team' };
         }
 
+        // Check current project Git requirements
+        const currentProject = getCurrentProjectInfo();
+        if (!currentProject) {
+            return { error: 'No workspace folder is open. Please open the project folder to join a team.' };
+        }
+
+        if (!currentProject.isGitRepo || !currentProject.remoteUrl) {
+            return { 
+                error: 'Team functionality requires a Git repository with a remote origin.\n\n' +
+                       'To join a team, you must have the team\'s Git repository cloned locally:\n' +
+                       '1. Clone the team\'s repository: git clone <repository-url>\n' +
+                       '2. Open the cloned project folder in VS Code\n' +
+                       '3. Then try joining the team again\n\n' +
+                       'Make sure you have the correct repository that matches the team\'s project.'
+            };
+        }
+
         const supabase = await getSupabaseClient();
 
         // Get the Supabase auth user ID
@@ -161,15 +193,33 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
             return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
         }
 
-        // Find team by join code
+        // Find team by join code via secure RPC (bypasses RLS safely)
         const { data: teamData, error: teamError } = await supabase
-            .from('teams')
-            .select('*')
-            .eq('join_code', joinCode.toUpperCase())
-            .single();
+            .rpc('get_team_by_join_code', { p_join_code: joinCode.toUpperCase() })
+            .maybeSingle();
 
         if (teamError || !teamData) {
-            return { error: 'Invalid join code or team not found' };
+            return { error: `Invalid join code or team not found${teamError ? `: ${teamError.message}` : ''}` };
+        }
+
+        // CRITICAL: Validate that user's current project matches team's project
+        const { validateCurrentProject } = require('./project-detection-service');
+        const validation = validateCurrentProject(teamData.project_identifier, teamData.project_repo_url);
+        
+        if (!validation.isMatch) {
+            const teamRepoUrl = teamData.project_repo_url || 'the team repository';
+            const currentRepoUrl = validation.currentProject?.remoteUrl || 'your current project';
+            
+            return { 
+                error: `Project mismatch! You cannot join this team.\n\n` +
+                       `Team Repository: ${teamRepoUrl}\n` +
+                       `Your Repository: ${currentRepoUrl}\n\n` +
+                       `To join team "${teamData.lobby_name}":\n` +
+                       `1. Clone the team repository: git clone ${teamRepoUrl}\n` +
+                       `2. Open the cloned folder in VS Code\n` +
+                       `3. Try joining again with the same join code\n\n` +
+                       `${validation.reason || 'Repository URLs do not match'}`
+            };
         }
 
         // Check if user is already a member
@@ -235,7 +285,10 @@ export async function getUserTeams(): Promise<{ teams?: TeamWithMembership[]; er
                     lobby_name,
                     created_by,
                     join_code,
-                    created_at
+                    created_at,
+                    project_identifier,
+                    project_repo_url,
+                    project_name
                 )
             `)
             .eq('user_id', authUser.id);
@@ -345,7 +398,7 @@ export async function handleProjectMismatch(team: Team, currentProject: ProjectI
     const currentProjectDesc = getProjectDescription(currentProject);
     
     const action = await vscode.window.showWarningMessage(
-        `⚠️ Project Mismatch Detected!\n\n` +
+        `Project Mismatch Detected!\n\n` +
         `Your team is linked to: ${teamProjectDesc}\n` +
         `But you have open: ${currentProjectDesc}\n\n` +
         `This could lead to tracking issues or unintended changes being shared with your team.`,
@@ -441,11 +494,127 @@ export async function updateTeamProject(teamId: string): Promise<{ success: bool
         }
 
         await vscode.window.showInformationMessage(
-            `✅ Team project updated!\n\nTeam "${team.lobby_name}" is now linked to: ${getProjectDescription(currentProject)}`
+            `Team project updated!\n\nTeam "${team.lobby_name}" is now linked to: ${getProjectDescription(currentProject)}`
         );
 
         return { success: true };
     } catch (error) {
         return { success: false, error: `Update failed: ${error}` };
+    }
+}
+
+// Deletes a team (admin only). Removes memberships first, then deletes the team.
+export async function deleteTeam(teamId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Ensure authenticated
+        const { context: user, error: authError } = await getAuthContext();
+        if (authError || !user?.isAuthenticated) {
+            return { success: false, error: 'User must be authenticated to delete a team' };
+        }
+
+        const supabase = await getSupabaseClient();
+
+        // Resolve Supabase auth user id
+        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
+        if (authUserError) {
+            return { success: false, error: `Failed to get auth users: ${authUserError.message}` };
+        }
+        const authUser = authUsers.users.find((u: any) => u.email === user.email);
+        if (!authUser) {
+            return { success: false, error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        }
+
+        // Check admin role for this team
+        const { data: membership, error: membershipErr } = await supabase
+            .from('team_membership')
+            .select('role')
+            .eq('team_id', teamId)
+            .eq('user_id', authUser.id)
+            .single();
+
+        if (membershipErr || !membership) {
+            return { success: false, error: 'You are not a member of this team or access is denied' };
+        }
+        if (membership.role !== 'admin') {
+            return { success: false, error: 'Only the Team Admin can delete this team' };
+        }
+
+        // Best-effort delete memberships, then team. If FKs are ON DELETE CASCADE, second step is enough.
+        const { error: deleteMembershipsErr } = await supabase
+            .from('team_membership')
+            .delete()
+            .eq('team_id', teamId);
+        if (deleteMembershipsErr) {
+            // Continue anyway; team delete may cascade
+            console.warn('Warning: deleting memberships failed, attempting to delete team anyway:', deleteMembershipsErr);
+        }
+
+        const { error: deleteTeamErr } = await supabase
+            .from('teams')
+            .delete()
+            .eq('id', teamId);
+        if (deleteTeamErr) {
+            return { success: false, error: `Failed to delete team: ${deleteTeamErr.message}` };
+        }
+
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: `Delete failed: ${error}` };
+    }
+}
+
+// Leaves a team (member only): removes the current user's membership row for the team
+export async function leaveTeam(teamId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+        // Ensure authenticated
+        const { context: user, error: authError } = await getAuthContext();
+        if (authError || !user?.isAuthenticated) {
+            return { success: false, error: 'User must be authenticated to leave a team' };
+        }
+
+        const supabase = await getSupabaseClient();
+
+        // Resolve Supabase auth user id (requires service role key)
+        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
+        if (authUserError) {
+            return { success: false, error: `Failed to get auth users: ${authUserError.message}` };
+        }
+        const authUser = authUsers.users.find((u: any) => u.email === user.email);
+        if (!authUser) {
+            return { success: false, error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        }
+
+        // Ensure the user is a member of this team
+        const { data: membership, error: membershipErr } = await supabase
+            .from('team_membership')
+            .select('role')
+            .eq('team_id', teamId)
+            .eq('user_id', authUser.id)
+            .maybeSingle();
+
+        if (membershipErr) {
+            return { success: false, error: `Failed to check membership: ${membershipErr.message}` };
+        }
+        if (!membership) {
+            return { success: false, error: 'You are not a member of this team' };
+        }
+        if (membership.role === 'admin') {
+            return { success: false, error: 'Team admins cannot leave the team they administer. Transfer admin role or delete the team.' };
+        }
+
+        // Delete the membership row
+        const { error: deleteErr } = await supabase
+            .from('team_membership')
+            .delete()
+            .eq('team_id', teamId)
+            .eq('user_id', authUser.id);
+
+        if (deleteErr) {
+            return { success: false, error: `Failed to leave team: ${deleteErr.message}` };
+        }
+
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: `Leave team failed: ${error}` };
     }
 }
