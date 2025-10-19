@@ -87,6 +87,26 @@
 		} else if (!copyJoinCodeBtn) {
 			console.log('Copy Join Code button not found');
 		}
+
+		const deleteTeamBtn = document.getElementById('deleteTeamBtn');
+		if (deleteTeamBtn && !deleteTeamBtn.hasAttribute('data-listener-added')) {
+			deleteTeamBtn.addEventListener('click', function() {
+				console.log('Delete Team button clicked');
+				post('deleteTeam');
+			});
+			deleteTeamBtn.setAttribute('data-listener-added', 'true');
+			console.log('Delete Team button listener added');
+		}
+
+		const leaveTeamBtn = document.getElementById('leaveTeamBtn');
+		if (leaveTeamBtn && !leaveTeamBtn.hasAttribute('data-listener-added')) {
+			leaveTeamBtn.addEventListener('click', function() {
+				console.log('Leave Team button clicked');
+				post('leaveTeam');
+			});
+			leaveTeamBtn.setAttribute('data-listener-added', 'true');
+			console.log('Leave Team button listener added');
+		}
 	}
 	
 	function copyJoinCode() {
@@ -189,6 +209,8 @@
 		const teamRole = document.getElementById('teamRole');
 		const teamJoinCode = document.getElementById('teamJoinCode');
 		const joinCodeSection = document.getElementById('joinCodeSection');
+		const deleteTeamBtn = document.getElementById('deleteTeamBtn');
+		const leaveTeamBtn = document.getElementById('leaveTeamBtn');
 		
 		if (teamName) teamName.textContent = team?.name ?? '—';
 		if (teamRole) teamRole.textContent = team?.role ?? '—';
@@ -201,6 +223,15 @@
 			} else {
 				teamJoinCode.textContent = '—';
 				joinCodeSection.style.display = 'none';
+			}
+
+
+			// Show delete button only for Admin; show leave button only for Member
+			if (deleteTeamBtn) {
+				deleteTeamBtn.style.display = (team?.name && team?.role === 'Admin') ? 'inline-block' : 'none';
+			}
+			if (leaveTeamBtn) {
+				leaveTeamBtn.style.display = (team?.name && team?.role === 'Member') ? 'inline-block' : 'none';
 			}
 		}
 	}
