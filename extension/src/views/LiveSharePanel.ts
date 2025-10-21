@@ -1085,93 +1085,141 @@ export class LiveShareManager {
      * Registers a shared service for host-guest communication (host only).
      * Enables guests to receive session info and participant updates.
      */
+    /**
+     * Registers a shared service for host-guest communication (host only).
+     * Enables guests to receive session info and participant updates.
+     */
     private async registerSessionInfoServiceIfHost() {
         try {
             console.log('[registerSessionInfoServiceIfHost] Attempting to register shared service.');
             if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Host)) {
+                console.log('[registerSessionInfoServiceIfHost] Not host or no active session');
                 return;
             }
             if (this._sharedService) {
+                console.log('[registerSessionInfoServiceIfHost] Shared service already registered.');
                 return;
             }
+
             const anyApi: any = this._liveShareApi as any;
-            const hostShareFn = anyApi.shareService || anyApi.registerService;
-            if (typeof hostShareFn === 'function') {
-                this._sharedService = await hostShareFn.call(anyApi, this._sharedServiceName);
-                if (this._sharedService) {
-                    console.log(`[registerSessionInfoServiceIfHost] Shared service "${this._sharedServiceName}" registered successfully.`);
-                    if (typeof this._sharedService.onRequest === 'function') {
-                        this._sharedService.onRequest('getSessionInfo', async () => {
-                            console.log('[registerSessionInfoServiceIfHost] Received getSessionInfo request.');
-                            return { startTime: this.sessionStartTime?.toISOString() || new Date().toISOString() };
-                        });
-                        this._sharedService.onRequest('announceParticipant', async (payload: any) => {
-                            try {
-                                const key: string = (payload?.id || payload?.email || '').toLowerCase();
-                                const name: string = payload?.displayName || '';
-                                if (key && name) {
-                                    this._participantNameMap.set(key, name);
-                                    this.updateParticipantInfo();
-                                }
-                                return { ok: true };
-                            } catch {
-                                return { ok: false };
+
+            // Debug logging
+            console.log('[registerSessionInfoServiceIfHost] API object keys:', Object.keys(anyApi));
+            console.log('[registerSessionInfoServiceIfHost] API object properties:', Object.getOwnPropertyNames(anyApi));
+            console.log('[registerSessionInfoServiceIfHost] Has shareService?', 'shareService' in anyApi);
+            console.log('[registerSessionInfoServiceIfHost] Type of shareService:', typeof anyApi.shareService);
+            console.log('[registerSessionInfoServiceIfHost] Existing sharedServices:', anyApi.sharedServices);
+            console.log('[registerSessionInfoServiceIfHost] Existing services:', anyApi.services);
+            console.log('[registerSessionInfoServiceIfHost] Service name to register:', this._sharedServiceName);
+
+            // Try to register the service
+            console.log('[registerSessionInfoServiceIfHost] Attempting to register with service object...');
+
+            // Create a service implementation object
+            const serviceImpl = {
+                name: this._sharedServiceName,
+                methods: ['getSessionInfo', 'getParticipants', 'announceParticipant']
+            };
+
+            // Try different registration approaches
+            if (typeof anyApi.shareService === 'function') {
+                console.log('[registerSessionInfoServiceIfHost] Trying shareService with implementation object');
+                this._sharedService = await anyApi.shareService(this._sharedServiceName, serviceImpl);
+                console.log('[registerSessionInfoServiceIfHost] Result with impl object:', this._sharedService ? 'SUCCESS' : 'UNDEFINED');
+            }
+
+            // If still undefined, try without the service impl
+            if (!this._sharedService && typeof anyApi.shareService === 'function') {
+                console.log('[registerSessionInfoServiceIfHost] Trying shareService with just name');
+                this._sharedService = await anyApi.shareService(this._sharedServiceName);
+                console.log('[registerSessionInfoServiceIfHost] Result with just name:', this._sharedService ? 'SUCCESS' : 'UNDEFINED');
+            }
+
+            // Last resort: try getSharedService instead of shareService
+            if (!this._sharedService && typeof anyApi.getSharedService === 'function') {
+                console.log('[registerSessionInfoServiceIfHost] Trying getSharedService');
+                this._sharedService = await anyApi.getSharedService(this._sharedServiceName);
+                console.log('[registerSessionInfoServiceIfHost] Result from getSharedService:', this._sharedService ? 'SUCCESS' : 'UNDEFINED');
+            }
+
+            // If we successfully registered, set up handlers
+            if (this._sharedService) {
+                console.log(`[registerSessionInfoServiceIfHost] Shared service "${this._sharedServiceName}" registered successfully.`);
+
+                if (typeof this._sharedService.onRequest === 'function') {
+                    this._sharedService.onRequest('getSessionInfo', async () => {
+                        console.log('[registerSessionInfoServiceIfHost] Received getSessionInfo request.');
+                        return { startTime: this.sessionStartTime?.toISOString() || new Date().toISOString() };
+                    });
+
+                    this._sharedService.onRequest('announceParticipant', async (payload: any) => {
+                        try {
+                            const key: string = (payload?.id || payload?.email || '').toLowerCase();
+                            const name: string = payload?.displayName || '';
+                            if (key && name) {
+                                this._participantNameMap.set(key, name);
+                                this.updateParticipantInfo();
                             }
-                        });
-                        this._sharedService.onRequest('getParticipants', async () => {
-                            try {
-                                const peers = (this._liveShareApi?.peers || []).filter(Boolean);
-                                const participantCount = peers.length + 1;
-                                const participants: any[] = [];
-                                let selfName = getCachedDisplayName();
-                                if (!selfName) {
-                                    try {
-                                        const r = await getOrInitDisplayName(true);
-                                        selfName = r.displayName;
-                                    } catch {
-                                        selfName = undefined;
-                                    }
+                            return { ok: true };
+                        } catch {
+                            return { ok: false };
+                        }
+                    });
+
+                    this._sharedService.onRequest('getParticipants', async () => {
+                        try {
+                            const peers = (this._liveShareApi?.peers || []).filter(Boolean);
+                            const participantCount = peers.length + 1;
+                            const participants: any[] = [];
+                            let selfName = getCachedDisplayName();
+                            if (!selfName) {
+                                try {
+                                    const r = await getOrInitDisplayName(true);
+                                    selfName = r.displayName;
+                                } catch {
+                                    selfName = undefined;
                                 }
+                            }
+                            participants.push({
+                                name: selfName || this._liveShareApi?.session?.user?.displayName || 'You',
+                                email: this._liveShareApi?.session?.user?.emailAddress || '',
+                                role: 'Host'
+                            });
+                            for (const peer of peers) {
                                 participants.push({
-                                    name: selfName || this._liveShareApi?.session?.user?.displayName || 'You',
-                                    email: this._liveShareApi?.session?.user?.emailAddress || '',
-                                    role: 'Host'
+                                    name: peer?.user?.displayName || 'Unknown',
+                                    email: peer?.user?.emailAddress || '',
+                                    role: 'Guest'
                                 });
-                                for (const peer of peers) {
-                                    participants.push({
-                                        name: peer?.user?.displayName || 'Unknown',
-                                        email: peer?.user?.emailAddress || '',
-                                        role: 'Guest'
-                                    });
-                                }
-                                return {
-                                    count: participantCount,
-                                    participants,
-                                    duration: this.getSessionDuration()
-                                };
-                            } catch (e) {
-                                return { count: 1, participants: [], duration: this.getSessionDuration() };
                             }
-                        });
-                    } else {
-                        console.warn('[registerSessionInfoServiceIfHost] Shared service has no onRequest method.');
-                    }
-                    if (typeof this._sharedService.onNotify === 'function') {
-                        this._sharedService.onNotify('announceParticipant', (payload: any, sender?: any) => {
-                            try {
-                                const fromSender = sender && (sender.user?.emailAddress || sender.user?.id || sender.id);
-                                const key: string = (payload?.email || payload?.id || fromSender || '').toLowerCase();
-                                const name: string = payload?.displayName || payload?.name || '';
-                                if (key && name) {
-                                    this._participantNameMap.set(key, name);
-                                    this.updateParticipantInfo();
-                                }
-                            } catch {}
-                        });
-                    }
-                    } else {
-                    console.warn('[registerSessionInfoServiceIfHost] shareService() returned undefined.');
+                            return {
+                                count: participantCount,
+                                participants,
+                                duration: this.getSessionDuration()
+                            };
+                        } catch (e) {
+                            return { count: 1, participants: [], duration: this.getSessionDuration() };
+                        }
+                    });
+                } else {
+                    console.warn('[registerSessionInfoServiceIfHost] Shared service has no onRequest method.');
                 }
+
+                if (typeof this._sharedService.onNotify === 'function') {
+                    this._sharedService.onNotify('announceParticipant', (payload: any, sender?: any) => {
+                        try {
+                            const fromSender = sender && (sender.user?.emailAddress || sender.user?.id || sender.id);
+                            const key: string = (payload?.email || payload?.id || fromSender || '').toLowerCase();
+                            const name: string = payload?.displayName || payload?.name || '';
+                            if (key && name) {
+                                this._participantNameMap.set(key, name);
+                                this.updateParticipantInfo();
+                            }
+                        } catch { }
+                    });
+                }
+            } else {
+                console.warn('[registerSessionInfoServiceIfHost] All registration attempts failed - shareService() returned undefined.');
             }
         } catch (err) {
             console.warn('Failed to register session info service (non-fatal):', err);
