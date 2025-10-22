@@ -32,4 +32,4 @@ Good for VS Code extension testing (webviews, commands, extension lifecycle).
 
 Easy to use in CI/CD pipelines.
 
-[View Coverage Report](https://capstone-projects-2025-fall.github.io/project-collabagent01/test-coverage/index.html)
+[View Coverage Report](/test-coverage/index.html)

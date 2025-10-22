@@ -17,7 +17,29 @@ jobs:
       - uses: actions/checkout@v3
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Install
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install extension dependencies
+        run: |
+          cd extension
+          npm ci
+
+      - name: Run tests with coverage
+        run: |
+          cd extension
+          npm run test:coverage
+
+      - name: Copy coverage report to documentation
+        run: |
+          cd extension
+          node copy-coverage.js
+
+      - name: Install documentation dependencies
         run: cd documentation && yarn install
 
       - name: Deploy
@@ -27,3 +49,4 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cd documentation && NODE_ENV="production" GIT_USER="github-actions[bot]" GIT_PASS="${{ secrets.GITHUB_TOKEN }}" yarn deploy
+file under .github/
