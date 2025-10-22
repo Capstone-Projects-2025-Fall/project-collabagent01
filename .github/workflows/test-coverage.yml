@@ -1,0 +1,62 @@
+name: Test Coverage Report
+
+on:
+  push:
+    branches: [ "main", "develop" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install extension dependencies
+        run: |
+          cd extension
+          npm ci
+
+      - name: Run tests with coverage
+        run: |
+          cd extension
+          npm run test:coverage
+
+      - name: Copy coverage report to documentation
+        run: |
+          cd extension
+          node copy-coverage.js
+
+      - name: Commit and push coverage report
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          
+          # Check if there are changes to commit
+          if git diff --quiet; then
+            echo "No changes to commit"
+          else
+            git add documentation/static/test-coverage/
+            git commit -m "Update test coverage report [skip ci]"
+            git push
+          fi
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: documentation/static/test-coverage/
+          retention-days: 30
