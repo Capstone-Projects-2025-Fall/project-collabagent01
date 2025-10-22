@@ -1,8 +1,6 @@
 name: Test Coverage Report
 
 on:
-  push:
-    branches: [ "main", "develop" ]
   pull_request:
     branches: [ "main" ]
   workflow_dispatch: # Allow manual triggering
@@ -40,19 +38,11 @@ jobs:
           cd extension
           node copy-coverage.js
 
-      - name: Commit and push coverage report
+      - name: Generate coverage report
         run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          
-          # Check if there are changes to commit
-          if git diff --quiet; then
-            echo "No changes to commit"
-          else
-            git add documentation/static/test-coverage/
-            git commit -m "Update test coverage report [skip ci]"
-            git push
-          fi
+          echo "Coverage report generated successfully"
+          echo "Files in coverage directory:"
+          ls -la documentation/static/test-coverage/ || echo "No coverage files found"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
