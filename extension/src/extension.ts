@@ -12,7 +12,7 @@ import {
   openTeamProjectCommand 
 } from './commands/team-project-commands';
 import { getCurrentProjectInfo } from './services/project-detection-service';
-import { SnapshotManager } from './snapshotManager';
+import { SnapshotManager } from './views/snapshotManager';
 
 /** Global extension context for state management */
 export let globalContext: vscode.ExtensionContext;

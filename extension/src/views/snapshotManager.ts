@@ -2,7 +2,7 @@
 import * as vscode from "vscode";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { diffLines } from "diff";
-import { getCurrentUserId } from "./services/auth-service";
+import { getCurrentUserId } from "../services/auth-service";
 
 export class SnapshotManager {
   private supabase: SupabaseClient;
