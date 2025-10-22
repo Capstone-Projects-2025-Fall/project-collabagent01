@@ -166,6 +166,10 @@ export class LiveShareManager {
                     const session = this._liveShareApi?.session;
                     if (session?.id) {
                         console.log('[onDidChangePeers] Loading participants from Supabase for session:', session.id);
+                        
+                        // Wait a moment for the guest to announce their presence in Supabase
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        
                         await this.loadParticipantsFromSupabase(session.id);
                     } else {
                         // Fallback to old method if no session ID
@@ -691,11 +695,23 @@ export class LiveShareManager {
     private startParticipantMonitoring() {
         this.stopParticipantMonitoring();
         
-        this.participantMonitoringInterval = setInterval(() => {
-            this.updateParticipantInfo();
+        this.participantMonitoringInterval = setInterval(async () => {
+            // Use Supabase data instead of Live Share API
+            const session = this._liveShareApi?.session;
+            if (session?.id) {
+                await this.loadParticipantsFromSupabase(session.id);
+            } else {
+                this.updateParticipantInfo();
+            }
         }, 2000);
 
-        this.updateParticipantInfo();
+        // Initial load
+        const session = this._liveShareApi?.session;
+        if (session?.id) {
+            this.loadParticipantsFromSupabase(session.id);
+        } else {
+            this.updateParticipantInfo();
+        }
     }
 
     /**
