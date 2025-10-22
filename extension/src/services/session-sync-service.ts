@@ -30,7 +30,10 @@ export class SessionSyncService {
                     peer_number: peerNumber,
                     joined_at: new Date().toISOString(),
                     left_at: null
+                }, { 
+                    onConflict: 'session_id,user_id'
                 });
+        
 
             if (error) {
                 console.error('[SessionSync] Failed to announce presence:', error);
