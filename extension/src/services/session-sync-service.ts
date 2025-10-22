@@ -118,7 +118,7 @@ export class SessionSyncService {
     }
 
     /**
-     * Leave the session
+     * Leave the session - deletes the participant record
      */
     async leaveSession() {
         if (!this.sessionId) return;
@@ -129,22 +129,54 @@ export class SessionSyncService {
             const { data: { user } } = await supabase.auth.getUser();
             if (!user) return;
 
-            // Mark as left
-            await supabase
+            // Delete the participant record
+            const { error } = await supabase
                 .from('session_participants')
-                .update({ left_at: new Date().toISOString() })
+                .delete()
                 .eq('session_id', this.sessionId)
                 .eq('user_id', user.id);
+
+            if (error) {
+                console.error('[SessionSync] Error deleting participant record:', error);
+            } else {
+                console.log('[SessionSync] Successfully left session and removed from participants');
+            }
 
             // Unsubscribe
             if (this.channel) {
                 await this.channel.unsubscribe();
                 this.channel = undefined;
             }
-
-            console.log('[SessionSync] Left session');
         } catch (err) {
             console.error('[SessionSync] Error leaving session:', err);
+        }
+    }
+
+    /**
+     * Cleanup all participants for a session (host ending session)
+     */
+    async cleanupSession(sessionId: string) {
+        const supabase = getSupabase();
+
+        try {
+            const { error } = await supabase
+                .from('session_participants')
+                .delete()
+                .eq('session_id', sessionId);
+
+            if (error) {
+                console.error('[SessionSync] Error cleaning up session:', error);
+            } else {
+                console.log('[SessionSync] Successfully cleaned up all participants for session:', sessionId);
+            }
+
+            // Unsubscribe if this was our session
+            if (this.sessionId === sessionId && this.channel) {
+                await this.channel.unsubscribe();
+                this.channel = undefined;
+            }
+        } catch (err) {
+            console.error('[SessionSync] Error cleaning up session:', err);
         }
     }
 }

@@ -617,6 +617,13 @@ export class LiveShareManager {
             }
 
             console.log('Calling end() on Live Share API...');
+            
+            // Cleanup all participants from Supabase before ending
+            const sessionId = this._liveShareApi.session.id;
+            if (sessionId) {
+                await this._sessionSyncService.cleanupSession(sessionId);
+            }
+            
             // End the session
             await this._liveShareApi.end();
             console.log('Live Share end() completed');
