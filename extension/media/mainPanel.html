@@ -21,9 +21,11 @@
 <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
 <script nonce="{{NONCE}}">
 (function(){
-    // Get auth state from template replacement
+    // Get auth state and Live Share install state from template replacement
     var authValue = '{{IS_AUTHENTICATED}}';
+    var lsInstalledValue = '{{LIVESHARE_INSTALLED}}';
     let isAuthenticated = authValue === 'true';
+    let liveShareInstalled = lsInstalledValue === 'true';
     
     function showTab(tab) {
         document.getElementById('panel-home').style.display = tab==='home' ? 'block' : 'none';
@@ -48,6 +50,12 @@
     }
     
     function handleTabClick(tab, element) {
+        // If Live Share isn't installed, block Live and Agent tabs and prompt install
+        if ((tab === 'live' || tab === 'agent') && !liveShareInstalled) {
+            showTooltip(element, 'Live Share not installed. Click Home to install.');
+            return;
+        }
+        // If user not authenticated, block Live and Agent tabs and prompt login
         if ((tab === 'live' || tab === 'agent') && !isAuthenticated) {
             return; // Don't switch tab if not authenticated
         }
@@ -65,6 +73,10 @@
         handleTabClick('live', this); 
     });
     liveTab.addEventListener('mouseenter', function() {
+        if (!liveShareInstalled) {
+            showTooltip(this, 'Live Share extension not installed. Please install it from the Marketplace.');
+            return;
+        }
         if (!isAuthenticated) {
             showTooltip(this, 'Please log in first');
         }
@@ -77,6 +89,10 @@
         handleTabClick('agent', this); 
     });
     agentTab.addEventListener('mouseenter', function() {
+        if (!liveShareInstalled) {
+            showTooltip(this, 'Live Share extension not installed. Please install it from the Marketplace.');
+            return;
+        }
         if (!isAuthenticated) {
             showTooltip(this, 'Please login first');
         }
@@ -108,8 +124,8 @@
         }
     });
     
-    // Set initial disabled state for non-authenticated users
-    if (!isAuthenticated) {
+    // Set initial disabled state for non-authenticated users or when Live Share missing
+    if (!isAuthenticated || !liveShareInstalled) {
         document.getElementById('tab-live').classList.add('disabled');
         document.getElementById('tab-agent').classList.add('disabled');
     }
