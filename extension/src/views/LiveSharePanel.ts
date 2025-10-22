@@ -1,3 +1,4 @@
+import { SessionSyncService } from '../services/session-sync-service';
 import * as vscode from 'vscode';
 // Live Share is optional; only require if present to avoid activation failure
 let vsls: typeof import('vsls') | undefined;
@@ -33,6 +34,8 @@ export class LiveShareManager {
     //Map of participant user IDs/emails to their display names
     private _participantNameMap: Map<string, string> = new Map();
 
+    private _sessionSyncService: SessionSyncService;
+
     //Key for persisting manual invite links in global state
     private readonly _persistedLinkKey = 'collabAgent.manualInviteLink';
 
@@ -54,12 +57,15 @@ export class LiveShareManager {
     //Reference to the webview view for sending messages
     private _view?: vscode.WebviewView;
 
+    
+
     /**
      * Creates a new LiveShareManager instance.
      * 
      * @param _context - The extension context for state management
      */
     constructor(private readonly _context: vscode.ExtensionContext) {
+        this._sessionSyncService = new SessionSyncService();
     }
 
     /**
@@ -191,6 +197,15 @@ export class LiveShareManager {
                 this.sessionStartTime = new Date();
                 console.log('Session start time set to (local clock):', this.sessionStartTime, 'changeType:', sessionChangeEvent.changeType);
             }
+
+            if (session.id) {
+                // Announce presence via Supabase
+                this.announcePresenceViaSupabase(session);
+
+                // Load all participants from Supabase
+                this.loadParticipantsFromSupabase(session.id);
+            }
+
             if (session.role === (vsls?.Role?.Host)) {
                 this.registerSessionInfoServiceIfHost();
             } else if (session.role === (vsls?.Role?.Guest) && !this._requestedHostStartTime) {
@@ -247,6 +262,7 @@ export class LiveShareManager {
             this.startParticipantMonitoring();
         } else {
             console.log('Session ended - clearing session start time');
+            this._sessionSyncService.leaveSession(); 
             this.sessionStartTime = undefined;
             this.stopDurationUpdater();
             this.clearManualInviteLink();
@@ -1103,7 +1119,7 @@ export class LiveShareManager {
 
             const anyApi: any = this._liveShareApi as any;
 
-            // Debug logging
+            // Debugging 
             console.log('[registerSessionInfoServiceIfHost] API object keys:', Object.keys(anyApi));
             console.log('[registerSessionInfoServiceIfHost] API object properties:', Object.getOwnPropertyNames(anyApi));
             console.log('[registerSessionInfoServiceIfHost] Has shareService?', 'shareService' in anyApi);
@@ -1121,7 +1137,7 @@ export class LiveShareManager {
                 methods: ['getSessionInfo', 'getParticipants', 'announceParticipant']
             };
 
-            // Try different registration approaches
+            // Trying different registration approaches
             if (typeof anyApi.shareService === 'function') {
                 console.log('[registerSessionInfoServiceIfHost] Trying shareService with implementation object');
                 this._sharedService = await anyApi.shareService(this._sharedServiceName, serviceImpl);
@@ -1135,14 +1151,14 @@ export class LiveShareManager {
                 console.log('[registerSessionInfoServiceIfHost] Result with just name:', this._sharedService ? 'SUCCESS' : 'UNDEFINED');
             }
 
-            // Last resort: try getSharedService instead of shareService
+            // If still not working, try getSharedService instead of shareService
             if (!this._sharedService && typeof anyApi.getSharedService === 'function') {
                 console.log('[registerSessionInfoServiceIfHost] Trying getSharedService');
                 this._sharedService = await anyApi.getSharedService(this._sharedServiceName);
                 console.log('[registerSessionInfoServiceIfHost] Result from getSharedService:', this._sharedService ? 'SUCCESS' : 'UNDEFINED');
             }
 
-            // If we successfully registered, set up handlers
+            // If successfully registered, set up handlers
             if (this._sharedService) {
                 console.log(`[registerSessionInfoServiceIfHost] Shared service "${this._sharedServiceName}" registered successfully.`);
 
@@ -1304,6 +1320,62 @@ export class LiveShareManager {
                 });
             }
         }, 30000);
+    }
+
+    /**
+ * Announce your presence in the session via Supabase
+ */
+    private async announcePresenceViaSupabase(session: any) {
+        try {
+            const displayName = getCachedDisplayName();
+            if (!displayName) {
+                console.log('[SessionSync] No display name cached, getting from Supabase...');
+                const result = await getOrInitDisplayName(true);
+                if (result.displayName) {
+                    await this._sessionSyncService.joinSession(
+                        session.id,
+                        result.displayName,
+                        session.peerNumber || 0
+                    );
+                }
+            } else {
+                await this._sessionSyncService.joinSession(
+                    session.id,
+                    displayName,
+                    session.peerNumber || 0
+                );
+            }
+        } catch (err) {
+            console.error('[SessionSync] Failed to announce presence:', err);
+        }
+    }
+
+    /**
+     * Load all participants from Supabase and update UI
+     */
+    private async loadParticipantsFromSupabase(sessionId: string) {
+        try {
+            const participants = await this._sessionSyncService.getParticipants(sessionId);
+            console.log('[SessionSync] Loaded participants from Supabase:', participants);
+
+            // Convert to UI format
+            const participantList = participants.map(p => ({
+                name: p.github_username,
+                email: '',
+                role: p.peer_number === 1 ? 'Host' : 'Guest'
+            }));
+
+            // Update UI
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateParticipants',
+                    participants: participantList,
+                    count: participantList.length
+                });
+            }
+        } catch (err) {
+            console.error('[SessionSync] Failed to load participants:', err);
+        }
     }
 
     /**
