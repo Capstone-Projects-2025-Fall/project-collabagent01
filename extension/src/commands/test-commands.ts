@@ -1,6 +1,4 @@
 import * as vscode from "vscode";
-import { fetchSuggestions } from "../api/suggestion-api";
-import { getIncorrectChoices } from "../services/incorrect-tracker-service";
 import { checkUserSignIn } from "../services/auth-service";
 
 /**
