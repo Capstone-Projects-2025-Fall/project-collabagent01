@@ -49,4 +49,3 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           cd documentation && NODE_ENV="production" GIT_USER="github-actions[bot]" GIT_PASS="${{ secrets.GITHUB_TOKEN }}" yarn deploy
-file under .github/
