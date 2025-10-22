@@ -32,7 +32,7 @@ export class SessionSyncService {
                     joined_at: new Date().toISOString(),
                     left_at: null
                 }, { 
-                    onConflict: 'session_id,user_id'
+                    onConflict: 'session_id,peer_number'
                 });
         
 
