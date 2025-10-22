@@ -31,6 +31,7 @@ export async function getOrInitDisplayName(nonInteractive = false): Promise<Disp
   if (cached) {
     return { displayName: cached, source: 'cached' };
   }
+  
   // 2. Try Supabase auth user metadata.
   try {
     console.log('[getOrInitDisplayName] Attempting to get Supabase client...');
@@ -41,10 +42,20 @@ export async function getOrInitDisplayName(nonInteractive = false): Promise<Disp
     console.log('[getOrInitDisplayName] getUser result - data:', !!data, 'error:', error);
     const user = data?.user;
     console.log('[getOrInitDisplayName] User exists:', !!user);
+    
     if (user?.user_metadata) {
       const meta = user.user_metadata as any;
       console.log('[getOrInitDisplayName] User metadata keys:', Object.keys(meta));
-      const candidate = meta.user_name || meta.preferred_username || meta.full_name || meta.name || user.email || undefined;
+      
+      // Try multiple possible GitHub metadata fields
+      const candidate = meta.user_name 
+        || meta.preferred_username 
+        || meta.full_name 
+        || meta.name 
+        || meta.login  // GitHub login name
+        || meta.nickname
+        || (user.email ? user.email.split('@')[0] : undefined); // Email username as fallback
+        
       if (candidate) {
         console.log('[getOrInitDisplayName] Found name from Supabase:', candidate);
         await globalContext.globalState.update(DISPLAY_NAME_KEY, candidate);
@@ -58,7 +69,36 @@ export async function getOrInitDisplayName(nonInteractive = false): Promise<Disp
   } catch (e) {
     console.error('[getOrInitDisplayName] Error fetching user from Supabase:', e);
   }
-  // 3. Optionally prompt user (unless nonInteractive)
+  
+  // 3. Try to get from git config as fallback
+  try {
+    const gitConfigPath = require('os').homedir() + '/.gitconfig';
+    const data = await vscode.workspace.fs.readFile(vscode.Uri.file(gitConfigPath));
+    const content = Buffer.from(data).toString();
+    const match = content.match(/name\s*=\s*(.+)/);
+    if (match && match[1].trim()) {
+      const gitName = match[1].trim();
+      console.log('[getOrInitDisplayName] Found name from git config:', gitName);
+      await globalContext.globalState.update(DISPLAY_NAME_KEY, gitName);
+      return { displayName: gitName, source: 'fallback' };
+    }
+  } catch (e) {
+    console.log('[getOrInitDisplayName] Could not read git config:', e);
+  }
+  
+  // 4. Try system username
+  try {
+    const systemUsername = require('os').userInfo().username;
+    if (systemUsername) {
+      console.log('[getOrInitDisplayName] Using system username:', systemUsername);
+      await globalContext.globalState.update(DISPLAY_NAME_KEY, systemUsername);
+      return { displayName: systemUsername, source: 'fallback' };
+    }
+  } catch (e) {
+    console.log('[getOrInitDisplayName] Could not get system username:', e);
+  }
+  
+  // 5. Optionally prompt user (unless nonInteractive)
   if (!nonInteractive) {
     const input = await vscode.window.showInputBox({
       title: 'Set Display Name',
@@ -71,8 +111,9 @@ export async function getOrInitDisplayName(nonInteractive = false): Promise<Disp
       return { displayName: input.trim(), source: 'prompt' };
     }
   }
-  // 4. Final fallback.
-  return { displayName: 'You', source: 'fallback' };
+  
+  // 6. Final fallback.
+  return { displayName: 'User', source: 'fallback' };
 }
 
 /**

@@ -66,6 +66,40 @@ export class LiveShareManager {
      */
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._sessionSyncService = new SessionSyncService();
+        
+        // Set up callback for real time participant updates from Supabase
+        this._sessionSyncService.setOnParticipantChange((participants) => {
+            console.log('[LiveShareManager] Received participant update from Supabase:', participants);
+            
+            // Convert to UI format
+            const participantList = participants.map(p => ({
+                name: p.github_username || 'Unknown',
+                email: '',
+                role: p.peer_number === 1 ? 'Host' : 'Guest'
+            }));
+
+            // Update UI
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateParticipants',
+                    participants: participantList,
+                    count: participantList.length
+                });
+
+                // Also update session status with correct count
+                const session = this._liveShareApi?.session;
+                if (session) {
+                    this._view.webview.postMessage({
+                        command: 'updateSessionStatus',
+                        status: session.role === (vsls?.Role?.Host) ? 'hosting' : 'joined',
+                        link: this._sessionLink || '',
+                        participants: participantList.length,
+                        role: session.role,
+                        duration: this.getSessionDuration()
+                    });
+                }
+            }
+        });
     }
 
     /**
@@ -399,7 +433,7 @@ export class LiveShareManager {
 
             // Convert to UI format
             const participantList = participants.map(p => ({
-                name: p.github_username,
+                name: p.github_username || 'Unknown',
                 email: '',
                 role: p.peer_number === 1 ? 'Host' : 'Guest'
             }));
@@ -411,6 +445,19 @@ export class LiveShareManager {
                     participants: participantList,
                     count: participantList.length
                 });
+
+                // Also update session status with correct count
+                const session = this._liveShareApi?.session;
+                if (session) {
+                    this._view.webview.postMessage({
+                        command: 'updateSessionStatus',
+                        status: session.role === (vsls?.Role?.Host) ? 'hosting' : 'joined',
+                        link: this._sessionLink || '',
+                        participants: participantList.length,
+                        role: session.role,
+                        duration: this.getSessionDuration()
+                    });
+                }
             }
         } catch (err) {
             console.error('[SessionSync] Failed to load participants:', err);
@@ -663,7 +710,6 @@ export class LiveShareManager {
 
         const session = this._liveShareApi.session;
         const isHost = session.role === (vsls?.Role?.Host);
-        const isGuest = session.role === (vsls?.Role?.Guest);
 
         console.log(`[updateParticipantInfo] Triggered. Role=${session.role}, Peer count=${this._liveShareApi.peers?.length || 0}`);
 
@@ -725,7 +771,7 @@ export class LiveShareManager {
             participants.push({
                 name: selfResolvedName,
                 email: session.user?.emailAddress || '',
-                role: isHost ? 'Host' : 'Guest'  // ← FIXED: Use actual role
+                role: isHost ? 'Host' : 'Guest'  
             });
 
             // Add peers
@@ -771,7 +817,7 @@ export class LiveShareManager {
 
                 this._view.webview.postMessage({
                     command: 'updateSessionStatus',
-                    status: isHost ? 'hosting' : 'joined',  // ← FIXED: Use actual status
+                    status: isHost ? 'hosting' : 'joined',  
                     link: this._sessionLink || '',
                     participants: participantCount,
                     role: session.role,

@@ -4,6 +4,7 @@ import { RealtimeChannel } from '@supabase/supabase-js';
 export class SessionSyncService {
     private channel?: RealtimeChannel;
     private sessionId?: string;
+    private onParticipantChangeCallback?: (participants: any[]) => void;
     
     /**
      * Join a session and announce your presence
@@ -78,9 +79,21 @@ export class SessionSyncService {
     /**
      * Handle participant changes from Supabase
      */
-    private handleParticipantChange(payload: any) {
-        // We'll implement this next - it will update the UI
+    private async handleParticipantChange(payload: any) {
         console.log('[SessionSync] New/updated participant:', payload.new);
+        
+        // Reload all participants and notify callback
+        if (this.sessionId && this.onParticipantChangeCallback) {
+            const participants = await this.getParticipants(this.sessionId);
+            this.onParticipantChangeCallback(participants);
+        }
+    }
+
+    /**
+     * Set callback for participant changes
+     */
+    setOnParticipantChange(callback: (participants: any[]) => void) {
+        this.onParticipantChangeCallback = callback;
     }
 
     /**
