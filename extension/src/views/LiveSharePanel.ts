@@ -19,20 +19,11 @@ export class LiveShareManager {
     //Live Share API instance (optional)
     private _liveShareApi?: any | null = null;
     
-    //Name of the shared service for propagating session metadata between participants
-    private readonly _sharedServiceName = 'collabAgentSessionInfo';
-    
-    //Shared service instance for host-guest communication
-    private _sharedService: any | undefined;
-    
     //Current session invite link for persistence and display
     private _sessionLink: string | undefined;
     
     //Flag to track if initial session check has been completed
     private _initialSessionCheckDone = false;
-    
-    //Map of participant user IDs/emails to their display names
-    private _participantNameMap: Map<string, string> = new Map();
 
     private _sessionSyncService: SessionSyncService;
 
@@ -45,14 +36,8 @@ export class LiveShareManager {
     //Timestamp when the current session started
     private sessionStartTime?: Date;
     
-    //Flag to prevent duplicate requests for host session start time
-    private _requestedHostStartTime = false;
-    
     //Interval timer for pushing duration updates to the UI
     private _durationUpdateInterval?: NodeJS.Timeout;
-    
-    //Number of retry attempts for fetching host session start time
-    private _hostStartTimeRetryCount = 0;
 
     //Reference to the webview view for sending messages
     private _view?: vscode.WebviewView;
@@ -127,11 +112,6 @@ export class LiveShareManager {
             console.log('Live Share API initialized successfully.');
             
             this.setupLiveShareEventListeners();
-
-            if (this._liveShareApi?.session?.role === (vsls?.Role?.Guest)) {
-                console.log('[initializeLiveShare] Guest detected, setting up participantUpdate listener.');
-                this.setupGuestParticipantListener();
-            }
             
             return true;
         } else {
@@ -171,101 +151,10 @@ export class LiveShareManager {
                         await new Promise(resolve => setTimeout(resolve, 1000));
                         
                         await this.loadParticipantsFromSupabase(session.id);
-                    } else {
-                        // Fallback to old method if no session ID
-                        this.updateParticipantInfo();
-                    }
-                    
-                    if (this._liveShareApi?.session?.role === (vsls?.Role?.Guest)) {
-                        this.updateGuestParticipantFallback();
                     }
                 });
             } else {
                 console.warn('Live Share API does not expose onDidChangePeers in this environment. Falling back to polling only.');
-            }
-
-            if (typeof (this._liveShareApi as any).onActivity === 'function') {
-                (this._liveShareApi as any).onActivity((activity: any) => {
-                    try {
-                        // Log the full activity to see what data we get
-                        console.log('[Activity] Raw activity:', JSON.stringify(activity, null, 2));
-
-                        if (!activity) return;
-
-                        // Extract all possible data locations
-                        const activityName = activity.name || '';
-                        const activityData = activity.data || {};
-                        const activityArgs = activity.args || [];
-
-                        // Try to find user info in various locations
-                        let userName: string | undefined;
-                        let userIdentifier: string | undefined;
-
-                        // Check if this is a join/participant event
-                        if (/join|participant|peer/i.test(activityName)) {
-                            // Try to extract from various possible structures
-                            const possibleUserObjects = [
-                                activityData.user,
-                                activityData.peer?.user,
-                                activityData.participant,
-                                activityArgs[0]?.user,
-                                activityArgs[0]
-                            ].filter(Boolean);
-
-                            for (const userObj of possibleUserObjects) {
-                                // Try to get display name
-                                if (!userName) {
-                                    userName = userObj.displayName
-                                        || userObj.name
-                                        || userObj.userName
-                                        || userObj.loginName;
-                                }
-
-                                // Try to get identifier
-                                if (!userIdentifier) {
-                                    userIdentifier = userObj.emailAddress
-                                        || userObj.email
-                                        || userObj.id
-                                        || userObj.peerId;
-                                }
-
-                                if (userName && userIdentifier) break;
-                            }
-
-                            // Also check top-level activity properties
-                            if (!userName) {
-                                userName = activityData.displayName || activityData.name;
-                            }
-                            if (!userIdentifier) {
-                                userIdentifier = activityData.peerId || activityData.peerNumber?.toString();
-                            }
-
-                            // If we found both name and identifier, save it
-                            if (userName && userIdentifier) {
-                                const key = String(userIdentifier).toLowerCase();
-                                this._participantNameMap.set(key, userName);
-                                console.log(`[Activity] ✅ Captured participant: ${key} -> ${userName}`);
-
-                                // Also try peer number if available
-                                if (activityData.peerNumber) {
-                                    this._participantNameMap.set(`peer_${activityData.peerNumber}`, userName);
-                                    console.log(`[Activity] ✅ Also mapped peer_${activityData.peerNumber} -> ${userName}`);
-                                }
-
-                                // Trigger participant update
-                                setTimeout(() => this.updateParticipantInfo(), 300);
-                            } else {
-                                console.log('[Activity] ⚠️ Join event but could not extract name/identifier', {
-                                    userName,
-                                    userIdentifier,
-                                    activityData
-                                });
-                            }
-                        }
-                    } catch (err) {
-                        console.error('[Activity] Error processing activity:', err);
-                    }
-                });
             }
 
             this.monitorSessionState();
@@ -319,11 +208,6 @@ export class LiveShareManager {
                 this.loadParticipantsFromSupabase(session.id);
             }
 
-            if (session.role === (vsls?.Role?.Host)) {
-                this.registerSessionInfoServiceIfHost();
-            } else if (session.role === (vsls?.Role?.Guest) && !this._requestedHostStartTime) {
-                this.requestHostSessionStartTime();
-            }
 
             const isHost = session.role === (vsls?.Role?.Host);
             let status = 'joined';
@@ -332,8 +216,6 @@ export class LiveShareManager {
                 status = 'hosting';
             } else if (session.role === (vsls?.Role?.Guest)) {
                 status = 'joined';
-                this.setupGuestParticipantListener();
-                this.updateGuestParticipantFallback();
             }
             
             const sessionLink = session.uri?.toString() || this._sessionLink || '';
@@ -346,9 +228,6 @@ export class LiveShareManager {
                 const sessionPeerNum = typeof (session as any).peerNumber === 'number' ? (session as any).peerNumber : undefined;
                 const candidate = sessionPeerNum && sessionPeerNum >= 2 ? sessionPeerNum : participantCount;
                 participantCount = Math.max(2, candidate);
-            }
-            if (isHost && participantCount === 1) {
-                setTimeout(() => this.updateParticipantInfo(), 1000);
             }
             
             console.log('Sending updateSessionStatus message:', {
@@ -479,119 +358,6 @@ export class LiveShareManager {
     }
 
     /**
-     * Sets up participant update listeners for guests.
-     * Allows guests to receive real-time participant updates from the host.
-     */
-    private async setupGuestParticipantListener() {
-        try {
-            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Guest)) {
-                return;
-            }
-            const anyApi: any = this._liveShareApi;
-            const proxy = await anyApi.getSharedService(this._sharedServiceName);
-            if (!proxy) {
-                console.warn('[setupGuestParticipantListener] Could not obtain shared service proxy.');
-                return;
-            }
-
-            const attach = () => {
-                if (typeof proxy.onNotify === 'function') {
-                    console.log('[setupGuestParticipantListener] Attaching onNotify(participantUpdate).');
-                    proxy.onNotify('participantUpdate', (data: any) => {
-                        console.log('[onNotify:participantUpdate] Guest received participant update:', data);
-                        if (this._view) {
-                            this._view.webview.postMessage({
-                                command: 'updateParticipants',
-                                participants: data.participants,
-                                count: data.count
-                            });
-                            this._view.webview.postMessage({
-                                command: 'updateSessionStatus',
-                                status: 'joined',
-                                link: this._sessionLink || '',
-                                participants: data.count,
-                                role: this._liveShareApi?.session?.role,
-                                duration: data.duration
-                            });
-                        }
-                    });
-                }
-            };
-
-            if (proxy.isServiceAvailable) {
-                attach();
-                if (typeof proxy.request === 'function') {
-                    proxy.request('getParticipants').then((data: any) => {
-                        if (data && this._view) {
-                            this._view.webview.postMessage({
-                                command: 'updateParticipants',
-                                participants: data.participants,
-                                count: data.count
-                            });
-                            this._view.webview.postMessage({
-                                command: 'updateSessionStatus',
-                                status: 'joined',
-                                link: this._sessionLink || '',
-                                participants: data.count,
-                                role: this._liveShareApi?.session?.role,
-                                duration: data.duration
-                            });
-                            const displayName = getCachedDisplayName();
-                            const idOrEmail = this._liveShareApi?.session?.user?.emailAddress || (this._liveShareApi as any)?.session?.user?.id;
-                            if (displayName && idOrEmail) {
-                                proxy.request('announceParticipant', {
-                                    id: (this._liveShareApi as any)?.session?.user?.id,
-                                    email: this._liveShareApi?.session?.user?.emailAddress,
-                                    displayName
-                                }).catch(()=>{});
-                            }
-                        }
-                    }).catch(()=>{});
-                }
-            }
-
-            if (typeof proxy.onDidChangeIsServiceAvailable === 'function') {
-                proxy.onDidChangeIsServiceAvailable((available: boolean) => {
-                    console.log('[setupGuestParticipantListener] Service availability changed:', available);
-                    if (available) {
-                        attach();
-                        if (typeof proxy.request === 'function') {
-                            proxy.request('getParticipants').then((data: any) => {
-                                if (data && this._view) {
-                                    this._view.webview.postMessage({
-                                        command: 'updateParticipants',
-                                        participants: data.participants,
-                                        count: data.count
-                                    });
-                                    this._view.webview.postMessage({
-                                        command: 'updateSessionStatus',
-                                        status: 'joined',
-                                        link: this._sessionLink || '',
-                                        participants: data.count,
-                                        role: this._liveShareApi?.session?.role,
-                                        duration: data.duration
-                                    });
-                                    const displayName = getCachedDisplayName();
-                                    const idOrEmail = this._liveShareApi?.session?.user?.emailAddress || (this._liveShareApi as any)?.session?.user?.id;
-                                    if (displayName && idOrEmail) {
-                                        proxy.request('announceParticipant', {
-                                            id: (this._liveShareApi as any)?.session?.user?.id,
-                                            email: this._liveShareApi?.session?.user?.emailAddress,
-                                            displayName
-                                        }).catch(()=>{});
-                                    }
-                                }
-                            }).catch(()=>{});
-                        }
-                    }
-                });
-            }
-        } catch (err) {
-            console.warn('[setupGuestParticipantListener] Failed to attach guest listener:', err);
-        }
-    }
-
-    /**
      * Monitors the current Live Share session state and updates the UI accordingly.
      * Handles initial session detection and sets up periodic monitoring.
      */
@@ -700,8 +466,6 @@ export class LiveShareManager {
             const session = this._liveShareApi?.session;
             if (session?.id) {
                 await this.loadParticipantsFromSupabase(session.id);
-            } else {
-                this.updateParticipantInfo();
             }
         }, 2000);
 
@@ -709,8 +473,6 @@ export class LiveShareManager {
         const session = this._liveShareApi?.session;
         if (session?.id) {
             this.loadParticipantsFromSupabase(session.id);
-        } else {
-            this.updateParticipantInfo();
         }
     }
 
@@ -722,209 +484,6 @@ export class LiveShareManager {
             clearInterval(this.participantMonitoringInterval);
             this.participantMonitoringInterval = undefined;
         }
-    }
-
-    /**
-     * Updates participant information for the current session.
-     * Only hosts can update participant info and notify guests.
-     */
-    private async updateParticipantInfo() {
-        if (!this._liveShareApi?.session) {
-            console.warn('[updateParticipantInfo] No active Live Share session.');
-            return;
-        }
-
-        const session = this._liveShareApi.session;
-        const isHost = session.role === (vsls?.Role?.Host);
-
-        console.log(`[updateParticipantInfo] Triggered. Role=${session.role}, Peer count=${this._liveShareApi.peers?.length || 0}`);
-
-        try {
-            const peers = (this._liveShareApi.peers || []).filter(Boolean);
-            const participantCount = peers.length + 1;
-
-            console.log(`[updateParticipantInfo] Total participants: ${participantCount}`);
-
-            const participants: any[] = [];
-
-            // Add self - try multiple sources
-            let selfName: string | undefined;
-
-            // Try cached name first
-            selfName = getCachedDisplayName();
-
-            // If no cached name, try to get from VS Code/system
-            if (!selfName) {
-                try {
-                    // Try to get from git config
-                    try {
-                        const data = await vscode.workspace.fs.readFile(
-                            vscode.Uri.file(require('os').homedir() + '/.gitconfig')
-                        );
-                        const content = Buffer.from(data).toString();
-                        const match = content.match(/name\s*=\s*(.+)/);
-                        if (match) {
-                            selfName = match[1].trim();
-                        }
-                    } catch {
-                        // Git config not found or not readable
-                    }
-                } catch { }
-            }
-
-            // If still no name, try system username
-            if (!selfName) {
-                try {
-                    selfName = require('os').userInfo().username;
-                } catch { }
-            }
-
-            // Last resort: use a placeholder
-            if (!selfName) {
-                selfName = 'Me';
-            }
-
-            const selfIdKey = (session.user?.emailAddress || (session as any)?.user?.id || '').toLowerCase();
-            const announcedSelfName = selfIdKey ? this._participantNameMap.get(selfIdKey) : undefined;
-            const selfResolvedName = announcedSelfName
-                || selfName
-                || session.user?.displayName
-                || (session as any)?.user?.loginName
-                || (session as any)?.user?.userName
-                || session.user?.emailAddress
-                || 'You';
-
-            participants.push({
-                name: selfResolvedName,
-                email: session.user?.emailAddress || '',
-                role: isHost ? 'Host' : 'Guest'  
-            });
-
-            // Add peers
-            for (const peer of peers) {
-                console.log('[updateParticipantInfo] Peer object:', JSON.stringify(peer, null, 2));
-                const resolvedName = this.resolvePeerDisplayName(peer);
-
-                // Determine peer role: if we're guest, peers are likely host or other guests
-                // If we're host, peers are guests
-                const peerRole = isHost ? 'Guest' : (peers.length === 1 ? 'Host' : 'Guest');  // ← FIXED
-
-                participants.push({
-                    name: resolvedName,
-                    email: peer?.user?.emailAddress || '',
-                    role: peerRole
-                });
-            }
-
-            console.log('[updateParticipantInfo] Final participants list:', participants);
-
-            // Only host sends notifications via shared service
-            if (isHost && this._sharedService?.notify) {
-                console.log('[updateParticipantInfo] Sending participantUpdate notification via shared service:', {
-                    count: participantCount,
-                    participants: participants,
-                    duration: this.getSessionDuration()
-                });
-                this._sharedService.notify('participantUpdate', {
-                    count: participantCount,
-                    participants,
-                    duration: this.getSessionDuration()
-                });
-            }
-
-            // Update UI for both host and guest
-            if (this._view) {
-                console.log('[updateParticipantInfo] Sending updateParticipants message to webview.');
-                this._view.webview.postMessage({
-                    command: 'updateParticipants',
-                    participants,
-                    count: participantCount
-                });
-
-                this._view.webview.postMessage({
-                    command: 'updateSessionStatus',
-                    status: isHost ? 'hosting' : 'joined',  
-                    link: this._sessionLink || '',
-                    participants: participantCount,
-                    role: session.role,
-                    duration: this.getSessionDuration()
-                });
-            }
-        } catch (error) {
-            console.error('[updateParticipantInfo] Error:', error);
-        }
-}
-
-    /**
-     * Resolves the display name for a Live Share peer.
-     * Uses announced names, user properties, or fallback to 'Unknown'.
-     * 
-     * @param peer - The peer object from Live Share API
-     * @returns The resolved display name for the peer
-     */
-    private resolvePeerDisplayName(peer: any): string {
-        try {
-            // Try all possible keys
-            const possibleKeys = [
-                peer?.user?.emailAddress,
-                peer?.user?.id,
-                peer?.id,
-                peer?.peerNumber ? `peer_${peer.peerNumber}` : null
-            ].filter(Boolean).map(k => String(k).toLowerCase());
-
-            // Check if we have a name for any of these keys
-            for (const key of possibleKeys) {
-                const name = this._participantNameMap.get(key);
-                if (name) {
-                    console.log(`[resolvePeerDisplayName] Found name for ${key}: ${name}`);
-                    return name;
-                }
-            }
-
-            // Fallback to peer object properties
-            const fallbackName = peer?.user?.displayName
-                || peer?.displayName
-                || (peer as any)?.user?.loginName
-                || (peer as any)?.user?.userName
-                || peer?.user?.emailAddress;
-
-            if (fallbackName) return fallbackName;
-
-            console.log('[resolvePeerDisplayName] No name found, peer object:', JSON.stringify(peer, null, 2));
-            return 'Unknown';
-        } catch (err) {
-            console.error('[resolvePeerDisplayName] Error:', err);
-            return 'Unknown';
-        }
-    }
-
-    /**
-     * Provides fallback participant information for guests when host updates aren't available.
-     * Builds temporary participant view from local peer data.
-     */
-    private updateGuestParticipantFallback() {
-        try {
-            if (!this._liveShareApi?.session || this._liveShareApi.session.role !== (vsls?.Role?.Guest)) return;
-            const peers = (this._liveShareApi.peers || []).filter(Boolean);
-            const count = Math.max(2, (peers.length + 1));
-            const participants: any[] = [];
-            const selfName = this._liveShareApi.session.user?.displayName || 'You';
-            participants.push({ name: selfName, email: this._liveShareApi.session.user?.emailAddress || '', role: 'Guest' });
-            for (const peer of peers) {
-                participants.push({ name: peer?.user?.displayName || 'Unknown', email: peer?.user?.emailAddress || '', role: 'Host/Guest' });
-            }
-            if (this._view) {
-                this._view.webview.postMessage({ command: 'updateParticipants', participants, count });
-                this._view.webview.postMessage({
-                    command: 'updateSessionStatus',
-                    status: 'joined',
-                    link: this._sessionLink || '',
-                    participants: count,
-                    role: this._liveShareApi.session.role,
-                    duration: this.getSessionDuration()
-                });
-            }
-        } catch {}
     }
 
     /**
@@ -1222,7 +781,6 @@ export class LiveShareManager {
                     this.sessionStartTime = new Date();
                     console.log('Host sessionStartTime initialized at startLiveShareSession():', this.sessionStartTime);
                 }
-                this.registerSessionInfoServiceIfHost();
                 // Start duration updates
                 this.startDurationUpdater();
 
@@ -1239,16 +797,6 @@ export class LiveShareManager {
                     });
                 }
 
-                //Ensure shared service is registered AFTER session starts
-                setTimeout(() => {
-                    console.log('[startLiveShareSession] Ensuring shared service is registered after share().');
-                    this.registerSessionInfoServiceIfHost();
-                }, 2000);
-
-                setTimeout(() => {
-                    console.log('[startLiveShareSession] Triggering updateParticipantInfo after share.');
-                    this.updateParticipantInfo();
-                }, 2500);
             } else {
                 vscode.window.showErrorMessage('Failed to start Live Share session');
             }
@@ -1290,7 +838,6 @@ export class LiveShareManager {
             await this._liveShareApi.join(inviteUri);
             this._sessionLink = inviteLink;
             vscode.window.showInformationMessage('Successfully joined Live Share session!');
-            this.requestHostSessionStartTime();
             this.startDurationUpdater();
 
             if (this._view) {
@@ -1301,7 +848,6 @@ export class LiveShareManager {
                 });
             }
 
-            this.updateParticipantInfo();
         } catch (error) {
             console.error('Error joining Live Share session:', error);
             vscode.window.showErrorMessage('Error joining Live Share session: ' + error); 
@@ -1341,205 +887,6 @@ export class LiveShareManager {
                 command: 'updateActivity',
                 activity: activity
             });
-        }
-    }
-
-    /**
-     * Registers a shared service for host-guest communication (host only).
-     * Enables guests to receive session info and participant updates.
-     */
-    /**
-     * Registers a shared service for host-guest communication (host only).
-     * Enables guests to receive session info and participant updates.
-     */
-    private async registerSessionInfoServiceIfHost() {
-        try {
-            console.log('[registerSessionInfoServiceIfHost] Attempting to register shared service.');
-            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Host)) {
-                console.log('[registerSessionInfoServiceIfHost] Not host or no active session');
-                return;
-            }
-            if (this._sharedService) {
-                console.log('[registerSessionInfoServiceIfHost] Shared service already registered.');
-                return;
-            }
-
-            const anyApi: any = this._liveShareApi as any;
-
-            // Debugging 
-            console.log('[registerSessionInfoServiceIfHost] API object keys:', Object.keys(anyApi));
-            console.log('[registerSessionInfoServiceIfHost] API object properties:', Object.getOwnPropertyNames(anyApi));
-            console.log('[registerSessionInfoServiceIfHost] Has shareService?', 'shareService' in anyApi);
-            console.log('[registerSessionInfoServiceIfHost] Type of shareService:', typeof anyApi.shareService);
-            console.log('[registerSessionInfoServiceIfHost] Existing sharedServices:', anyApi.sharedServices);
-            console.log('[registerSessionInfoServiceIfHost] Existing services:', anyApi.services);
-            console.log('[registerSessionInfoServiceIfHost] Service name to register:', this._sharedServiceName);
-
-            // Try to register the service
-            console.log('[registerSessionInfoServiceIfHost] Attempting to register with service object...');
-
-            // Create a service implementation object
-            const serviceImpl = {
-                name: this._sharedServiceName,
-                methods: ['getSessionInfo', 'getParticipants', 'announceParticipant']
-            };
-
-            // Trying different registration approaches
-            if (typeof anyApi.shareService === 'function') {
-                console.log('[registerSessionInfoServiceIfHost] Trying shareService with implementation object');
-                this._sharedService = await anyApi.shareService(this._sharedServiceName, serviceImpl);
-                console.log('[registerSessionInfoServiceIfHost] Result with impl object:', this._sharedService ? 'SUCCESS' : 'UNDEFINED');
-            }
-
-            // If still undefined, try without the service impl
-            if (!this._sharedService && typeof anyApi.shareService === 'function') {
-                console.log('[registerSessionInfoServiceIfHost] Trying shareService with just name');
-                this._sharedService = await anyApi.shareService(this._sharedServiceName);
-                console.log('[registerSessionInfoServiceIfHost] Result with just name:', this._sharedService ? 'SUCCESS' : 'UNDEFINED');
-            }
-
-            // If still not working, try getSharedService instead of shareService
-            if (!this._sharedService && typeof anyApi.getSharedService === 'function') {
-                console.log('[registerSessionInfoServiceIfHost] Trying getSharedService');
-                this._sharedService = await anyApi.getSharedService(this._sharedServiceName);
-                console.log('[registerSessionInfoServiceIfHost] Result from getSharedService:', this._sharedService ? 'SUCCESS' : 'UNDEFINED');
-            }
-
-            // If successfully registered, set up handlers
-            if (this._sharedService) {
-                console.log(`[registerSessionInfoServiceIfHost] Shared service "${this._sharedServiceName}" registered successfully.`);
-
-                if (typeof this._sharedService.onRequest === 'function') {
-                    this._sharedService.onRequest('getSessionInfo', async () => {
-                        console.log('[registerSessionInfoServiceIfHost] Received getSessionInfo request.');
-                        return { startTime: this.sessionStartTime?.toISOString() || new Date().toISOString() };
-                    });
-
-                    this._sharedService.onRequest('announceParticipant', async (payload: any) => {
-                        try {
-                            const key: string = (payload?.id || payload?.email || '').toLowerCase();
-                            const name: string = payload?.displayName || '';
-                            if (key && name) {
-                                this._participantNameMap.set(key, name);
-                                this.updateParticipantInfo();
-                            }
-                            return { ok: true };
-                        } catch {
-                            return { ok: false };
-                        }
-                    });
-
-                    this._sharedService.onRequest('getParticipants', async () => {
-                        try {
-                            const peers = (this._liveShareApi?.peers || []).filter(Boolean);
-                            const participantCount = peers.length + 1;
-                            const participants: any[] = [];
-                            let selfName = getCachedDisplayName();
-                            if (!selfName) {
-                                try {
-                                    const r = await getOrInitDisplayName(true);
-                                    selfName = r.displayName;
-                                } catch {
-                                    selfName = undefined;
-                                }
-                            }
-                            participants.push({
-                                name: selfName || this._liveShareApi?.session?.user?.displayName || 'You',
-                                email: this._liveShareApi?.session?.user?.emailAddress || '',
-                                role: 'Host'
-                            });
-                            for (const peer of peers) {
-                                participants.push({
-                                    name: peer?.user?.displayName || 'Unknown',
-                                    email: peer?.user?.emailAddress || '',
-                                    role: 'Guest'
-                                });
-                            }
-                            return {
-                                count: participantCount,
-                                participants,
-                                duration: this.getSessionDuration()
-                            };
-                        } catch (e) {
-                            return { count: 1, participants: [], duration: this.getSessionDuration() };
-                        }
-                    });
-                } else {
-                    console.warn('[registerSessionInfoServiceIfHost] Shared service has no onRequest method.');
-                }
-
-                if (typeof this._sharedService.onNotify === 'function') {
-                    this._sharedService.onNotify('announceParticipant', (payload: any, sender?: any) => {
-                        try {
-                            const fromSender = sender && (sender.user?.emailAddress || sender.user?.id || sender.id);
-                            const key: string = (payload?.email || payload?.id || fromSender || '').toLowerCase();
-                            const name: string = payload?.displayName || payload?.name || '';
-                            if (key && name) {
-                                this._participantNameMap.set(key, name);
-                                this.updateParticipantInfo();
-                            }
-                        } catch { }
-                    });
-                }
-            } else {
-                console.warn('[registerSessionInfoServiceIfHost] All registration attempts failed - shareService() returned undefined.');
-            }
-        } catch (err) {
-            console.warn('Failed to register session info service (non-fatal):', err);
-        }
-    }
-
-    /**
-     * Requests the session start time from the host (guest only).
-     * Synchronizes session duration display across all participants.
-     */
-    private async requestHostSessionStartTime() {
-        if (this._requestedHostStartTime) {
-            return;
-        }
-        this._requestedHostStartTime = true;
-        try {
-            if (!this._liveShareApi || !this._liveShareApi.session || this._liveShareApi.session.role !== (vsls?.Role?.Guest)) {
-                return;
-            }
-            const anyApi: any = this._liveShareApi as any;
-            if (typeof anyApi.getSharedService === 'function') {
-                const proxy = await anyApi.getSharedService(this._sharedServiceName);
-                if (proxy && proxy.isServiceAvailable && typeof proxy.request === 'function') {
-                    const info = await proxy.request('getSessionInfo');
-                    if (info && info.startTime) {
-                        const hostStart = new Date(info.startTime);
-                        if (!isNaN(hostStart.getTime())) {
-                            if (!this.sessionStartTime || hostStart.getTime() < this.sessionStartTime.getTime()) {
-                                this.sessionStartTime = hostStart;
-                                console.log('Guest updated sessionStartTime from host shared service:', this.sessionStartTime);
-                                if (this._liveShareApi?.session && this._view) {
-                                    const s = this._liveShareApi.session;
-                                    this._view.webview.postMessage({
-                                        command: 'updateSessionStatus',
-                                        status: s.role === (vsls?.Role?.Host) ? 'hosting' : 'joined',
-                                        link: this._sessionLink || '',
-                                        participants: (this._liveShareApi.peers?.length || 0) + 1,
-                                        role: s.role,
-                                        duration: this.getSessionDuration()
-                                    });
-                                }
-                            }
-                        }
-                        this._hostStartTimeRetryCount = 0;
-                    }
-                } else {
-                    console.log('Shared service not yet available; will retry shortly');
-                    if (this._hostStartTimeRetryCount < 5) {
-                        this._hostStartTimeRetryCount++;
-                        setTimeout(() => { this._requestedHostStartTime = false; this.requestHostSessionStartTime(); }, 3000);
-                    } else {
-                        console.log('Max retries reached for fetching host start time; using local join time');
-                    }
-                }
-            }
-        } catch (err) {
-            console.warn('Failed to obtain host session start time (will fallback to local join time):', err);
         }
     }
 
@@ -1589,6 +936,5 @@ export class LiveShareManager {
         
         this._view = undefined;
         this._liveShareApi = undefined;
-        this._sharedService = undefined;
     }
 }
