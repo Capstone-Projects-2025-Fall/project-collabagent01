@@ -2,16 +2,13 @@ import * as vscode from 'vscode';
 import { getSupabase } from '../auth/supabaseClient';
 import { globalContext } from '../extension';
 
-/** Global state key for storing user's display name */
+//storing user's display name
 const DISPLAY_NAME_KEY = 'collabAgent.displayName';
 
-/**
- * Result object containing display name and its source.
- */
+
+//Result object containing display name and its source.
 export interface DisplayNameResult {
-  /** The display name to use */
   displayName: string;
-  /** Where the display name was obtained from */
   source: 'supabase' | 'cached' | 'prompt' | 'fallback';
 }
 
@@ -20,9 +17,15 @@ export interface DisplayNameResult {
  * Tries multiple sources: cached, Supabase metadata, user prompt, or fallback.
  * 
  * @param nonInteractive - If true, won't prompt user for input
- * @returns Promise resolving to display name result with source
+ * @returns
  */
+
 export async function getOrInitDisplayName(nonInteractive = false): Promise<DisplayNameResult> {
+  // Debug logging 
+  console.log('[getOrInitDisplayName] Starting...');
+  console.log('[getOrInitDisplayName] SUPABASE_URL:', process.env.SUPABASE_URL ? 'LOADED' : 'NOT FOUND');
+  console.log('[getOrInitDisplayName] SUPABASE_KEY:', process.env.SUPABASE_KEY ? 'LOADED' : 'NOT FOUND');
+
   // 1. If cached in globalState, return it.
   const cached = globalContext?.globalState.get<string>(DISPLAY_NAME_KEY);
   if (cached) {
@@ -30,19 +33,30 @@ export async function getOrInitDisplayName(nonInteractive = false): Promise<Disp
   }
   // 2. Try Supabase auth user metadata.
   try {
+    console.log('[getOrInitDisplayName] Attempting to get Supabase client...');
     const supabase = getSupabase();
-    const { data } = await supabase.auth.getUser();
+    console.log('[getOrInitDisplayName] Supabase client obtained.');
+    console.log('[getOrInitDisplayName] Getting user...');
+    const { data, error } = await supabase.auth.getUser();
+    console.log('[getOrInitDisplayName] getUser result - data:', !!data, 'error:', error);
     const user = data?.user;
+    console.log('[getOrInitDisplayName] User exists:', !!user);
     if (user?.user_metadata) {
       const meta = user.user_metadata as any;
+      console.log('[getOrInitDisplayName] User metadata keys:', Object.keys(meta));
       const candidate = meta.user_name || meta.preferred_username || meta.full_name || meta.name || user.email || undefined;
       if (candidate) {
+        console.log('[getOrInitDisplayName] Found name from Supabase:', candidate);
         await globalContext.globalState.update(DISPLAY_NAME_KEY, candidate);
         return { displayName: candidate, source: 'supabase' };
+      } else {
+        console.log('[getOrInitDisplayName] No suitable name found in user metadata.');
       }
+    } else {
+      console.log('[getOrInitDisplayName] No user metadata available.');
     }
   } catch (e) {
-    console.warn('Display name: Supabase metadata fetch failed', e);
+    console.error('[getOrInitDisplayName] Error fetching user from Supabase:', e);
   }
   // 3. Optionally prompt user (unless nonInteractive)
   if (!nonInteractive) {

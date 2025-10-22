@@ -1,0 +1,26 @@
+<div class="live-share-heading">Live Share</div>
+    <div class="section">
+        <div class="section-title">Live Share Session</div>
+        <div id="sessionButtons">
+        <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
+        <button class="button" id="joinLiveShareBtn" onclick="joinLiveShare()">Join Session</button>
+        </div>
+        <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
+    </div>
+    <div class="section">
+        <div class="section-title">Team Activity</div>
+        <div id="teamActivity">
+        <div class="activity-item">
+            <span class="status-indicator"></span>
+            <strong>You:</strong> Ready to collaborate
+        </div>
+        </div>
+    </div>
+    <div class="section">
+        <div class="section-title">Team Chat</div>
+        <div id="chatMessages" class="chat-messages">
+        <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
+        </div>
+        <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
+    </div>
+</div>

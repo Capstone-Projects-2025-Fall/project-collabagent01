@@ -102,6 +102,22 @@
       {
         "command": "collabAgent.authCallback",
         "title": "Handle Auth Callback"
+      },
+      {
+        "command": "collabAgent.validateCurrentProject",
+        "title": "Collab Agent: Validate Current Project"
+      },
+      {
+        "command": "collabAgent.showCurrentProjectInfo",
+        "title": "Collab Agent: Show Project Information"
+      },
+      {
+        "command": "collabAgent.updateTeamProject",
+        "title": "Collab Agent: Update Team Project"
+      },
+      {
+        "command": "collabAgent.openTeamProject",
+        "title": "Collab Agent: Open Team Project"
       }
     ],
       "views": {

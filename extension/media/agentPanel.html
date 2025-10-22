@@ -1,0 +1,28 @@
+<div id="panel-agent" class="tab-panel">
+    <div class="agent-heading">Agent Bot</div>
+    <div class="section">
+        <div class="section-title">Team & Project Management</div>
+        <div id="teamProduct">
+            <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
+            <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
+            <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
+                <button class="button" id="switchTeamBtn">Switch Team</button>
+                <button class="button" id="createTeamBtn">Create Team</button>
+                <button class="button" id="joinTeamBtn">Join Team</button>
+                <button class="button" id="refreshTeamsBtn">Refresh Teams</button>
+            </div>
+            <div id="joinCodeSection" style="margin-top:8px; display:none; align-items:center; gap:6px;">
+                <div><strong>Team Join Code:</strong> <span id="teamJoinCode">—</span></div>
+                <button class="button small" id="copyJoinCodeBtn">Copy</button>
+            </div>
+        </div>
+    </div>
+    <div id="ai-agent-box" class="section">
+        <h3>AI Agent</h3>
+        <div id="ai-chat-log" class="chat-log"></div>
+        <div class="chat-input-container">
+            <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
+            <button id="ai-chat-send">Send</button>
+        </div>
+    </div>
+</div>

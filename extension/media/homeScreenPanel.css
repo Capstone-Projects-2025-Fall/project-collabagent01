@@ -1,0 +1,107 @@
+body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    padding: 0 0 0 0;
+    font-family: 'Inter', 'Segoe UI', 'Roboto', Arial, sans-serif;
+    box-sizing: border-box;
+    width: 100vw;
+    max-width: 100%;
+}
+.panel-content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 2vw 0;
+}
+.welcome {
+    margin-top: 2.5vw;
+    margin-bottom: 2vw;
+    text-align: left;
+    width: 100%;
+    max-width: 600px;
+    background: var(--vscode-sideBarSectionHeader-background);
+    border-radius: 10px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    padding: 2vw 3vw 1.5vw 3vw;
+    border-left: 0.4vw solid #4f8cff;
+    box-sizing: border-box;
+    transition: padding 0.2s, margin 0.2s;
+}
+.welcome-title {
+    font-size: clamp(1.3em, 2.2vw, 2.2em);
+    font-weight: 700;
+    letter-spacing: -1px;
+    color: #4f8cff;
+    margin-bottom: 0.7vw;
+    font-family: 'Inter', 'Segoe UI', 'Roboto', Arial, sans-serif;
+    transition: font-size 0.2s;
+}
+.welcome-desc {
+    font-size: clamp(1em, 1.18vw, 1.18em);
+    color: var(--vscode-editor-foreground);
+    margin-bottom: 0.7vw;
+    font-family: 'Inter', 'Segoe UI', 'Roboto', Arial, sans-serif;
+    transition: font-size 0.2s;
+}
+.welcome-options {
+    font-size: clamp(0.95em, 1.08vw, 1.08em);
+    color: var(--vscode-descriptionForeground);
+    margin-top: 1vw;
+    transition: font-size 0.2s;
+}
+.status-block {
+    margin: 1.5vw 0;
+    padding: 1.2vw 2vw;
+    background: var(--vscode-sideBar-background);
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    text-align: left;
+    width: 100%;
+    max-width: 600px;
+    box-sizing: border-box;
+    transition: padding 0.2s, margin 0.2s;
+}
+.status-block.success {
+    background: var(--vscode-sideBarSectionHeader-background);
+    color: var(--vscode-sideBarSectionHeader-foreground);
+}
+.button {
+    margin-top: 0.8vw;
+    padding: 0.6vw 2vw;
+    font-size: clamp(0.9em, 1vw, 1em);
+    border-radius: 6px;
+    border: none;
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+    cursor: pointer;
+    font-weight: 500;
+    transition: font-size 0.2s, padding 0.2s;
+}
+.button:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+@media (max-width: 500px) {
+    .welcome, .status-block {
+        max-width: 98vw;
+        padding: 4vw 2vw 2vw 2vw;
+        margin-top: 2vw;
+        margin-bottom: 2vw;
+    }
+    .welcome-title, .welcome-desc, .welcome-options {
+        font-size: 1em !important;
+    }
+    .button {
+        font-size: 0.95em !important;
+        padding: 2vw 4vw;
+    }
+}
