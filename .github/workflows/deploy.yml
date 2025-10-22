@@ -38,6 +38,7 @@ jobs:
         run: |
           cd extension
           node copy-coverage.js
+          node generate-coverage-summary.js
 
       - name: Install documentation dependencies
         run: cd documentation && yarn install
