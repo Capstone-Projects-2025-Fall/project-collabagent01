@@ -234,6 +234,8 @@ export class LiveShareManager {
      */
     private handleSessionChange(sessionChangeEvent: any) {
         const session = sessionChangeEvent.session;
+        console.log('[DEBUG] handleSessionChange START - session exists:', !!session, 'session.id:', session?.id);
+        console.log('handleSessionChange called with session:', session);
         console.log('handleSessionChange called with session:', session);
         console.log('Session change event details:', {
             changeType: sessionChangeEvent.changeType,
@@ -260,9 +262,11 @@ export class LiveShareManager {
             }
 
             if (session.id) {
+                console.log('[DEBUG] About to call announcePresenceViaSupabase');
                 // Announce presence via Supabase
                 this.announcePresenceViaSupabase(session);
 
+                console.log('[DEBUG] About to call loadParticipantsFromSupabase');
                 // Load all participants from Supabase
                 this.loadParticipantsFromSupabase(session.id);
             }
@@ -353,6 +357,63 @@ export class LiveShareManager {
                 }, 2000);
             }
             this.stopParticipantMonitoring();
+        }
+    }
+
+    /**
+ * Announce your presence in the session via Supabase
+ */
+    private async announcePresenceViaSupabase(session: any) {
+        console.log('[DEBUG] announcePresenceViaSupabase called with session.id:', session.id);
+        try {
+            const displayName = getCachedDisplayName();
+            if (!displayName) {
+                console.log('[SessionSync] No display name cached, getting from Supabase...');
+                const result = await getOrInitDisplayName(true);
+                if (result.displayName) {
+                    await this._sessionSyncService.joinSession(
+                        session.id,
+                        result.displayName,
+                        session.peerNumber || 0
+                    );
+                }
+            } else {
+                await this._sessionSyncService.joinSession(
+                    session.id,
+                    displayName,
+                    session.peerNumber || 0
+                );
+            }
+        } catch (err) {
+            console.error('[SessionSync] Failed to announce presence:', err);
+        }
+    }
+
+    /**
+     * Load all participants from Supabase and update UI
+     */
+    private async loadParticipantsFromSupabase(sessionId: string) {
+        try {
+            const participants = await this._sessionSyncService.getParticipants(sessionId);
+            console.log('[SessionSync] Loaded participants from Supabase:', participants);
+
+            // Convert to UI format
+            const participantList = participants.map(p => ({
+                name: p.github_username,
+                email: '',
+                role: p.peer_number === 1 ? 'Host' : 'Guest'
+            }));
+
+            // Update UI
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateParticipants',
+                    participants: participantList,
+                    count: participantList.length
+                });
+            }
+        } catch (err) {
+            console.error('[SessionSync] Failed to load participants:', err);
         }
     }
 
@@ -1434,62 +1495,6 @@ export class LiveShareManager {
                 });
             }
         }, 30000);
-    }
-
-    /**
- * Announce your presence in the session via Supabase
- */
-    private async announcePresenceViaSupabase(session: any) {
-        try {
-            const displayName = getCachedDisplayName();
-            if (!displayName) {
-                console.log('[SessionSync] No display name cached, getting from Supabase...');
-                const result = await getOrInitDisplayName(true);
-                if (result.displayName) {
-                    await this._sessionSyncService.joinSession(
-                        session.id,
-                        result.displayName,
-                        session.peerNumber || 0
-                    );
-                }
-            } else {
-                await this._sessionSyncService.joinSession(
-                    session.id,
-                    displayName,
-                    session.peerNumber || 0
-                );
-            }
-        } catch (err) {
-            console.error('[SessionSync] Failed to announce presence:', err);
-        }
-    }
-
-    /**
-     * Load all participants from Supabase and update UI
-     */
-    private async loadParticipantsFromSupabase(sessionId: string) {
-        try {
-            const participants = await this._sessionSyncService.getParticipants(sessionId);
-            console.log('[SessionSync] Loaded participants from Supabase:', participants);
-
-            // Convert to UI format
-            const participantList = participants.map(p => ({
-                name: p.github_username,
-                email: '',
-                role: p.peer_number === 1 ? 'Host' : 'Guest'
-            }));
-
-            // Update UI
-            if (this._view) {
-                this._view.webview.postMessage({
-                    command: 'updateParticipants',
-                    participants: participantList,
-                    count: participantList.length
-                });
-            }
-        } catch (err) {
-            console.error('[SessionSync] Failed to load participants:', err);
-        }
     }
 
     /**
