@@ -159,9 +159,19 @@ export class LiveShareManager {
             });
 
             if (typeof (this._liveShareApi as any).onDidChangePeers === 'function') {
-                (this._liveShareApi as any).onDidChangePeers((peerChangeEvent: any) => {
+                (this._liveShareApi as any).onDidChangePeers(async (peerChangeEvent: any) => {
                     console.log('Live Share peers changed:', peerChangeEvent);
-                    this.updateParticipantInfo();
+                    
+                    // Load participants from Supabase instead of using Live Share API
+                    const session = this._liveShareApi?.session;
+                    if (session?.id) {
+                        console.log('[onDidChangePeers] Loading participants from Supabase for session:', session.id);
+                        await this.loadParticipantsFromSupabase(session.id);
+                    } else {
+                        // Fallback to old method if no session ID
+                        this.updateParticipantInfo();
+                    }
+                    
                     if (this._liveShareApi?.session?.role === (vsls?.Role?.Guest)) {
                         this.updateGuestParticipantFallback();
                     }
