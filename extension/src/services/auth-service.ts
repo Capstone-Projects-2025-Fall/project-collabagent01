@@ -367,6 +367,14 @@ export async function signInWithGithub() {
 
 export async function getCurrentUserId(): Promise<string | null> {
   const supabase = getSupabase();
-  const { data } = await supabase.auth.getSession();
-  return data.session?.user?.id ?? null;
+
+  // First, check if a session exists
+  const { data: sessionData } = await supabase.auth.getSession();
+  const userId = sessionData?.session?.user?.id;
+
+  if (userId) return userId;
+
+  // If session is empty, try fetching directly from the user endpoint
+  const { data: userData } = await supabase.auth.getUser();
+  return userData?.user?.id ?? null;
 }

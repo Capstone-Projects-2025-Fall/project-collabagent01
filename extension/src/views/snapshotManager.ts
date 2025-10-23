@@ -3,19 +3,19 @@ import * as vscode from "vscode";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { diffLines } from "diff";
 import { getCurrentUserId } from "../services/auth-service";
+import { getSupabase } from "../auth/supabaseClient";
+
 
 export class SnapshotManager {
-  private supabase: SupabaseClient;
   private idleTimers: Map<string, NodeJS.Timeout> = new Map();
   private IDLE_DELAY = 10000; // 10 seconds
   private lastSnapshot: Record<string, string> = {}; // maps file path -> content
+  private supabase: SupabaseClient;
 
   constructor(
     private context: vscode.ExtensionContext,
-    supabaseUrl: string,
-    supabaseKey: string
   ) {
-    this.supabase = createClient(supabaseUrl, supabaseKey);
+    this.supabase = getSupabase();
 
     // Listen for all text changes in the workspace
     vscode.workspace.onDidChangeTextDocument(event => this.onDocumentChange(event));
@@ -23,6 +23,8 @@ export class SnapshotManager {
 
   /** Called whenever a document changes */
   private onDocumentChange(event: vscode.TextDocumentChangeEvent) {
+    console.log("Detected file change:", event.document.uri.fsPath);
+
     const fileKey = event.document.uri.toString();
 
     // Clear existing timer
@@ -68,19 +70,6 @@ export class SnapshotManager {
     return diffs;
   }
 
-  /** Save incremental changes in DB */
-  private async saveSnapshotDiff(userId: string, diff: Record<string, string>) {
-    for (const filePath in diff) {
-      const changes = diff[filePath];
-      await this.supabase.from("snapshot_changes").insert({
-        user_id: userId,
-        file_path: filePath,
-        changes,
-        created_at: new Date().toISOString()
-      });
-    }
-  }
-
   /** Take a full snapshot (first time or manual trigger) */
   public async takeSnapshot(userId: string) {
     const files = vscode.workspace.textDocuments;
@@ -101,12 +90,10 @@ export class SnapshotManager {
     const diff = this.computeDiff(this.lastSnapshot, newSnapshot);
 
     if (diff && Object.keys(diff).length > 0) {
-      await this.saveSnapshotDiff(userId, diff);
-
-      // Overwrite the previous snapshot with the new state
       for (const filePath in newSnapshot) {
         const fileUri = vscode.Uri.file(filePath);
-        await this.overwriteSnapshot(userId, fileUri, newSnapshot[filePath]);
+        const diffText = diff[filePath] ?? "";
+        await this.overwriteSnapshot(userId, fileUri, newSnapshot[filePath], diffText);
       }
 
       this.lastSnapshot = newSnapshot;
@@ -117,14 +104,20 @@ export class SnapshotManager {
 
   /** Database methods */
 
-  public async overwriteSnapshot(userId: string, fileUri: vscode.Uri, content: string) {
+  public async overwriteSnapshot(
+    userId: string,
+    fileUri: vscode.Uri,
+    content: string,
+    changes?: string
+  ) {
     const { error } = await this.supabase
-      .from("snapshots")
+      .from("file_snapshots")
       .upsert(
         {
           user_id: userId,
           file_path: fileUri.fsPath,
-          content,
+          snapshot: content, // renamed from "content"
+          changes: changes ?? "", // added for incremental diffs
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id,file_path" }
@@ -132,6 +125,8 @@ export class SnapshotManager {
 
     if (error) {
       console.error("Failed to upsert snapshot:", error);
+    } else {
+      console.log(`Snapshot saved for ${fileUri.fsPath}`);
     }
   }
 

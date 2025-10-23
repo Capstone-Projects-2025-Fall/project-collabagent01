@@ -13,18 +13,40 @@ import {
 } from './commands/team-project-commands';
 import { getCurrentProjectInfo } from './services/project-detection-service';
 import { SnapshotManager } from './views/snapshotManager';
+import * as path from "path";
+import * as dotenv from "dotenv";
+import { getSupabase } from "./auth/supabaseClient";
+
+
 
 /** Global extension context for state management */
 export let globalContext: vscode.ExtensionContext;
 
 export async function activate(context: vscode.ExtensionContext) {
   globalContext = context;
-
-  const supabaseUrl = '<YOUR_SUPABASE_URL>';
-  const supabaseKey = '<YOUR_SUPABASE_ANON_KEY>';
-  const snapshotManager = new SnapshotManager(context, supabaseUrl, supabaseKey);
-
   console.log("Collab Agent Activated");
+
+
+  //Load .env from the /server directory (relative to the compiled dist)
+  const envPath = path.resolve(__dirname, "../../server/.env");
+  dotenv.config({ path: envPath });
+  console.log("Looking for .env at:", envPath);
+
+  console.log("SUPABASE_URL:", process.env.SUPABASE_URL || "Missing");
+  console.log("SUPABASE_ANON_KEY:", process.env.SUPABASE_KEY ? "Loaded" : "Missing");
+
+  //Initialize shared Supabase client
+  try {
+    const supabase = getSupabase();
+    console.log("Supabase client initialized successfully:", supabase !== null);
+  } catch (err) {
+    console.error("Failed to initialize Supabase client:", err);
+  }
+
+  // Initialize the snapshot manager (uses the shared client)
+  const snapshotManager = new SnapshotManager(context);
+  console.log("SnapshotManager initialized");
+
   vscode.window.showInformationMessage("Collab Agent: Extension activated!");
 
   await vscode.commands.executeCommand('setContext', 'collabAgent.showPanel', true);
@@ -55,12 +77,9 @@ export async function activate(context: vscode.ExtensionContext) {
   // Register manual snapshot command
   context.subscriptions.push(
     vscode.commands.registerCommand('collabAgent.takeSnapshot', async () => {
-      const userId = await getCurrentUserId();
-      if (!userId) {
-        vscode.window.showWarningMessage('Please sign in to take a snapshot.');
-        return;
-      }
+      const userId = (await getCurrentUserId()) ?? 'temporary-user-id';
       await snapshotManager.takeSnapshot(userId);
+      vscode.window.showInformationMessage("Manual snapshot complete!");
     })
   );
 
