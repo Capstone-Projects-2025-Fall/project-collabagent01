@@ -32,13 +32,9 @@ jobs:
       - name: Run tests with coverage
         run: |
           cd extension
-          npm run test:coverage
+          npm run test:coverage:docs
 
-      - name: Copy coverage report to documentation
-        run: |
-          cd extension
-          node copy-coverage.js
-          node generate-coverage-summary.js
+      # Coverage HTML and summary are produced by the previous step
 
       - name: Install documentation dependencies
         run: cd documentation && yarn install

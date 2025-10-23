@@ -31,18 +31,14 @@ jobs:
       - name: Run tests with coverage
         run: |
           cd extension
-          npm run test:coverage
+          npm run test:coverage:docs
 
-      - name: Copy coverage report to documentation
+      - name: List generated coverage artifacts
         run: |
-          cd extension
-          node copy-coverage.js
-
-      - name: Generate coverage report
-        run: |
-          echo "Coverage report generated successfully"
-          echo "Files in coverage directory:"
+          echo "Coverage HTML copied to documentation/static/test-coverage/"
           ls -la documentation/static/test-coverage/ || echo "No coverage files found"
+          echo "Coverage summary generated at documentation/docs/testing/_generated/coverage-summary.md"
+          ls -la documentation/docs/testing/_generated/ || echo "No coverage summary found"
 
       - name: Upload coverage artifacts
         uses: actions/upload-artifact@v4
