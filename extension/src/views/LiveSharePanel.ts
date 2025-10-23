@@ -697,6 +697,10 @@ export class LiveShareManager {
             }
 
             console.log('Calling end() on Live Share API to leave session...');
+            
+            // Remove participant record from Supabase before leaving
+            await this._sessionSyncService.leaveSession();
+            
             await this._liveShareApi.end();
             console.log('Live Share leave completed');
             
