@@ -809,7 +809,8 @@ export class LiveShareManager {
                 }
 
             } else {
-                vscode.window.showErrorMessage('Failed to start Live Share session');
+                console.warn('Live Share session creation failed or was cancelled - this may be due to Live Share extension issues');
+                // Don't show intrusive error popup, just log the issue
             }
         } catch (error) {
             console.error('Error starting Live Share session:', error);

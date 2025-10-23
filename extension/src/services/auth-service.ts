@@ -76,7 +76,9 @@ export async function checkUserSignIn() {
 
   await getUserByID(user.id).then(async ({ user, error }) => {
     if (error) {
-      await errorNotification(`Failed to get user data: ${error}`);
+      console.warn(`Failed to get user data during startup: ${error}`);
+      // Don't show intrusive error popup during extension activation
+      // Just log the issue and continue
       return;
     }
     setAuthContext(user);
