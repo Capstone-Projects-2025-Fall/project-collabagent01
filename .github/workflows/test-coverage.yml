@@ -1,0 +1,48 @@
+name: Test Coverage Report
+
+on:
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # Allow manual triggering
+
+jobs:
+  test-coverage:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: extension/package-lock.json
+
+      - name: Install extension dependencies
+        run: |
+          cd extension
+          npm ci
+
+      - name: Run tests with coverage
+        run: |
+          cd extension
+          npm run test:coverage:docs
+
+      - name: List generated coverage artifacts
+        run: |
+          echo "Coverage HTML copied to documentation/static/test-coverage/"
+          ls -la documentation/static/test-coverage/ || echo "No coverage files found"
+          echo "Coverage summary generated at documentation/docs/testing/_generated/coverage-summary.md"
+          ls -la documentation/docs/testing/_generated/ || echo "No coverage summary found"
+
+      - name: Upload coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: documentation/static/test-coverage/
+          retention-days: 30

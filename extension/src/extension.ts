@@ -1,3 +1,12 @@
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+// Load environment variables (optional - don't fail if .env doesn't exist)
+try {
+  dotenv.config({ path: path.join(__dirname, '../../server/.env') });
+} catch (error) {
+  console.warn('Could not load .env file:', error);
+}
 import * as vscode from "vscode";
 import * as vsls from 'vsls';
 import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
@@ -42,43 +51,48 @@ export async function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(refreshCommand);
 
-  // Set up Live Share file creation synchronization
-  const liveShare = await vsls.getApi();
-  if (liveShare) {
-    const service = await liveShare.getSharedService('collabagent');
+  // Set up Live Share file creation synchronization (optional)
+  try {
+    const liveShare = await vsls.getApi();
+    if (liveShare) {
+      const service = await liveShare.getSharedService('collabagent');
 
-    // Notify other participants when files are created
-    vscode.workspace.onDidCreateFiles(async (event) => {
-      if (service) {
-        for (const file of event.files) {
-          service.notify('fileCreated', { path: file.path });
-        }
-      }
-    });
-
-    // Handle file creation notifications from other participants
-    if (service) {
-      service.onNotify('fileCreated', async (args: any) => {
-        try {
-          if (args && typeof args.path === 'string') {
-            const sharedUri = vscode.Uri.parse(args.path);
-            let localUri = sharedUri;
-            if (liveShare.convertSharedUriToLocal) {
-              const converted = await liveShare.convertSharedUriToLocal(sharedUri);
-              if (converted) {
-                localUri = converted;
-              }
-            }
-            vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
-            vscode.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
-          } else {
-            console.warn('fileCreated notification received without valid path:', args);
+      // Notify other participants when files are created
+      vscode.workspace.onDidCreateFiles(async (event) => {
+        if (service) {
+          for (const file of event.files) {
+            service.notify('fileCreated', { path: file.path });
           }
-        } catch (err) {
-          console.error('Error converting shared URI:', err);
         }
       });
+
+      // Handle file creation notifications from other participants
+      if (service) {
+        service.onNotify('fileCreated', async (args: any) => {
+          try {
+            if (args && typeof args.path === 'string') {
+              const sharedUri = vscode.Uri.parse(args.path);
+              let localUri = sharedUri;
+              if (liveShare.convertSharedUriToLocal) {
+                const converted = await liveShare.convertSharedUriToLocal(sharedUri);
+                if (converted) {
+                  localUri = converted;
+                }
+              }
+              vscode.commands.executeCommand('workbench.files.action.refreshFilesExplorer');
+              vscode.window.showInformationMessage(`New file created in session: ${localUri.fsPath}`);
+            } else {
+              console.warn('fileCreated notification received without valid path:', args);
+            }
+          } catch (err) {
+            console.error('Error converting shared URI:', err);
+          }
+        });
+      }
     }
+  } catch (error) {
+    console.warn('Live Share extension not available or failed to initialize:', error);
+    // Continue without Live Share features - don't show error popup
   }
 
   context.subscriptions.push(
