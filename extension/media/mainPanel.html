@@ -50,13 +50,14 @@
     }
     
     function handleTabClick(tab, element) {
-        // If Live Share isn't installed, block Live and Agent tabs and prompt install
-        if ((tab === 'live' || tab === 'agent') && !liveShareInstalled) {
+        // Live Share tab additionally requires the Live Share extension
+        if (tab === 'live' && !liveShareInstalled) {
             showTooltip(element, 'Live Share not installed. Click Home to install.');
             return;
         }
-        // If user not authenticated, block Live and Agent tabs and prompt login
+        // Both Live Share and Agent tabs require authentication
         if ((tab === 'live' || tab === 'agent') && !isAuthenticated) {
+            showTooltip(element, 'Please log in first');
             return; // Don't switch tab if not authenticated
         }
         showTab(tab);
@@ -74,7 +75,7 @@
     });
     liveTab.addEventListener('mouseenter', function() {
         if (!liveShareInstalled) {
-            showTooltip(this, 'Live Share extension not installed. Please install it from the Marketplace.');
+            showTooltip(this, 'Live Share not installed. Click Home to install.');
             return;
         }
         if (!isAuthenticated) {
@@ -89,12 +90,8 @@
         handleTabClick('agent', this); 
     });
     agentTab.addEventListener('mouseenter', function() {
-        if (!liveShareInstalled) {
-            showTooltip(this, 'Live Share extension not installed. Please install it from the Marketplace.');
-            return;
-        }
         if (!isAuthenticated) {
-            showTooltip(this, 'Please login first');
+            showTooltip(this, 'Please log in first');
         }
     });
     agentTab.addEventListener('mouseleave', hideTooltip);
@@ -108,8 +105,12 @@
         const liveTab = document.getElementById('tab-live');
         const agentTab = document.getElementById('tab-agent');
         if (authenticated) {
-            liveTab.classList.remove('disabled');
             agentTab.classList.remove('disabled');
+            if (liveShareInstalled) {
+                liveTab.classList.remove('disabled');
+            } else {
+                liveTab.classList.add('disabled');
+            }
         } else {
             liveTab.classList.add('disabled');
             agentTab.classList.add('disabled');
@@ -124,10 +125,12 @@
         }
     });
     
-    // Set initial disabled state for non-authenticated users or when Live Share missing
+    // Set initial disabled state
+    if (!isAuthenticated) {
+        document.getElementById('tab-agent').classList.add('disabled');
+    }
     if (!isAuthenticated || !liveShareInstalled) {
         document.getElementById('tab-live').classList.add('disabled');
-        document.getElementById('tab-agent').classList.add('disabled');
     }
 })();
 </script>
