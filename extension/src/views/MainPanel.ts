@@ -367,6 +367,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)
                 .replace('{{IS_AUTHENTICATED}}', loggedIn.toString())
+                .replace('{{LIVESHARE_INSTALLED}}', liveShareInstalled.toString())
                 .replace('{{HOME_HTML}}', homeHtml)
                 .replace('{{LIVESHARE_HTML}}', liveShareHtml)
                 .replace('{{AGENT_HTML}}', agentHtml);
