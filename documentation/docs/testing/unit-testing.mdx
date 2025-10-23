@@ -1,0 +1,53 @@
+---
+sidebar_position: 1
+---
+import useBaseUrl from '@docusaurus/useBaseUrl';
+import CoverageSummary from './_generated/coverage-summary.md';
+
+# Unit tests
+
+## Unit Test Library
+
+We chose Jest as the unit testing framework because most of our files are in TypeScript and JavaScript. Jest is easy to set up, works well with these languages, and has built-in support for mocking and stubbing external classes.
+
+## Key Features:
+
+Mocking: Can fake modules and VS Code APIs so tests run on their own.
+
+Auto Test Discovery: Finds and runs all test files automatically.
+
+Assertions: Check results, function calls, and objects easily.
+
+Code Coverage: Shows what parts of the code are tested.
+
+Async Support: Works with async/await for things like team creation.
+
+Test Isolation: Resets mocks and sets up fresh instances before each test.
+
+## Suitability
+Handles complex dependencies like VS Code APIs.
+
+Supports async operations without extra setup.
+
+Works well with TypeScript using ts-jest.
+
+Good for VS Code extension testing (webviews, commands, extension lifecycle).
+
+Easy to use in CI/CD pipelines.
+
+## Test Coverage Report
+
+This coverage report is automatically generated on every pull request against main
+
+### Overall Coverage Summary
+
+<CoverageSummary />
+
+### Coverage Details
+
+The detailed coverage report shows which parts of the code are tested and which need more test coverage. This helps ensure code quality and reliability.
+
+
+<a href={useBaseUrl('/test-coverage/index.html')} target="_blank" rel="noopener noreferrer">View Detailed Coverage Report</a>
+
+<!-- [View Detailed Coverage Report](/test-coverage/index.html) -->

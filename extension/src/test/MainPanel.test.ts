@@ -5,12 +5,12 @@ import { AgentPanelProvider } from '../views/AgentPanel';
 import { LiveShareManager } from '../views/LiveSharePanel';
 
 // Mock sub-views
-jest.mock('../HomeScreenPanel');
-jest.mock('../AgentPanel');
-jest.mock('../LiveSharePanel');
+jest.mock('../views/HomeScreenPanel');
+jest.mock('../views/AgentPanel');
+jest.mock('../views/LiveSharePanel');
 
 // Mock auth-service
-jest.mock('../../services/auth-service', () => ({
+jest.mock('../services/auth-service', () => ({
     getAuthContext: jest.fn().mockResolvedValue({ context: { isAuthenticated: true, email: 'test@example.com', first_name: 'TestUser' } }),
     signInOrUpMenu: jest.fn().mockResolvedValue(undefined)
 }));

@@ -11,6 +11,8 @@
   const joinBtn = () => document.getElementById('joinTeamBtn');
   const refreshBtn = () => document.getElementById('refreshTeamsBtn');
   const copyJoinCodeBtn = () => document.getElementById('copyJoinCodeBtn');
+  const deleteBtn = () => document.getElementById('deleteTeamBtn');
+  const leaveBtn = () => document.getElementById('leaveTeamBtn');
 
   function initializeButtons() {
     console.log('Initializing Agent Panel buttons');
@@ -71,6 +73,30 @@
       console.log('Copy Join Code button listener added');
     } else if (!copy) {
       console.log('Copy Join Code button not found');
+    }
+
+    const d = deleteBtn();
+    if (d && !d.hasAttribute('data-listener-added')) {
+      d.addEventListener('click', () => {
+        console.log('Delete Team button clicked');
+        post('deleteTeam');
+      });
+      d.setAttribute('data-listener-added', 'true');
+      console.log('Delete Team button listener added');
+    } else if (!d) {
+      console.log('Delete Team button not found');
+    }
+
+    const l = leaveBtn();
+    if (l && !l.hasAttribute('data-listener-added')) {
+      l.addEventListener('click', () => {
+        console.log('Leave Team button clicked');
+        post('leaveTeam');
+      });
+      l.setAttribute('data-listener-added', 'true');
+      console.log('Leave Team button listener added');
+    } else if (!l) {
+      console.log('Leave Team button not found');
     }
 
     // Initialize AI chat elements
@@ -160,6 +186,10 @@
         const tr = document.getElementById('teamRole');
         const tc = document.getElementById('teamJoinCode');
         const jcs = document.getElementById('joinCodeSection');
+        const ps = document.getElementById('projectStatus');
+        const psi = document.getElementById('projectStatusIndicator');
+        const del = deleteBtn();
+  const leave = leaveBtn();
         
         if (tn) tn.textContent = m.team?.name ?? '—';
         if (tr) tr.textContent = m.team?.role ?? '—';
@@ -174,6 +204,28 @@
             jcs.style.display = 'none';
           }
         }
+        
+        // Show/hide project validation status
+        if (ps && psi) {
+          if (m.team?.projectValidation && m.team.name !== 'No Team') {
+            const validation = m.team.projectValidation;
+            ps.style.display = 'block';
+            
+            if (validation.isMatch) {
+              psi.innerHTML = `<span style="color: var(--vscode-testing-iconPassed);">✅ Project: Correct folder open</span>`;
+              psi.title = validation.details;
+            } else {
+              psi.innerHTML = `<span style="color: var(--vscode-testing-iconFailed);">⚠️ Project: Wrong folder open</span>`;
+              psi.title = validation.details;
+              psi.style.cursor = 'help';
+            }
+          } else {
+            ps.style.display = 'none';
+          }
+        }
+        // Show delete button only for Admin; show leave button only for Members
+        if (del) del.style.display = (m.team?.name && m.team?.role === 'Admin') ? 'inline-block' : 'none';
+        if (leave) leave.style.display = (m.team?.name && m.team?.role === 'Member') ? 'inline-block' : 'none';
         break;
       case 'aiResponse':
         const log = document.getElementById('ai-chat-log');

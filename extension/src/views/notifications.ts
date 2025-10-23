@@ -147,7 +147,7 @@ export async function notifyUser(
     .then((selection) => {
       if (selection === "Review") {
         vscode.env.openExternal(
-          vscode.Uri.parse(url || "https://clover.nickrucinski.com/")
+          vscode.Uri.parse(url || "https://github.com/Capstone-Projects-2025-Fall/project-collabagent01")
         );
       }
     });

@@ -129,6 +129,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'joinTeam',
             'switchTeam', 
             'refreshTeams',
+            'deleteTeam',
+            'leaveTeam',
             'aiQuery'
         ].includes(command);
     }
@@ -182,6 +184,20 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'refreshTeams':
                 await this._agentPanel.refreshTeamsList();
+                break;
+            case 'deleteTeam':
+                await (this._agentPanel as any).handleDeleteTeam?.();
+                // If private, call public via message delegation pattern
+                if (!(this._agentPanel as any).handleDeleteTeam) {
+                    // Fallback: send message to AgentPanel's own handler via webview
+                    this._view?.webview.postMessage({ command: 'deleteTeam' });
+                }
+                break;
+            case 'leaveTeam':
+                await (this._agentPanel as any).handleLeaveTeam?.();
+                if (!(this._agentPanel as any).handleLeaveTeam) {
+                    this._view?.webview.postMessage({ command: 'leaveTeam' });
+                }
                 break;
             case 'aiQuery':
                 await this._agentPanel.processAiQuery(message.text);
@@ -241,6 +257,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 } else if (this._lastAuthState !== isAuthed) {
                     this._lastAuthState = isAuthed;
                     if (this._view) {
+                        // Send auth state update to webview for immediate UI response
+                        this._view.webview.postMessage({ 
+                            command: 'updateAuthState', 
+                            authenticated: isAuthed 
+                        });
                         // Rebuild HTML to update Home tab login status
                         this._view.webview.html = await this._getHtmlForWebview(this._view.webview);
                     }
@@ -345,6 +366,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{AGENT_STYLE_URI}}', agentStyleUri.toString())
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)
+                .replace('{{IS_AUTHENTICATED}}', loggedIn.toString())
+                .replace('{{LIVESHARE_INSTALLED}}', liveShareInstalled.toString())
                 .replace('{{HOME_HTML}}', homeHtml)
                 .replace('{{LIVESHARE_HTML}}', liveShareHtml)
                 .replace('{{AGENT_HTML}}', agentHtml);
