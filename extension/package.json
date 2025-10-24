@@ -11,8 +11,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "*"
+    "onStartupFinished"
   ],
   "repository": {
     "type": "git",
