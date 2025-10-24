@@ -27,3 +27,16 @@ server/.env
 
 # Generated documentation (can be regenerated with npm run docs:generate)
 extension/docs/
+
+
+# flask
+
+# Python / Flask
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+instance/
+*.log

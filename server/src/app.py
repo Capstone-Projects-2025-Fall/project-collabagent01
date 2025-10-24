@@ -10,26 +10,12 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)  # allow cross-origin for development
 
-# Configure Gemini
-genai.configure(api_key=os.getenv("API_KEY"))
 
-@app.route("/api/chat", methods=["POST"])
-def chat():
-    data = request.get_json()
-    messages = data.get("messages", [])
-    model_name = data.get("model", "gemini-2.5-flash")
+from .routes.notes_route import notes_bp
+from .routes.api_route import ai_bp
 
-    # Initialize model
-    model = genai.GenerativeModel(model_name)
-    response = model.generate_content(messages)
-
-    # Extract text
-    text = ""
-    for c in getattr(response, "candidates", []) or []:
-        if hasattr(c, "content"):
-            text += "".join(p.text for p in c.content.parts if hasattr(p, "text"))
-
-    return jsonify({"text": text}), 200
+app.register_blueprint(notes_bp)
+app.register_blueprint(ai_bp)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
