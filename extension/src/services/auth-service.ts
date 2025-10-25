@@ -347,8 +347,18 @@ export async function signInWithGithub() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { getSupabase } = require("../auth/supabaseClient");
     const supabase = getSupabase();
-    // Deep link registered in package.json: vscode://capstone-team-2.collab-agent01/auth/callback
-    const redirectTo = "vscode://capstone-team-2.collab-agent01/auth/callback";
+    // Build deep link dynamically from the actual extension id so it keeps working if the publisher changes
+    // Expected format: vscode://{publisher}.{extensionName}/auth/callback
+    let redirectTo = "vscode://unknown.publisher/auth/callback";
+    try {
+      const thisExt = vscode.extensions.all.find(
+        (e) => e.extensionUri.toString() === (globalContext?.extensionUri.toString() || "")
+      );
+      const extId = thisExt?.id; // e.g., "publisher.collab-agent01"
+      if (extId) {
+        redirectTo = `vscode://${extId}/auth/callback`;
+      }
+    } catch {}
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "github",
       options: { redirectTo }

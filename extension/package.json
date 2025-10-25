@@ -1,9 +1,18 @@
 {
   "name": "collab-agent01",
-  "publisher": "capstone-team-2",
+  "publisher": "capstone-team-02",
   "displayName": "Collab Agent 01",
   "description": "AI-powered collaboration assistant that integrates with Live Share to analyze team activity, provide real-time notifications about what teammates are working on, and enable intelligent team communication through a side panel interface",
-  "version": "0.4.0",
+  "version": "0.4.1",
+  "license": "MIT",
+  "keywords": [
+    "collaboration",
+    "team",
+    "supabase",
+    "github",
+    "live share",
+    "auth"
+  ],
   "engines": {
     "vscode": "^1.97.0"
   },
@@ -12,7 +21,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "*"
+    "onUri"
   ],
   "repository": {
     "type": "git",
@@ -27,13 +36,13 @@
         "properties": {
           "collabAgent.supabase.url": {
             "type": "string",
-            "default": "",
+            "default": "https://mpldhvkywihmfjdwzakd.supabase.co",
             "description": "Supabase project URL (https://xxxxx.supabase.co). Required for authentication."
           },
           "collabAgent.supabase.anonKey": {
             "type": "string",
-            "default": "",
-            "description": "Supabase anon/public API key (NEVER the service role key). Required for authentication."
+            "default": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wbGRodmt5d2lobWZqZHd6YWtkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDQzOTQsImV4cCI6MjA3NTAyMDM5NH0.qaxjv1mjNdRrVbpG6dspzw37vNxxug_LHSBUZpwoBrM",
+            "description": "Supabase anon/public API key required for authentication."
           },
           "collabAgent.general.vendor": {
             "type": "string",
@@ -152,6 +161,9 @@
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.js --production",
+  "vsce:login": "vsce login capstone-team-02",
+    "vsce:package": "vsce package",
+    "vsce:publish": "vsce publish",
     "docs:generate": "typedoc",
     "docs:serve": "npx http-server docs -p 8080 -o",
     "docs:clean": "rimraf docs"
@@ -174,7 +186,8 @@
     "ts-jest": "^29.2.6",
     "ts-node": "^10.9.2",
     "typedoc": "^0.27.9",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vsce": "2.15.0"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",

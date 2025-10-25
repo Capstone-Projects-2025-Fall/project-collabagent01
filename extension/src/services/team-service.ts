@@ -39,28 +39,12 @@ function generateJoinCode(): string {
 }
 
 
-//Gets Supabase client instance for database operations with proper authentication
- 
+//Gets the shared Supabase client instance for database operations (uses current user session)
 async function getSupabaseClient() {
     try {
-    const { createClient } = require('@supabase/supabase-js');
-        const config = vscode.workspace.getConfiguration('collabAgent');
-        const supabaseUrl = config.get<string>('supabase.url');
-        const supabaseKey = config.get<string>('supabase.anonKey');
-        const serviceRoleKey = config.get<string>('supabase.serviceRoleKey');
-        
-        if (!supabaseUrl || !supabaseKey) {
-            throw new Error('Supabase configuration missing. Please configure supabase.url and supabase.anonKey in settings.');
-        }
-        
-    // Prefer anon key (user session RLS). If service role key is configured, we'll still use it
-    // because this extension runs trusted admin flows (e.g., create team & membership).
-    const keyToUse = serviceRoleKey || supabaseKey;
-    // Helpful debug note:
-    // console.log(`Supabase client initialized with ${serviceRoleKey ? 'service role key' : 'anon key'}`);
-        const supabase = createClient(supabaseUrl, keyToUse);
-        
-        return supabase;
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { getSupabase } = require('../auth/supabaseClient');
+        return getSupabase();
     } catch (error) {
         throw new Error(`Failed to initialize Supabase client: ${error}`);
     }
@@ -96,57 +80,20 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
         }
 
         const supabase = await getSupabaseClient();
-        const joinCode = generateJoinCode();
 
-        // Get the Supabase auth user ID (this should match the user in auth.users)
-        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
-        if (authUserError) {
-            return { error: `Failed to get auth users: ${authUserError.message}` };
-        }
-        
-        const authUser = authUsers.users.find((u: any) => u.email === user.email);
-        if (!authUser) {
-            return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
-        }
+        // Use secure RPC which creates the team and adds the creator as admin
+        const { data: teamData, error: rpcError } = await supabase.rpc('create_team', {
+            p_lobby_name: lobbyName,
+            p_project_name: currentProject.projectName,
+            p_project_identifier: currentProject.projectHash,
+            p_project_repo_url: currentProject.remoteUrl
+        }).single();
 
-        // Create team record with project information
-        const { data: teamData, error: teamError } = await supabase
-            .from('teams')
-            .insert({
-                lobby_name: lobbyName,
-                created_by: authUser.id,
-                join_code: joinCode,
-                project_repo_url: currentProject.remoteUrl,
-                project_identifier: currentProject.projectHash,
-                project_name: currentProject.projectName
-            })
-            .select()
-            .single();
-
-        if (teamError) {
-            // Handle duplicate join code by retrying with new code
-            if (teamError.code === '23505' && teamError.message.includes('join_code')) {
-                return createTeam(lobbyName); // Retry with new code
-            }
-            return { error: `Failed to create team: ${teamError.message}` };
+        if (rpcError || !teamData) {
+            return { error: `Failed to create team: ${rpcError?.message || 'Unknown error'}` };
         }
 
-        // Add creator as admin member
-        const { error: memberError } = await supabase
-            .from('team_membership')
-            .insert({
-                team_id: teamData.id,
-                user_id: authUser.id, // Use the Supabase auth user ID
-                role: 'admin'
-            });
-
-        if (memberError) {
-            // Cleanup: delete team if membership creation fails
-            await supabase.from('teams').delete().eq('id', teamData.id);
-            return { error: `Failed to add team membership: ${memberError.message}` };
-        }
-
-        return { team: teamData, joinCode };
+        return { team: teamData, joinCode: teamData.join_code };
     } catch (error) {
         return { error: `Team creation failed: ${error}` };
     }
@@ -182,15 +129,10 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
 
         const supabase = await getSupabaseClient();
 
-        // Get the Supabase auth user ID
-        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
-        if (authUserError) {
-            return { error: `Failed to get auth users: ${authUserError.message}` };
-        }
-        
-        const authUser = authUsers.users.find((u: any) => u.email === user.email);
-        if (!authUser) {
-            return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        // Get the current Supabase auth user
+        const { data: { user: authUser }, error: authUserError } = await supabase.auth.getUser();
+        if (authUserError || !authUser) {
+            return { error: `Failed to get current user: ${authUserError?.message || 'No user in session'}` };
         }
 
         // Find team by join code via secure RPC (bypasses RLS safely)
@@ -222,29 +164,12 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
             };
         }
 
-        // Check if user is already a member
-        const { data: existingMembership } = await supabase
-            .from('team_membership')
-            .select('*')
-            .eq('team_id', teamData.id)
-            .eq('user_id', authUser.id) // Use Supabase auth user ID
-            .single();
+        // Add user as member using secure RPC
+        const { error: joinErr } = await supabase
+            .rpc('join_team_by_code', { p_join_code: joinCode.toUpperCase() });
 
-        if (existingMembership) {
-            return { error: 'You are already a member of this team' };
-        }
-
-        // Add user as member
-        const { error: memberError } = await supabase
-            .from('team_membership')
-            .insert({
-                team_id: teamData.id,
-                user_id: authUser.id, // Use Supabase auth user ID
-                role: 'member'
-            });
-
-        if (memberError) {
-            return { error: `Failed to join team: ${memberError.message}` };
+        if (joinErr) {
+            return { error: `Failed to join team: ${joinErr.message}` };
         }
 
         return { team: teamData };
@@ -265,15 +190,10 @@ export async function getUserTeams(): Promise<{ teams?: TeamWithMembership[]; er
 
         const supabase = await getSupabaseClient();
 
-        // Get the Supabase auth user ID
-        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
-        if (authUserError) {
-            return { error: `Failed to get auth users: ${authUserError.message}` };
-        }
-        
-        const authUser = authUsers.users.find((u: any) => u.email === user.email);
-        if (!authUser) {
-            return { error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        // Get the current Supabase auth user
+        const { data: currentUser, error: getUserErr } = await supabase.auth.getUser();
+        if (getUserErr || !currentUser.user) {
+            return { error: 'User not authenticated' };
         }
 
         const { data, error } = await supabase
@@ -291,7 +211,7 @@ export async function getUserTeams(): Promise<{ teams?: TeamWithMembership[]; er
                     project_name
                 )
             `)
-            .eq('user_id', authUser.id);
+            .eq('user_id', currentUser.user.id);
 
         if (error) {
             return { error: `Failed to get teams: ${error.message}` };
@@ -318,6 +238,11 @@ export async function getTeamById(teamId: string): Promise<{ team?: TeamWithMemb
 
         const supabase = await getSupabaseClient();
 
+        const { data: currentUser, error: getUserErr } = await supabase.auth.getUser();
+        if (getUserErr || !currentUser.user) {
+            return { error: 'User not authenticated' };
+        }
+
         const { data, error } = await supabase
             .from('team_membership')
             .select(`
@@ -331,7 +256,7 @@ export async function getTeamById(teamId: string): Promise<{ team?: TeamWithMemb
                 )
             `)
             .eq('team_id', teamId)
-            .eq('user_id', user.id)
+            .eq('user_id', currentUser.user.id)
             .single();
 
         if (error || !data) {
@@ -514,14 +439,10 @@ export async function deleteTeam(teamId: string): Promise<{ success: boolean; er
 
         const supabase = await getSupabaseClient();
 
-        // Resolve Supabase auth user id
-        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
-        if (authUserError) {
-            return { success: false, error: `Failed to get auth users: ${authUserError.message}` };
-        }
-        const authUser = authUsers.users.find((u: any) => u.email === user.email);
-        if (!authUser) {
-            return { success: false, error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        // Get current user id from session
+        const { data: currentUser, error: getUserErr } = await supabase.auth.getUser();
+        if (getUserErr || !currentUser.user) {
+            return { success: false, error: 'User not authenticated' };
         }
 
         // Check admin role for this team
@@ -529,7 +450,7 @@ export async function deleteTeam(teamId: string): Promise<{ success: boolean; er
             .from('team_membership')
             .select('role')
             .eq('team_id', teamId)
-            .eq('user_id', authUser.id)
+            .eq('user_id', currentUser.user.id)
             .single();
 
         if (membershipErr || !membership) {
@@ -539,22 +460,11 @@ export async function deleteTeam(teamId: string): Promise<{ success: boolean; er
             return { success: false, error: 'Only the Team Admin can delete this team' };
         }
 
-        // Best-effort delete memberships, then team. If FKs are ON DELETE CASCADE, second step is enough.
-        const { error: deleteMembershipsErr } = await supabase
-            .from('team_membership')
-            .delete()
-            .eq('team_id', teamId);
-        if (deleteMembershipsErr) {
-            // Continue anyway; team delete may cascade
-            console.warn('Warning: deleting memberships failed, attempting to delete team anyway:', deleteMembershipsErr);
-        }
-
-        const { error: deleteTeamErr } = await supabase
-            .from('teams')
-            .delete()
-            .eq('id', teamId);
-        if (deleteTeamErr) {
-            return { success: false, error: `Failed to delete team: ${deleteTeamErr.message}` };
+        // Perform deletion via secure RPC to avoid RLS no-op deletes
+        const { data: deletedOk, error: deleteTeamErr } = await supabase
+            .rpc('delete_team', { p_team_id: teamId });
+        if (deleteTeamErr || deletedOk !== true) {
+            return { success: false, error: deleteTeamErr?.message || 'Failed to delete team' };
         }
 
         return { success: true };
@@ -574,14 +484,10 @@ export async function leaveTeam(teamId: string): Promise<{ success: boolean; err
 
         const supabase = await getSupabaseClient();
 
-        // Resolve Supabase auth user id (requires service role key)
-        const { data: authUsers, error: authUserError } = await supabase.auth.admin.listUsers();
-        if (authUserError) {
-            return { success: false, error: `Failed to get auth users: ${authUserError.message}` };
-        }
-        const authUser = authUsers.users.find((u: any) => u.email === user.email);
-        if (!authUser) {
-            return { success: false, error: 'Could not find matching Supabase auth user. Please sign in again.' };
+        // Get current user's id
+        const { data: currentUser, error: getUserErr } = await supabase.auth.getUser();
+        if (getUserErr || !currentUser.user) {
+            return { success: false, error: 'User not authenticated' };
         }
 
         // Ensure the user is a member of this team
@@ -589,7 +495,7 @@ export async function leaveTeam(teamId: string): Promise<{ success: boolean; err
             .from('team_membership')
             .select('role')
             .eq('team_id', teamId)
-            .eq('user_id', authUser.id)
+            .eq('user_id', currentUser.user.id)
             .maybeSingle();
 
         if (membershipErr) {
@@ -602,15 +508,12 @@ export async function leaveTeam(teamId: string): Promise<{ success: boolean; err
             return { success: false, error: 'Team admins cannot leave the team they administer. Transfer admin role or delete the team.' };
         }
 
-        // Delete the membership row
-        const { error: deleteErr } = await supabase
-            .from('team_membership')
-            .delete()
-            .eq('team_id', teamId)
-            .eq('user_id', authUser.id);
+        // Use secure RPC to ensure we know if a row was actually deleted
+        const { data: leftOk, error: deleteErr } = await supabase
+            .rpc('leave_team', { p_team_id: teamId });
 
-        if (deleteErr) {
-            return { success: false, error: `Failed to leave team: ${deleteErr.message}` };
+        if (deleteErr || leftOk !== true) {
+            return { success: false, error: deleteErr?.message || 'Unable to leave team (no membership removed)' };
         }
 
         return { success: true };
