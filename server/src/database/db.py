@@ -10,6 +10,8 @@ HEADERS = {
     "Authorization": f"Bearer {SERVICE_KEY}",
     "Accept": "application/json",
     "Content-Type": "application/json",
+    # Ask PostgREST to return the inserted/updated rows so callers can use IDs immediately
+    "Prefer": "return=representation",
 }
 
 def _check_config():
@@ -35,12 +37,12 @@ def sb_select(table: str, params: dict):
     return _handle(r)
 
 def sb_insert(table, json_body):
+    _check_config()
     r = requests.post(f"{REST}/{table}", headers=HEADERS, json=json_body, timeout=20)
-    r.raise_for_status()
-    return r.json()
+    return _handle(r)
 
 def sb_update(table, where_qs, json_body):
+    _check_config()
     # where_qs example: {"id": "eq.<uuid>"}
     r = requests.patch(f"{REST}/{table}", headers=HEADERS, params=where_qs, json=json_body, timeout=20)
-    r.raise_for_status()
-    return r.json()
+    return _handle(r)
