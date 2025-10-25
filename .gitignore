@@ -28,6 +28,22 @@ server/.env
 # Generated documentation (can be regenerated with npm run docs:generate)
 extension/docs/
 
+# Python virtual environments (prevent pip installs from being tracked)
+.venv/
+venv/
+server/.venv/
+
+# Common Python cache/artifacts (optional to keep repo clean)
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
 
 # flask
 
