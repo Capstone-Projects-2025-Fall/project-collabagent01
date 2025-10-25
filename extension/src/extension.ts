@@ -1,6 +1,3 @@
-import * as dotenv from 'dotenv';
-import * as path from 'path';
-
 // Load environment variables (optional - don't fail if .env doesn't exist)
 try {
   dotenv.config({ path: path.join(__dirname, '../../server/.env') });
@@ -48,6 +45,15 @@ export async function activate(context: vscode.ExtensionContext) {
   try {
     const supabase = getSupabase();
     console.log("Supabase client initialized successfully:", supabase !== null);
+
+    // Step 2: Force session refresh before anything else
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) {
+      console.warn("[Auth] Session refresh error:", sessionError.message);
+    } else {
+      console.log("[Auth] Session check complete before initializing snapshot:", !!sessionData?.session);
+    }
+
   } catch (err) {
     console.error("Failed to initialize Supabase client:", err);
   }
@@ -141,6 +147,31 @@ export async function activate(context: vscode.ExtensionContext) {
   } else {
     console.log('Collab Agent - No workspace folder detected');
   }
+
+    // Take a full snapshot automatically when the extension starts
+    (async () => {
+      try {
+        const userId = await getCurrentUserId();
+        if (userId) {
+          await snapshotManager.takeSnapshot(userId);
+          console.log("Initial snapshot captured for user:", userId);
+        } else {
+          console.warn("No user ID found — skipping initial snapshot");
+        }
+      } catch (err) {
+        console.error("Automatic snapshot failed:", err);
+      }
+    })();
+
+    // Register manual snapshot command (available via Command Palette)
+    context.subscriptions.push(
+      vscode.commands.registerCommand("collabAgent.takeSnapshot", async () => {
+        const userId = (await getCurrentUserId()) ?? "temporary-user-id";
+        await snapshotManager.takeSnapshot(userId);
+        vscode.window.showInformationMessage("Manual snapshot complete!");
+        console.log("Manual snapshot completed for user:", userId);
+      })
+    );
 }
 
 export function deactivate() {
