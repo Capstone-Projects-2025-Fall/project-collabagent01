@@ -9,6 +9,9 @@
 
 </div>
 
+## **How To Run This Project**
+
+To run this project first git clone the repo, next open the project folder in your VSCode. In your VSCode make sure you have the Live Share Extension installed, then in your terminal make sure your in the root folder and run "python -m venv .venv" this is to create a .venv folder. Next run " .venv\Scripts\Activate.ps1" to activate the virtual environment, then navigate(cd) into the extensions folder, now run "npm run compile" to compile the project. Now press f5 or go to run and click Start Debugging, if the command palette opens choose the Vs code extension host option.
 
 ## Keywords
 
