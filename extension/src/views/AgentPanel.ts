@@ -77,6 +77,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     console.log('Handling leaveTeam command');
                     this.handleLeaveTeam();
                     break;
+                case 'addFileSnapshot':
+                    console.log('Handling addFileSnapshot command');
+                    this.addFileSnapshot(message.payload);
+                    break;
                 default:
                     console.log('Unknown command received:', message.command);
                     break;
@@ -102,6 +106,14 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
      * Posts current team info to webview
      */
     private postTeamInfo() {
+        const { getAuthContext } = require('../services/auth-service');
+        let userId: string | null = null;
+        try {
+            const ctx = getAuthContext();
+            // getAuthContext returns a Promise in services; but in constructor context we can't await
+            // So we'll handle async separately below
+        } catch {}
+
         // IMPORTANT: If no workspace folder is open, clear current team
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
             // Clear the current team - user must open a project folder first
@@ -155,16 +167,24 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
               }
             : { name: null, role: null, joinCode: null, id: null, projectValidation: null };
 
-        this._view?.webview.postMessage({
-            command: 'updateTeamInfo',
-            team: teamInfo,
-            allTeams: this._userTeams.map(t => ({
+        (async () => {
+            try {
+                const { getAuthContext } = require('../services/auth-service');
+                const res = await getAuthContext();
+                userId = res?.context?.id || null;
+            } catch {}
+            this._view?.webview.postMessage({
+                command: 'updateTeamInfo',
+                team: teamInfo,
+                userId,
+                allTeams: this._userTeams.map(t => ({
                 id: t.id,
                 name: t.lobby_name,
                 role: t.role === 'admin' ? 'Admin' : 'Member',
                 joinCode: t.join_code
             }))
-        });
+            });
+        })();
     }
 
     // Public methods for MainPanel delegation
@@ -190,6 +210,23 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     public async processAiQuery(text: string) {
         return this.handleAiQuery(text);
+    }
+
+    /**
+     * Adds a file snapshot row via service and reports back to webview
+     */
+    public async addFileSnapshot(payload: any) {
+        try {
+            const { addFileSnapshot } = require('../services/file-snapshot-service');
+            const result = await addFileSnapshot(payload);
+            if (result.success) {
+                this._view?.webview.postMessage({ command: 'fileSnapshotSaved', id: result.id });
+            } else {
+                this._view?.webview.postMessage({ command: 'fileSnapshotError', error: result.error || 'Failed to save snapshot' });
+            }
+        } catch (err) {
+            this._view?.webview.postMessage({ command: 'fileSnapshotError', error: String(err) });
+        }
     }
 
     /**
@@ -438,11 +475,42 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             </div>
 
             <div id="ai-agent-box" class="section">
-                <h3>AI Agent</h3>
-                <div id="ai-chat-log" class="chat-log"></div>
-                <div class="chat-input-container">
-                    <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
-                    <button id="ai-chat-send">Send</button>
+                <h3>Add File Snapshot</h3>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <label for="fs-id">Snapshot ID</label>
+                        <input id="fs-id" type="text" readonly />
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-userId">User ID</label>
+                        <input id="fs-userId" type="text" readonly />
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-teamId">Team ID</label>
+                        <input id="fs-teamId" type="text" readonly />
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-updatedAt">Updated At</label>
+                        <input id="fs-updatedAt" type="text" readonly />
+                    </div>
+                    <hr />
+                    <div class="form-row">
+                        <label for="fs-filePath">File Path</label>
+                        <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-snapshot">Snapshot (text)</label>
+                        <textarea id="fs-snapshot" rows="5" placeholder="Paste snapshot content here..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-changes">Changes (text)</label>
+                        <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
+                    </div>
+                    <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
+                        <button class="button" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
+                        <button class="button" id="fs-addBtn">Add Snapshot</button>
+                    </div>
+                    <div id="fs-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
                 </div>
             </div>
         `;
@@ -484,11 +552,42 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             </div>
 
             <div id="ai-agent-box" class="section">
-                <h3>AI Agent</h3>
-                <div id="ai-chat-log" class="chat-log"></div>
-                <div class="chat-input-container">
-                    <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
-                    <button id="ai-chat-send">Send</button>
+                <h3>Add File Snapshot</h3>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <label for="fs-id">Snapshot ID</label>
+                        <input id="fs-id" type="text" readonly />
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-userId">User ID</label>
+                        <input id="fs-userId" type="text" readonly />
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-teamId">Team ID</label>
+                        <input id="fs-teamId" type="text" readonly />
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-updatedAt">Updated At</label>
+                        <input id="fs-updatedAt" type="text" readonly />
+                    </div>
+                    <hr />
+                    <div class="form-row">
+                        <label for="fs-filePath">File Path</label>
+                        <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-snapshot">Snapshot (text)</label>
+                        <textarea id="fs-snapshot" rows="5" placeholder="Paste snapshot content here..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <label for="fs-changes">Changes (text)</label>
+                        <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
+                    </div>
+                    <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
+                        <button class="button" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
+                        <button class="button" id="fs-addBtn">Add Snapshot</button>
+                    </div>
+                    <div id="fs-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
                 </div>
             </div>
 

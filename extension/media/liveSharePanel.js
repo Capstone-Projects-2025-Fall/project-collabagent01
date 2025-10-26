@@ -135,6 +135,7 @@
 	function setupAllButtons() {
 		setupHomePanelButtons();
 		setupAgentPanelButtons();
+		setupSnapshotForm();
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -197,12 +198,31 @@
 				appendAIMessage(message.text);
 				break;
 			case 'updateTeamInfo':
-				updateTeamInfo(message.team);
+				updateTeamInfo(message.team, message.userId);
+				break;
+			case 'teamInfo': // fallback when no workspace is open
+				updateTeamInfo(message.teamInfo, undefined);
+				break;
+			case 'fileSnapshotSaved':
+				showFsFeedback('Snapshot saved.', 'ok');
+				setSaving(false);
+				regenerateSnapshotId();
+				break;
+			case 'fileSnapshotError':
+				showFsFeedback(message.error || 'Failed to save snapshot.', 'warn');
+				setSaving(false);
+				break;
+			case 'updateAuthState':
+				if (!message.authenticated) {
+					persistFsIds({ userId: '', teamId: getState().teamId || '' });
+					const u = document.getElementById('fs-userId');
+					if (u) u.value = '';
+				}
 				break;
 		}
 	});
 
-	function updateTeamInfo(team) {
+	function updateTeamInfo(team, userId) {
 		console.log('Updating team info:', team);
 		
 		const teamName = document.getElementById('teamName');
@@ -211,6 +231,8 @@
 		const joinCodeSection = document.getElementById('joinCodeSection');
 		const deleteTeamBtn = document.getElementById('deleteTeamBtn');
 		const leaveTeamBtn = document.getElementById('leaveTeamBtn');
+		const fsTeamId = document.getElementById('fs-teamId');
+		const fsUserId = document.getElementById('fs-userId');
 		
 		if (teamName) teamName.textContent = team?.name ?? '—';
 		if (teamRole) teamRole.textContent = team?.role ?? '—';
@@ -234,10 +256,15 @@
 				leaveTeamBtn.style.display = (team?.name && team?.role === 'Member') ? 'inline-block' : 'none';
 			}
 		}
+
+		if (fsTeamId) fsTeamId.value = team?.id || '';
+		if (fsUserId && userId) fsUserId.value = userId;
+		persistFsIds({ userId: (fsUserId && fsUserId.value) || '', teamId: (fsTeamId && fsTeamId.value) || '' });
 	}
 
 	function appendAIMessage(text) {
 		const chatLog = document.getElementById('ai-chat-log');
+		if (!chatLog) return; // Chat UI not present anymore
 		const msgDiv = document.createElement('div');
 		msgDiv.className = 'chat-message ai-message';
 		msgDiv.textContent = `Agent: ${text}`;
@@ -509,29 +536,108 @@
 	// Ask backend if there is a stored link when webview loads
 	post('requestStoredLink');
 
-	// AI Agent Chat UI
-	const input = document.getElementById('ai-chat-input');
-	const sendBtn = document.getElementById('ai-chat-send');
-	const log = document.getElementById('ai-chat-log');
+	// File Snapshot form helpers
+	function setupSnapshotForm() {
+		const idEl = document.getElementById('fs-id');
+		const atEl = document.getElementById('fs-updatedAt');
+		const regenBtn = document.getElementById('fs-generateIdBtn');
+		const addBtn = document.getElementById('fs-addBtn');
+		const uEl = document.getElementById('fs-userId');
+		const tEl = document.getElementById('fs-teamId');
 
-	function appendMessage(sender, text) {
-		const msg = document.createElement('div');
-		msg.className = 'chat-message';
-		msg.innerHTML = `<strong>${sender}:</strong> ${text}`;
-		log.appendChild(msg);
-		log.scrollTop = log.scrollHeight;
+		// restore from persisted state on refresh
+		const state = getState();
+		if (uEl && !uEl.value && state.userId) uEl.value = state.userId;
+		if (tEl && !tEl.value && state.teamId) tEl.value = state.teamId;
+		if (idEl && !idEl.value) idEl.value = generateUUID();
+		if (atEl && !atEl.value) atEl.value = new Date().toISOString();
+		if (regenBtn && !regenBtn.hasAttribute('data-listener-added')) {
+			regenBtn.addEventListener('click', function(){
+				regenerateSnapshotId();
+			});
+			regenBtn.setAttribute('data-listener-added','true');
+		}
+		if (addBtn && !addBtn.hasAttribute('data-listener-added')) {
+			addBtn.addEventListener('click', function(){
+				const payload = collectSnapshotPayload();
+				if (!payload) return;
+				setSaving(true);
+				post('addFileSnapshot', { payload });
+				setTimeout(() => { if (isSaving()) showFsFeedback('Saving…', 'info'); }, 1500);
+			});
+			addBtn.setAttribute('data-listener-added','true');
+		}
 	}
 
-	function sendMessage() {
-		const text = input.value.trim();
-		if (!text) return;
-		appendMessage('You', text);
-		vscode.postMessage({ command: 'aiQuery', text });
-		input.value = '';
+	function collectSnapshotPayload(){
+		const id = document.getElementById('fs-id')?.value?.trim();
+		const userId = document.getElementById('fs-userId')?.value?.trim();
+		const teamId = document.getElementById('fs-teamId')?.value?.trim();
+		const updatedAt = document.getElementById('fs-updatedAt')?.value?.trim();
+		const filePath = document.getElementById('fs-filePath')?.value?.trim();
+		const snapshot = document.getElementById('fs-snapshot')?.value?.trim();
+		const changes = document.getElementById('fs-changes')?.value?.trim();
+		if (!filePath || !snapshot || !changes){
+			showFsFeedback('Please fill file path, snapshot and changes.', 'warn');
+			return null;
+		}
+		return {
+			id,
+			user_id: userId || undefined,
+			team_id: teamId || undefined,
+			file_path: filePath,
+			snapshot,
+			changes,
+			updated_at: updatedAt || undefined
+		};
 	}
 
-	sendBtn.addEventListener('click', sendMessage);
-	input.addEventListener('keypress', (e) => {
-		if (e.key === 'Enter') sendMessage();
-	});
+	function regenerateSnapshotId(){
+		const idEl = document.getElementById('fs-id');
+		const atEl = document.getElementById('fs-updatedAt');
+		if (idEl) idEl.value = generateUUID();
+		if (atEl) atEl.value = new Date().toISOString();
+		showFsFeedback('New ID generated.', 'info');
+	}
+
+	function showFsFeedback(msg, kind){
+		const el = document.getElementById('fs-feedback');
+		if (!el) return;
+		let color = 'var(--vscode-descriptionForeground)';
+		if (kind === 'ok') color = 'var(--vscode-testing-iconPassed)';
+		if (kind === 'warn') color = 'var(--vscode-editorWarning-foreground, orange)';
+		if (kind === 'info') color = 'var(--vscode-descriptionForeground)';
+		el.style.color = color;
+		el.textContent = msg;
+	}
+
+	function getState(){
+		return (vscode.getState && vscode.getState()) || {};
+	}
+
+	function persistFsIds({ userId, teamId }){
+		const prev = getState();
+		vscode.setState({ ...prev, userId, teamId });
+	}
+
+	let __saving = false;
+	function setSaving(v){
+		__saving = v;
+		const btn = document.getElementById('fs-addBtn');
+		if (btn){
+			btn.disabled = !!v;
+			btn.textContent = v ? 'Saving…' : 'Add Snapshot';
+		}
+	}
+	function isSaving(){ return __saving; }
+
+	function generateUUID(){
+		if (window.crypto && window.crypto.randomUUID) {
+			return window.crypto.randomUUID();
+		}
+		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+			const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
+			return v.toString(16);
+		});
+	}
 })();
