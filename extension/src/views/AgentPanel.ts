@@ -85,6 +85,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     console.log('Handling generateSummary command');
                     this.generateSummary(message.snapshotId);
                     break;
+                case 'loadActivityFeed':
+                    console.log('Handling loadActivityFeed command');
+                    this.loadActivityFeed(message.teamId, message.limit);
+                    break;
                 default:
                     console.log('Unknown command received:', message.command);
                     break;
@@ -249,6 +253,28 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             }
         } catch (err) {
             this._view?.webview.postMessage({ command: 'summaryError', error: String(err) });
+        }
+    }
+
+    /**
+     * Loads recent activity for a team and posts back to webview.
+     */
+    public async loadActivityFeed(teamId?: string, limit = 25) {
+        try {
+            const effectiveTeamId = teamId || this._context.globalState.get<string>(this._teamStateKey);
+            if (!effectiveTeamId) {
+                this._view?.webview.postMessage({ command: 'activityError', error: 'No team selected.' });
+                return;
+            }
+            const { fetchTeamActivity } = require('../services/team-activity-service');
+            const res = await fetchTeamActivity(effectiveTeamId, limit);
+            if (res.success) {
+                this._view?.webview.postMessage({ command: 'activityFeed', items: res.items || [] });
+            } else {
+                this._view?.webview.postMessage({ command: 'activityError', error: res.error || 'Failed to load activity' });
+            }
+        } catch (err) {
+            this._view?.webview.postMessage({ command: 'activityError', error: String(err) });
         }
     }
 

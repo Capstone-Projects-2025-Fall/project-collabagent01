@@ -136,6 +136,7 @@
 		setupHomePanelButtons();
 		setupAgentPanelButtons();
 		setupSnapshotForm();
+		setupActivityFeed();
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -219,6 +220,12 @@
 				break;
 			case 'summaryError':
 				showSummaryFeedback(message.error || 'Failed to generate summary.', 'warn');
+				break;
+			case 'activityFeed':
+				renderActivityFeed(message.items || []);
+				break;
+			case 'activityError':
+				showActivityFeedback(message.error || 'Failed to load activity.');
 				break;
 			case 'updateAuthState':
 				if (!message.authenticated) {
@@ -618,6 +625,78 @@
 			});
 			genSummaryBtn.setAttribute('data-listener-added','true');
 		}
+	}
+
+	// Activity Feed UI and behavior
+	function setupActivityFeed(){
+		const anchor = document.getElementById('fs-summary-feedback');
+		if (!anchor || document.getElementById('activityFeedSection')) return;
+		const section = document.createElement('div');
+		section.id = 'activityFeedSection';
+		section.className = 'section';
+		section.innerHTML = `
+			<h3 style="margin-top:12px;">Recent Activity</h3>
+			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
+				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
+			</div>
+			<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+		`;
+		anchor.insertAdjacentElement('afterend', section);
+
+		const refresh = document.getElementById('activityRefreshBtn');
+		if (refresh && !refresh.hasAttribute('data-listener-added')){
+			refresh.addEventListener('click', requestActivityFeed);
+			refresh.setAttribute('data-listener-added','true');
+		}
+
+		// initial load if a team is present
+		requestActivityFeed();
+	}
+
+	function requestActivityFeed(){
+		const teamId = document.getElementById('fs-teamId')?.value?.trim();
+		if (!teamId){
+			showActivityFeedback('No active team.');
+			return;
+		}
+		showActivityFeedback('Loading…');
+		post('loadActivityFeed', { teamId, limit: 25 });
+	}
+
+	function renderActivityFeed(items){
+		const list = document.getElementById('activityList');
+		if (!list) return;
+		if (!items.length){
+			list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No recent activity.</div>';
+			showActivityFeedback('');
+			return;
+		}
+		const html = items.map((it)=>{
+			const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
+			const file = it.file_path || '';
+			const who = it.user_id ? it.user_id.substring(0,8)+'…' : '';
+			const summary = it.summary || '';
+			return `
+				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); padding:8px; border-radius:4px;">
+					<div style="font-size:12px; color: var(--vscode-descriptionForeground);">${when} • ${who} ${file ? '• '+file : ''}</div>
+					<div style="margin-top:4px;">${escapeHtml(summary)}</div>
+				</div>
+			`;
+		}).join('');
+		list.innerHTML = html;
+		showActivityFeedback('');
+	}
+
+	function showActivityFeedback(msg){
+		const el = document.getElementById('activityFeedback');
+		if (el) el.textContent = msg || '';
+	}
+
+	function escapeHtml(str){
+		return (str||'').replace(/[&<>\"]+/g, function(s){
+			return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[s]);
+		});
 	}
 
 	function collectSnapshotPayload(){
