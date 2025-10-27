@@ -24,6 +24,98 @@
 	margin: 0 4px;
 }
 
+/* Form Styles */
+.form-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-row label {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--vscode-input-foreground);
+  margin-bottom: 2px;
+}
+
+.form-row input,
+.form-row textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+}
+
+.form-row input:focus,
+.form-row textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+}
+
+.form-row input[readonly] {
+  background: var(--vscode-textCodeBlock-background);
+  color: var(--vscode-textPreformat-foreground);
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.form-row textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.form-section {
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--vscode-textBlockQuote-background);
+  border: 1px solid var(--vscode-textBlockQuote-border);
+  border-radius: 6px;
+}
+
+.form-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vscode-textLink-foreground);
+  border-bottom: 1px solid var(--vscode-textBlockQuote-border);
+  padding-bottom: 6px;
+}
+
+.readonly-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.readonly-grid .form-row {
+  margin-bottom: 0;
+}
+
+.feedback-text {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 6px;
+  font-style: italic;
+}
+
 /* AI Agent chat area */
 #ai-agent-box {
   margin-top: 1rem;
