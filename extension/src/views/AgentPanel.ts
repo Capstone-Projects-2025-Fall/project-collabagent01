@@ -525,51 +525,69 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
             <div id="ai-agent-box" class="section">
                 <h3>Add File Snapshot</h3>
-                <div class="form-grid">
-                    <div class="form-row">
-                        <label for="fs-id">Snapshot ID</label>
-                        <input id="fs-id" type="text" readonly />
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-userId">User ID</label>
-                        <input id="fs-userId" type="text" readonly />
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-teamId">Team ID</label>
-                        <input id="fs-teamId" type="text" readonly />
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-updatedAt">Updated At</label>
-                        <input id="fs-updatedAt" type="text" readonly />
-                    </div>
-                    <hr />
-                    <div class="form-row">
-                        <label for="fs-filePath">File Path</label>
-                        <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-snapshot">Snapshot (text)</label>
-                        <textarea id="fs-snapshot" rows="5" placeholder="Paste snapshot content here..."></textarea>
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-changes">Changes (text)</label>
-                        <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
-                    </div>
-                    <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
-                        <button class="button" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
-                        <button class="button" id="fs-addBtn">Add Snapshot</button>
-                    </div>
-                    <div id="fs-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
 
-                    <hr />
-                    <div class="form-row">
-                        <label for="fs-summary-id">Generate Summary for Snapshot ID</label>
-                        <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+                <!-- Metadata Section -->
+                <div class="form-section">
+                    <h4>Snapshot Metadata</h4>
+                    <div class="readonly-grid">
+                        <div class="form-row">
+                            <label for="fs-id">Snapshot ID</label>
+                            <input id="fs-id" type="text" readonly />
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-userId">User ID</label>
+                            <input id="fs-userId" type="text" readonly />
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-teamId">Team ID</label>
+                            <input id="fs-teamId" type="text" readonly />
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-updatedAt">Updated At</label>
+                            <input id="fs-updatedAt" type="text" readonly />
+                        </div>
                     </div>
-                    <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
-                        <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
+                    <div class="form-actions">
+                        <button class="button-small" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
                     </div>
-                    <div id="fs-summary-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
+                </div>
+
+                <!-- Content Section -->
+                <div class="form-section">
+                    <h4>File Content</h4>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="fs-filePath">File Path</label>
+                            <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-snapshot">Snapshot Content</label>
+                            <textarea id="fs-snapshot" rows="6" placeholder="Paste snapshot content here..."></textarea>
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-changes">Changes Description</label>
+                            <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button class="button" id="fs-addBtn">Add Snapshot</button>
+                        </div>
+                        <div id="fs-feedback" class="feedback-text"></div>
+                    </div>
+                </div>
+
+                <!-- AI Summary Section -->
+                <div class="form-section">
+                    <h4>AI Summary</h4>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="fs-summary-id">Snapshot ID for Summary</label>
+                            <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+                        </div>
+                        <div class="form-actions">
+                            <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
+                        </div>
+                        <div id="fs-summary-feedback" class="feedback-text"></div>
+                    </div>
                 </div>
             </div>
         `;
@@ -612,51 +630,69 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
             <div id="ai-agent-box" class="section">
                 <h3>Add File Snapshot</h3>
-                <div class="form-grid">
-                    <div class="form-row">
-                        <label for="fs-id">Snapshot ID</label>
-                        <input id="fs-id" type="text" readonly />
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-userId">User ID</label>
-                        <input id="fs-userId" type="text" readonly />
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-teamId">Team ID</label>
-                        <input id="fs-teamId" type="text" readonly />
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-updatedAt">Updated At</label>
-                        <input id="fs-updatedAt" type="text" readonly />
-                    </div>
-                    <hr />
-                    <div class="form-row">
-                        <label for="fs-filePath">File Path</label>
-                        <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-snapshot">Snapshot (text)</label>
-                        <textarea id="fs-snapshot" rows="5" placeholder="Paste snapshot content here..."></textarea>
-                    </div>
-                    <div class="form-row">
-                        <label for="fs-changes">Changes (text)</label>
-                        <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
-                    </div>
-                    <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
-                        <button class="button" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
-                        <button class="button" id="fs-addBtn">Add Snapshot</button>
-                    </div>
-                    <div id="fs-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
 
-                    <hr />
-                    <div class="form-row">
-                        <label for="fs-summary-id">Generate Summary for Snapshot ID</label>
-                        <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+                <!-- Metadata Section -->
+                <div class="form-section">
+                    <h4>Snapshot Metadata</h4>
+                    <div class="readonly-grid">
+                        <div class="form-row">
+                            <label for="fs-id">Snapshot ID</label>
+                            <input id="fs-id" type="text" readonly />
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-userId">User ID</label>
+                            <input id="fs-userId" type="text" readonly />
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-teamId">Team ID</label>
+                            <input id="fs-teamId" type="text" readonly />
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-updatedAt">Updated At</label>
+                            <input id="fs-updatedAt" type="text" readonly />
+                        </div>
                     </div>
-                    <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
-                        <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
+                    <div class="form-actions">
+                        <button class="button-small" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
                     </div>
-                    <div id="fs-summary-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
+                </div>
+
+                <!-- Content Section -->
+                <div class="form-section">
+                    <h4>File Content</h4>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="fs-filePath">File Path</label>
+                            <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-snapshot">Snapshot Content</label>
+                            <textarea id="fs-snapshot" rows="6" placeholder="Paste snapshot content here..."></textarea>
+                        </div>
+                        <div class="form-row">
+                            <label for="fs-changes">Changes Description</label>
+                            <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
+                        </div>
+                        <div class="form-actions">
+                            <button class="button" id="fs-addBtn">Add Snapshot</button>
+                        </div>
+                        <div id="fs-feedback" class="feedback-text"></div>
+                    </div>
+                </div>
+
+                <!-- AI Summary Section -->
+                <div class="form-section">
+                    <h4>AI Summary</h4>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label for="fs-summary-id">Snapshot ID for Summary</label>
+                            <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+                        </div>
+                        <div class="form-actions">
+                            <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
+                        </div>
+                        <div id="fs-summary-feedback" class="feedback-text"></div>
+                    </div>
                 </div>
             </div>
 
