@@ -80,6 +80,52 @@ Important: The email login option is not currently working. Please follow these 
 
 You should now be successfully logged in to the extension. 
 
+
+### How to Create and Join a Team
+Before you can create or join a team, everyone must complete one critical prerequisite.
+
+Important Prerequisite (For ALL Team Members)
+
+This extension links a team to a specific code repository. Therefore, every member (both the creator and the joiners) must follow these steps first:
+
+Choose any Repository that is linked to GitHub: For example, you can create a new, empty repository on GitHub just for this purpose.
+
+Clone the Repository: Every team member must git clone that exact same repository to their local computer.
+
+Open the Folder in VS Code: Launch VS Code and open the folder you just cloned (using File > Open Folder...).
+
+Ensure It's the Only Folder: This is critical. Your cloned repository folder must be the only folder open in your VS Code window. The extension will not work correctly if you have multiple folders open in a "Workspace."
+
+Log In: Make sure you are logged into the Collab Agent 01 extension with your GitHub account.
+
+### Section 1: How to Create a Team (For the Team Leader)
+Only one person needs to create the team.
+
+Click the Collab Agent 01 icon in the Activity Bar (the three-person logo).
+
+In the panel that opens, find and click on the "AgentBot" tab.
+
+Click the "Create Team" button.
+
+A 6-digit team code will be generated.
+
+Share this 6-digit code with the team members who will be joining.
+
+### Section 2: How to Join a Team (For Team Members)
+Everyone else who wants to join the team should follow these steps.
+
+Confirm you have completed the "Important Prerequisite" steps listed above.
+
+Click the Collab Agent 01 icon in the Activity Bar.
+
+In the panel that opens, click on the "AgentBot" tab.
+
+Click the "Join Team" button.
+
+A box will appear. Enter the 6-digit code provided by your team leader.
+
+You should now be successfully connected to the team!
+
 ## Collaborators
 Benjamin O'Neill, Andrew Rush, Jaryn Hernandez, Nicholas Phillips, Alphin Shajan
 <div align="center">
