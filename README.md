@@ -9,6 +9,18 @@
 
 </div>
 
+## **How To Run The Project**
+1. Clone the repository: https://github.com/Capstone-Projects-2025-Fall/project-collabagent01.git
+2. Open The Project In Visual Studio Code
+3. Set up a virtual environment:
+In the terminal (make sure you’re in the project’s root directory), run: "python -m venv .venv"
+4. Activate The Virtual Environment, run: ".venv\Scripts\Activate.ps1"
+5. Navigate to the extensions folder: "cd extensions"
+6. Install Root Dependencies: "npm install"
+7. Compile the project: "npm run compile"
+8. Start Debugging:
+Press F5 or go to Run → Start Debugging,
+If prompted, select VS Code Extension Host from the Command Palette.
 
 ## Keywords
 
