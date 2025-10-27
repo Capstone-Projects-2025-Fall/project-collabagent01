@@ -206,11 +206,19 @@
 			case 'fileSnapshotSaved':
 				showFsFeedback('Snapshot saved.', 'ok');
 				setSaving(false);
-				regenerateSnapshotId();
+				// Pre-fill the summary input with the saved snapshot id
+				const sumId = document.getElementById('fs-summary-id');
+				if (sumId && message.id) sumId.value = message.id;
 				break;
 			case 'fileSnapshotError':
 				showFsFeedback(message.error || 'Failed to save snapshot.', 'warn');
 				setSaving(false);
+				break;
+			case 'summaryGenerated':
+				showSummaryFeedback(`Summary stored: ${message.summary || '(no text)'}`, 'ok');
+				break;
+			case 'summaryError':
+				showSummaryFeedback(message.error || 'Failed to generate summary.', 'warn');
 				break;
 			case 'updateAuthState':
 				if (!message.authenticated) {
@@ -544,6 +552,7 @@
 		const addBtn = document.getElementById('fs-addBtn');
 		const uEl = document.getElementById('fs-userId');
 		const tEl = document.getElementById('fs-teamId');
+		const feedbackAnchor = document.getElementById('fs-feedback');
 
 		// restore from persisted state on refresh
 		const state = getState();
@@ -566,6 +575,48 @@
 				setTimeout(() => { if (isSaving()) showFsFeedback('Saving…', 'info'); }, 1500);
 			});
 			addBtn.setAttribute('data-listener-added','true');
+		}
+
+		// Dynamically add Generate Summary controls if not present in HTML yet
+		if (feedbackAnchor && !document.getElementById('fs-generateSummaryBtn')) {
+			const hr = document.createElement('hr');
+			const row = document.createElement('div');
+			row.className = 'form-row';
+			row.innerHTML = `
+				<label for="fs-summary-id">Generate Summary for Snapshot ID</label>
+				<input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+			`;
+			const actions = document.createElement('div');
+			actions.className = 'form-actions';
+			actions.style.cssText = 'margin-top:8px; display:flex; gap:6px;';
+			const btn = document.createElement('button');
+			btn.className = 'button';
+			btn.id = 'fs-generateSummaryBtn';
+			btn.title = 'Use AI to summarize changes and store in team activity';
+			btn.textContent = 'Generate Summary';
+			actions.appendChild(btn);
+			const fb = document.createElement('div');
+			fb.id = 'fs-summary-feedback';
+			fb.style.cssText = 'font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;';
+
+			// Insert after feedbackAnchor
+			feedbackAnchor.insertAdjacentElement('afterend', fb);
+			fb.insertAdjacentElement('beforebegin', actions);
+			actions.insertAdjacentElement('beforebegin', row);
+			row.insertAdjacentElement('beforebegin', hr);
+		}
+
+		const genSummaryBtn = document.getElementById('fs-generateSummaryBtn');
+		if (genSummaryBtn && !genSummaryBtn.hasAttribute('data-listener-added')) {
+			genSummaryBtn.addEventListener('click', function(){
+				const explicit = document.getElementById('fs-summary-id')?.value?.trim();
+				const current = document.getElementById('fs-id')?.value?.trim();
+				const snapshotId = explicit || current;
+				if (!snapshotId) { showSummaryFeedback('Please enter or generate a Snapshot ID first.', 'warn'); return; }
+				showSummaryFeedback('Generating AI summary…', 'info');
+				post('generateSummary', { snapshotId });
+			});
+			genSummaryBtn.setAttribute('data-listener-added','true');
 		}
 	}
 
@@ -602,6 +653,17 @@
 
 	function showFsFeedback(msg, kind){
 		const el = document.getElementById('fs-feedback');
+		if (!el) return;
+		let color = 'var(--vscode-descriptionForeground)';
+		if (kind === 'ok') color = 'var(--vscode-testing-iconPassed)';
+		if (kind === 'warn') color = 'var(--vscode-editorWarning-foreground, orange)';
+		if (kind === 'info') color = 'var(--vscode-descriptionForeground)';
+		el.style.color = color;
+		el.textContent = msg;
+	}
+
+	function showSummaryFeedback(msg, kind){
+		const el = document.getElementById('fs-summary-feedback');
 		if (!el) return;
 		let color = 'var(--vscode-descriptionForeground)';
 		if (kind === 'ok') color = 'var(--vscode-testing-iconPassed)';

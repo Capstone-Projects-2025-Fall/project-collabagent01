@@ -81,6 +81,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     console.log('Handling addFileSnapshot command');
                     this.addFileSnapshot(message.payload);
                     break;
+                case 'generateSummary':
+                    console.log('Handling generateSummary command');
+                    this.generateSummary(message.snapshotId);
+                    break;
                 default:
                     console.log('Unknown command received:', message.command);
                     break;
@@ -226,6 +230,25 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             }
         } catch (err) {
             this._view?.webview.postMessage({ command: 'fileSnapshotError', error: String(err) });
+        }
+    }
+
+    /**
+     * Triggers backend to generate an AI summary for a snapshot and persist to the team activity feed.
+     */
+    public async generateSummary(snapshotId: string) {
+        try {
+            const { generateTeamActivityFromSnapshot } = require('../services/file-snapshot-service');
+            // Try to pass current team id if available
+            const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+            const result = await generateTeamActivityFromSnapshot(snapshotId, currentTeamId);
+            if (result.success) {
+                this._view?.webview.postMessage({ command: 'summaryGenerated', summary: result.summary, snapshotId });
+            } else {
+                this._view?.webview.postMessage({ command: 'summaryError', error: result.error || 'Failed to generate summary' });
+            }
+        } catch (err) {
+            this._view?.webview.postMessage({ command: 'summaryError', error: String(err) });
         }
     }
 
@@ -511,6 +534,16 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         <button class="button" id="fs-addBtn">Add Snapshot</button>
                     </div>
                     <div id="fs-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
+
+                    <hr />
+                    <div class="form-row">
+                        <label for="fs-summary-id">Generate Summary for Snapshot ID</label>
+                        <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+                    </div>
+                    <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
+                        <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
+                    </div>
+                    <div id="fs-summary-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
                 </div>
             </div>
         `;
@@ -588,6 +621,16 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         <button class="button" id="fs-addBtn">Add Snapshot</button>
                     </div>
                     <div id="fs-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
+
+                    <hr />
+                    <div class="form-row">
+                        <label for="fs-summary-id">Generate Summary for Snapshot ID</label>
+                        <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+                    </div>
+                    <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
+                        <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
+                    </div>
+                    <div id="fs-summary-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
                 </div>
             </div>
 

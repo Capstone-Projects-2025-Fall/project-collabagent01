@@ -111,6 +111,55 @@
       input.addEventListener('keypress', (e) => { if(e.key === 'Enter') sendMessage(); });
       input.setAttribute('data-listener-added', 'true');
     }
+
+    // File Snapshot controls
+    const genIdBtn = document.getElementById('fs-generateIdBtn');
+    const addBtn = document.getElementById('fs-addBtn');
+    const genSummaryBtn = document.getElementById('fs-generateSummaryBtn');
+
+    if (genIdBtn && !genIdBtn.hasAttribute('data-listener-added')) {
+      genIdBtn.addEventListener('click', () => {
+        const idEl = document.getElementById('fs-id');
+        if (idEl) idEl.value = cryptoRandomUUIDFallback();
+        const upEl = document.getElementById('fs-updatedAt');
+        if (upEl) upEl.value = new Date().toISOString();
+      });
+      genIdBtn.setAttribute('data-listener-added', 'true');
+    }
+
+    if (addBtn && !addBtn.hasAttribute('data-listener-added')) {
+      addBtn.addEventListener('click', () => {
+        const id = (document.getElementById('fs-id')?.value || '').trim() || cryptoRandomUUIDFallback();
+        const file_path = (document.getElementById('fs-filePath')?.value || '').trim();
+        const snapshot = (document.getElementById('fs-snapshot')?.value || '').trim();
+        const changes = (document.getElementById('fs-changes')?.value || '').trim();
+        const feedback = document.getElementById('fs-feedback');
+        if (!file_path || !snapshot) {
+          if (feedback) feedback.textContent = 'Please provide at least File Path and Snapshot text.';
+          return;
+        }
+        const payload = { id, file_path, snapshot, changes, updated_at: new Date().toISOString() };
+        post('addFileSnapshot', { payload });
+        if (feedback) feedback.textContent = 'Saving snapshot...';
+      });
+      addBtn.setAttribute('data-listener-added', 'true');
+    }
+
+    if (genSummaryBtn && !genSummaryBtn.hasAttribute('data-listener-added')) {
+      genSummaryBtn.addEventListener('click', () => {
+        const explicit = (document.getElementById('fs-summary-id')?.value || '').trim();
+        const current = (document.getElementById('fs-id')?.value || '').trim();
+        const snapshot_id = explicit || current;
+        const fb = document.getElementById('fs-summary-feedback');
+        if (!snapshot_id) {
+          if (fb) fb.textContent = 'Please enter or generate a Snapshot ID first.';
+          return;
+        }
+        post('generateSummary', { snapshotId: snapshot_id });
+        if (fb) fb.textContent = 'Generating AI summary...';
+      });
+      genSummaryBtn.setAttribute('data-listener-added', 'true');
+    }
   }
 
   function sendMessage(){
@@ -226,6 +275,18 @@
         // Show delete button only for Admin; show leave button only for Members
         if (del) del.style.display = (m.team?.name && m.team?.role === 'Admin') ? 'inline-block' : 'none';
         if (leave) leave.style.display = (m.team?.name && m.team?.role === 'Member') ? 'inline-block' : 'none';
+
+        // Pre-fill IDs/time for File Snapshot section
+        try {
+          const idEl = document.getElementById('fs-id');
+          const userEl = document.getElementById('fs-userId');
+          const teamEl = document.getElementById('fs-teamId');
+          const upEl = document.getElementById('fs-updatedAt');
+          if (idEl && !idEl.value) idEl.value = cryptoRandomUUIDFallback();
+          if (userEl && m.userId) userEl.value = m.userId;
+          if (teamEl && m.team?.id) teamEl.value = m.team.id;
+          if (upEl) upEl.value = new Date().toISOString();
+        } catch (err) {}
         break;
       case 'aiResponse':
         const log = document.getElementById('ai-chat-log');
@@ -236,6 +297,38 @@
           log.appendChild(msg); log.scrollTop = log.scrollHeight;
         }
         break;
+      case 'fileSnapshotSaved':
+        {
+          const fb = document.getElementById('fs-feedback');
+          if (fb) fb.textContent = `Snapshot saved (id: ${m.id}).`;
+          const summaryId = document.getElementById('fs-summary-id');
+          if (summaryId) summaryId.value = m.id;
+        }
+        break;
+      case 'fileSnapshotError':
+        {
+          const fb = document.getElementById('fs-feedback');
+          if (fb) fb.textContent = `Error: ${m.error}`;
+        }
+        break;
+      case 'summaryGenerated':
+        {
+          const fb = document.getElementById('fs-summary-feedback');
+          if (fb) fb.textContent = `Summary stored: ${m.summary}`;
+        }
+        break;
+      case 'summaryError':
+        {
+          const fb = document.getElementById('fs-summary-feedback');
+          if (fb) fb.textContent = `Error: ${m.error}`;
+        }
+        break;
     }
   });
 })();
+  function cryptoRandomUUIDFallback(){
+    try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch {}
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+      const r = Math.random()*16|0, v = c==='x'?r:(r&0x3)|0x8; return v.toString(16);
+    });
+  }

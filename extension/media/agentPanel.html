@@ -54,6 +54,16 @@
                 <button class="button" id="fs-addBtn">Add Snapshot</button>
             </div>
             <div id="fs-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
+
+            <hr />
+            <div class="form-row">
+                <label for="fs-summary-id">Generate Summary for Snapshot ID</label>
+                <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+            </div>
+            <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
+                <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
+            </div>
+            <div id="fs-summary-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
         </div>
     </div>
 </div>
