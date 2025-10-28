@@ -1,4 +1,5 @@
-const LOCAL_ENDPOINT_URL = "http://127.0.0.1:8001";
+// Local backend default port should match Flask app PORT
+const LOCAL_ENDPOINT_URL = "http://127.0.0.1:8080";
 const ENDPOINT_URL = "https://backend-639487598928.us-east5.run.app";
 
 const TESTING: boolean = true;

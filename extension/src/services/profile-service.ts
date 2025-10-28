@@ -24,7 +24,7 @@ export async function getOrInitDisplayName(nonInteractive = false): Promise<Disp
   // Debug logging 
   console.log('[getOrInitDisplayName] Starting...');
   console.log('[getOrInitDisplayName] SUPABASE_URL:', process.env.SUPABASE_URL ? 'LOADED' : 'NOT FOUND');
-  console.log('[getOrInitDisplayName] SUPABASE_KEY:', process.env.SUPABASE_KEY ? 'LOADED' : 'NOT FOUND');
+  console.log('[getOrInitDisplayName] SUPABASE_ANON_KEY:', process.env.SUPABASE_ANON_KEY ? 'LOADED' : 'NOT FOUND');
 
   // 1. If cached in globalState, return it.
   const cached = globalContext?.globalState.get<string>(DISPLAY_NAME_KEY);

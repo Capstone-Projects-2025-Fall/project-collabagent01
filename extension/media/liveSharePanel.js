@@ -135,6 +135,8 @@
 	function setupAllButtons() {
 		setupHomePanelButtons();
 		setupAgentPanelButtons();
+		setupSnapshotForm();
+		setupActivityFeed();
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -197,12 +199,45 @@
 				appendAIMessage(message.text);
 				break;
 			case 'updateTeamInfo':
-				updateTeamInfo(message.team);
+				updateTeamInfo(message.team, message.userId);
+				break;
+			case 'teamInfo': // fallback when no workspace is open
+				updateTeamInfo(message.teamInfo, undefined);
+				break;
+			case 'fileSnapshotSaved':
+				showFsFeedback('Snapshot saved.', 'ok');
+				setSaving(false);
+				// Pre-fill the summary input with the saved snapshot id
+				const sumId = document.getElementById('fs-summary-id');
+				if (sumId && message.id) sumId.value = message.id;
+				break;
+			case 'fileSnapshotError':
+				showFsFeedback(message.error || 'Failed to save snapshot.', 'warn');
+				setSaving(false);
+				break;
+			case 'summaryGenerated':
+				showSummaryFeedback(`Summary stored: ${message.summary || '(no text)'}`, 'ok');
+				break;
+			case 'summaryError':
+				showSummaryFeedback(message.error || 'Failed to generate summary.', 'warn');
+				break;
+			case 'activityFeed':
+				renderActivityFeed(message.items || []);
+				break;
+			case 'activityError':
+				showActivityFeedback(message.error || 'Failed to load activity.');
+				break;
+			case 'updateAuthState':
+				if (!message.authenticated) {
+					persistFsIds({ userId: '', teamId: getState().teamId || '' });
+					const u = document.getElementById('fs-userId');
+					if (u) u.value = '';
+				}
 				break;
 		}
 	});
 
-	function updateTeamInfo(team) {
+	function updateTeamInfo(team, userId) {
 		console.log('Updating team info:', team);
 		
 		const teamName = document.getElementById('teamName');
@@ -211,6 +246,8 @@
 		const joinCodeSection = document.getElementById('joinCodeSection');
 		const deleteTeamBtn = document.getElementById('deleteTeamBtn');
 		const leaveTeamBtn = document.getElementById('leaveTeamBtn');
+		const fsTeamId = document.getElementById('fs-teamId');
+		const fsUserId = document.getElementById('fs-userId');
 		
 		if (teamName) teamName.textContent = team?.name ?? '—';
 		if (teamRole) teamRole.textContent = team?.role ?? '—';
@@ -234,10 +271,15 @@
 				leaveTeamBtn.style.display = (team?.name && team?.role === 'Member') ? 'inline-block' : 'none';
 			}
 		}
+
+		if (fsTeamId) fsTeamId.value = team?.id || '';
+		if (fsUserId && userId) fsUserId.value = userId;
+		persistFsIds({ userId: (fsUserId && fsUserId.value) || '', teamId: (fsTeamId && fsTeamId.value) || '' });
 	}
 
 	function appendAIMessage(text) {
 		const chatLog = document.getElementById('ai-chat-log');
+		if (!chatLog) return; // Chat UI not present anymore
 		const msgDiv = document.createElement('div');
 		msgDiv.className = 'chat-message ai-message';
 		msgDiv.textContent = `Agent: ${text}`;
@@ -509,29 +551,234 @@
 	// Ask backend if there is a stored link when webview loads
 	post('requestStoredLink');
 
-	// AI Agent Chat UI
-	const input = document.getElementById('ai-chat-input');
-	const sendBtn = document.getElementById('ai-chat-send');
-	const log = document.getElementById('ai-chat-log');
+	// File Snapshot form helpers
+	function setupSnapshotForm() {
+		const idEl = document.getElementById('fs-id');
+		const atEl = document.getElementById('fs-updatedAt');
+		const regenBtn = document.getElementById('fs-generateIdBtn');
+		const addBtn = document.getElementById('fs-addBtn');
+		const uEl = document.getElementById('fs-userId');
+		const tEl = document.getElementById('fs-teamId');
+		const feedbackAnchor = document.getElementById('fs-feedback');
 
-	function appendMessage(sender, text) {
-		const msg = document.createElement('div');
-		msg.className = 'chat-message';
-		msg.innerHTML = `<strong>${sender}:</strong> ${text}`;
-		log.appendChild(msg);
-		log.scrollTop = log.scrollHeight;
+		// restore from persisted state on refresh
+		const state = getState();
+		if (uEl && !uEl.value && state.userId) uEl.value = state.userId;
+		if (tEl && !tEl.value && state.teamId) tEl.value = state.teamId;
+		if (idEl && !idEl.value) idEl.value = generateUUID();
+		if (atEl && !atEl.value) atEl.value = new Date().toISOString();
+		if (regenBtn && !regenBtn.hasAttribute('data-listener-added')) {
+			regenBtn.addEventListener('click', function(){
+				regenerateSnapshotId();
+			});
+			regenBtn.setAttribute('data-listener-added','true');
+		}
+		if (addBtn && !addBtn.hasAttribute('data-listener-added')) {
+			addBtn.addEventListener('click', function(){
+				const payload = collectSnapshotPayload();
+				if (!payload) return;
+				setSaving(true);
+				post('addFileSnapshot', { payload });
+				setTimeout(() => { if (isSaving()) showFsFeedback('Saving…', 'info'); }, 1500);
+			});
+			addBtn.setAttribute('data-listener-added','true');
+		}
+
+		// Dynamically add Generate Summary controls if not present in HTML yet
+		if (feedbackAnchor && !document.getElementById('fs-generateSummaryBtn')) {
+			const hr = document.createElement('hr');
+			const row = document.createElement('div');
+			row.className = 'form-row';
+			row.innerHTML = `
+				<label for="fs-summary-id">Generate Summary for Snapshot ID</label>
+				<input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
+			`;
+			const actions = document.createElement('div');
+			actions.className = 'form-actions';
+			actions.style.cssText = 'margin-top:8px; display:flex; gap:6px;';
+			const btn = document.createElement('button');
+			btn.className = 'button';
+			btn.id = 'fs-generateSummaryBtn';
+			btn.title = 'Use AI to summarize changes and store in team activity';
+			btn.textContent = 'Generate Summary';
+			actions.appendChild(btn);
+			const fb = document.createElement('div');
+			fb.id = 'fs-summary-feedback';
+			fb.style.cssText = 'font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;';
+
+			// Insert after feedbackAnchor
+			feedbackAnchor.insertAdjacentElement('afterend', fb);
+			fb.insertAdjacentElement('beforebegin', actions);
+			actions.insertAdjacentElement('beforebegin', row);
+			row.insertAdjacentElement('beforebegin', hr);
+		}
+
+		const genSummaryBtn = document.getElementById('fs-generateSummaryBtn');
+		if (genSummaryBtn && !genSummaryBtn.hasAttribute('data-listener-added')) {
+			genSummaryBtn.addEventListener('click', function(){
+				const explicit = document.getElementById('fs-summary-id')?.value?.trim();
+				const current = document.getElementById('fs-id')?.value?.trim();
+				const snapshotId = explicit || current;
+				if (!snapshotId) { showSummaryFeedback('Please enter or generate a Snapshot ID first.', 'warn'); return; }
+				showSummaryFeedback('Generating AI summary…', 'info');
+				post('generateSummary', { snapshotId });
+			});
+			genSummaryBtn.setAttribute('data-listener-added','true');
+		}
 	}
 
-	function sendMessage() {
-		const text = input.value.trim();
-		if (!text) return;
-		appendMessage('You', text);
-		vscode.postMessage({ command: 'aiQuery', text });
-		input.value = '';
+	// Activity Feed UI and behavior
+	function setupActivityFeed(){
+		const anchor = document.getElementById('fs-summary-feedback');
+		if (!anchor || document.getElementById('activityFeedSection')) return;
+		const section = document.createElement('div');
+		section.id = 'activityFeedSection';
+		section.className = 'section';
+		section.innerHTML = `
+			<h3 style="margin-top:12px;">Recent Activity</h3>
+			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
+				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
+			</div>
+			<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+		`;
+		anchor.insertAdjacentElement('afterend', section);
+
+		const refresh = document.getElementById('activityRefreshBtn');
+		if (refresh && !refresh.hasAttribute('data-listener-added')){
+			refresh.addEventListener('click', requestActivityFeed);
+			refresh.setAttribute('data-listener-added','true');
+		}
+
+		// initial load if a team is present
+		requestActivityFeed();
 	}
 
-	sendBtn.addEventListener('click', sendMessage);
-	input.addEventListener('keypress', (e) => {
-		if (e.key === 'Enter') sendMessage();
-	});
+	function requestActivityFeed(){
+		const teamId = document.getElementById('fs-teamId')?.value?.trim();
+		if (!teamId){
+			showActivityFeedback('No active team.');
+			return;
+		}
+		showActivityFeedback('Loading…');
+		post('loadActivityFeed', { teamId, limit: 25 });
+	}
+
+	function renderActivityFeed(items){
+		const list = document.getElementById('activityList');
+		if (!list) return;
+		if (!items.length){
+			list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No recent activity.</div>';
+			showActivityFeedback('');
+			return;
+		}
+		const html = items.map((it)=>{
+			const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
+			const file = it.file_path || '';
+			const who = it.user_id ? it.user_id.substring(0,8)+'…' : '';
+			const summary = it.summary || '';
+			return `
+				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); padding:8px; border-radius:4px;">
+					<div style="font-size:12px; color: var(--vscode-descriptionForeground);">${when} • ${who} ${file ? '• '+file : ''}</div>
+					<div style="margin-top:4px;">${escapeHtml(summary)}</div>
+				</div>
+			`;
+		}).join('');
+		list.innerHTML = html;
+		showActivityFeedback('');
+	}
+
+	function showActivityFeedback(msg){
+		const el = document.getElementById('activityFeedback');
+		if (el) el.textContent = msg || '';
+	}
+
+	function escapeHtml(str){
+		return (str||'').replace(/[&<>\"]+/g, function(s){
+			return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[s]);
+		});
+	}
+
+	function collectSnapshotPayload(){
+		const id = document.getElementById('fs-id')?.value?.trim();
+		const userId = document.getElementById('fs-userId')?.value?.trim();
+		const teamId = document.getElementById('fs-teamId')?.value?.trim();
+		const updatedAt = document.getElementById('fs-updatedAt')?.value?.trim();
+		const filePath = document.getElementById('fs-filePath')?.value?.trim();
+		const snapshot = document.getElementById('fs-snapshot')?.value?.trim();
+		const changes = document.getElementById('fs-changes')?.value?.trim();
+		if (!filePath || !snapshot || !changes){
+			showFsFeedback('Please fill file path, snapshot and changes.', 'warn');
+			return null;
+		}
+		return {
+			id,
+			user_id: userId || undefined,
+			team_id: teamId || undefined,
+			file_path: filePath,
+			snapshot,
+			changes,
+			updated_at: updatedAt || undefined
+		};
+	}
+
+	function regenerateSnapshotId(){
+		const idEl = document.getElementById('fs-id');
+		const atEl = document.getElementById('fs-updatedAt');
+		if (idEl) idEl.value = generateUUID();
+		if (atEl) atEl.value = new Date().toISOString();
+		showFsFeedback('New ID generated.', 'info');
+	}
+
+	function showFsFeedback(msg, kind){
+		const el = document.getElementById('fs-feedback');
+		if (!el) return;
+		let color = 'var(--vscode-descriptionForeground)';
+		if (kind === 'ok') color = 'var(--vscode-testing-iconPassed)';
+		if (kind === 'warn') color = 'var(--vscode-editorWarning-foreground, orange)';
+		if (kind === 'info') color = 'var(--vscode-descriptionForeground)';
+		el.style.color = color;
+		el.textContent = msg;
+	}
+
+	function showSummaryFeedback(msg, kind){
+		const el = document.getElementById('fs-summary-feedback');
+		if (!el) return;
+		let color = 'var(--vscode-descriptionForeground)';
+		if (kind === 'ok') color = 'var(--vscode-testing-iconPassed)';
+		if (kind === 'warn') color = 'var(--vscode-editorWarning-foreground, orange)';
+		if (kind === 'info') color = 'var(--vscode-descriptionForeground)';
+		el.style.color = color;
+		el.textContent = msg;
+	}
+
+	function getState(){
+		return (vscode.getState && vscode.getState()) || {};
+	}
+
+	function persistFsIds({ userId, teamId }){
+		const prev = getState();
+		vscode.setState({ ...prev, userId, teamId });
+	}
+
+	let __saving = false;
+	function setSaving(v){
+		__saving = v;
+		const btn = document.getElementById('fs-addBtn');
+		if (btn){
+			btn.disabled = !!v;
+			btn.textContent = v ? 'Saving…' : 'Add Snapshot';
+		}
+	}
+	function isSaving(){ return __saving; }
+
+	function generateUUID(){
+		if (window.crypto && window.crypto.randomUUID) {
+			return window.crypto.randomUUID();
+		}
+		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+			const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
+			return v.toString(16);
+		});
+	}
 })();

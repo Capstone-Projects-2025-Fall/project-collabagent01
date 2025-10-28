@@ -131,7 +131,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'refreshTeams',
             'deleteTeam',
             'leaveTeam',
-            'aiQuery'
+            'aiQuery',
+            'addFileSnapshot',
+            'generateSummary',
+            'loadActivityFeed'
         ].includes(command);
     }
 
@@ -201,6 +204,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'aiQuery':
                 await this._agentPanel.processAiQuery(message.text);
+                break;
+            case 'addFileSnapshot':
+                await (this._agentPanel as any).addFileSnapshot?.(message.payload);
+                break;
+            case 'generateSummary':
+                await (this._agentPanel as any).generateSummary?.(message.snapshotId);
+                break;
+            case 'loadActivityFeed':
+                await (this._agentPanel as any).loadActivityFeed?.(message.teamId, message.limit);
                 break;
             default:
                 console.log('Unknown agent command:', message.command);
