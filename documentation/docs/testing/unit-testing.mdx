@@ -6,9 +6,9 @@ import CoverageSummary from './_generated/coverage-summary.md';
 
 # Unit tests
 
-## Unit Test Library
+## Testing Framework
 
-We chose Jest as the unit testing framework because most of our files are in TypeScript and JavaScript. Jest is easy to set up, works well with these languages, and has built-in support for mocking and stubbing external classes.
+We chose Jest as the testing framework because it works well with our TypeScript and JavaScript codebase, is easy to set up, and has built-in support for mocking and stubbing.
 
 ## Key Features:
 
@@ -35,18 +35,9 @@ Good for VS Code extension testing (webviews, commands, extension lifecycle).
 
 Easy to use in CI/CD pipelines.
 
-## Test Coverage Report
-
-This coverage report is automatically generated on every pull request against main
-
-### Overall Coverage Summary
+## Overall Coverage Summary
 
 <CoverageSummary />
-
-### Coverage Details
-
-The detailed coverage report shows which parts of the code are tested and which need more test coverage. This helps ensure code quality and reliability.
-
 
 <a href={useBaseUrl('/test-coverage/index.html')} target="_blank" rel="noopener noreferrer">View Detailed Coverage Report</a>
 
