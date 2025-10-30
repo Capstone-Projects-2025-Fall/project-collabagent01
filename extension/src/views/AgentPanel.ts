@@ -77,6 +77,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     console.log('Handling leaveTeam command');
                     this.handleLeaveTeam();
                     break;
+                case 'publishSnapshot':
+                    console.log('Handling publishSnapshot command');
+                    vscode.commands.executeCommand('collabAgent.publishSnapshot');
+                    break;
                 default:
                     console.log('Unknown command received:', message.command);
                     break;
@@ -443,6 +447,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 <div class="chat-input-container">
                     <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
                     <button id="ai-chat-send">Send</button>
+                    <button id="publishSnapshotBtn" class="button success" title="Publish changes to timeline">Publish</button>
                 </div>
             </div>
         `;

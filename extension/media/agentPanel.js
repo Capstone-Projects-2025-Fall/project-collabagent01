@@ -238,4 +238,14 @@
         break;
     }
   });
+      document.addEventListener("DOMContentLoaded", () => {
+        const vscode = acquireVsCodeApi();
+
+        const publishBtn = document.getElementById("publishSnapshotBtn");
+        if (publishBtn) {
+            publishBtn.addEventListener("click", () => {
+                vscode.postMessage({ command: "publishSnapshot" });
+            });
+        }
+    });
 })();

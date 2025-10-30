@@ -117,6 +117,10 @@
       {
         "command": "collabAgent.openTeamProject",
         "title": "Collab Agent: Open Team Project"
+      },
+      {
+        "command": "collabAgent.userSnapshot",
+        "title": "Collab Agent: Take Manual Snapshot"
       }
     ],
     "views": {
@@ -144,7 +148,7 @@
     "lint": "eslint src",
     "test": "jest",
     "test:coverage": "jest --coverage",
-  "test:coverage:docs": "npm run test:coverage && node copy-coverage.js && node generate-coverage-summary.js",
+    "test:coverage:docs": "npm run test:coverage && node copy-coverage.js && node generate-coverage-summary.js",
     "compile": "npm run check-types && node esbuild.js",
     "check-types": "tsc --noEmit",
     "watch": "npm-run-all -p watch:*",
@@ -157,6 +161,7 @@
     "docs:clean": "rimraf docs"
   },
   "devDependencies": {
+    "@types/diff": "^7.0.2",
     "@types/jest": "^29.5.14",
     "@types/node": "22.x",
     "@types/vscode": "^1.97.0",

@@ -163,15 +163,41 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     })();
 
-    // Register manual snapshot command (available via Command Palette)
-    context.subscriptions.push(
-      vscode.commands.registerCommand("collabAgent.takeSnapshot", async () => {
-        const userId = (await getCurrentUserId()) ?? "temporary-user-id";
-        await snapshotManager.takeSnapshot(userId);
-        vscode.window.showInformationMessage("Manual snapshot complete!");
-        console.log("Manual snapshot completed for user:", userId);
-      })
-    );
+  // Register manual snapshot command (available via Command Palette)
+  context.subscriptions.push(
+    vscode.commands.registerCommand("collabAgent.userSnapshot", async () => {
+      const userId = (await getCurrentUserId()) ?? "";
+      if (!userId) {
+        vscode.window.showWarningMessage("Please sign in before taking a snapshot.");
+        return;
+      }
+
+      await snapshotManager.userTriggeredSnapshot(userId);
+      vscode.window.showInformationMessage("Manual snapshot saved and timeline updated!");
+      console.log("Manual snapshot and timeline post recorded for user:", userId);
+    })
+  );
+
+  context.subscriptions.push(
+    vscode.commands.registerCommand("collabAgent.publishSnapshot", async () => {
+      try {
+        const userId = await getCurrentUserId();
+        if (!userId) {
+          vscode.window.showWarningMessage("You must be signed in to publish a snapshot.");
+          return;
+        }
+
+        const snapshotManager = new SnapshotManager(context);
+        await snapshotManager.publishSnapshot(userId); // <– call the new method we wrote earlier
+
+        vscode.window.showInformationMessage("Snapshot published successfully!");
+        console.log("[Publish] Snapshot published and timeline_post updated.");
+      } catch (err) {
+        console.error("[Publish] Failed to publish snapshot:", err);
+        vscode.window.showErrorMessage("Failed to publish snapshot. Check console for details.");
+      }
+    })
+  );
 }
 
 export function deactivate() {
