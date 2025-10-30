@@ -1,8 +1,14 @@
+---
+sidebar_position: 3
+---
+
+# General Requirements
+
 **Team Members Will Need**
 - Internet Connection
 - Visual Studio Code IDE
-- Live Share API
-- Gemini API
+- Live Share API Installed From VS Code Extension Marketplace
+- Gemini API Key 
 - Supabase Database
 
 **Code Maintenance and Documentation**
@@ -10,5 +16,3 @@
 - Docusaurus
 - Jira
 ---
-
-# General Requirements
