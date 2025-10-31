@@ -70,6 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
   const authStatusBar = createAuthStatusBarItem(context);
   const collabPanelProvider = new CollabAgentPanelProvider(context.extensionUri, context);
   const teamView = vscode.window.registerWebviewViewProvider('collabAgent.teamActivity', collabPanelProvider);
+  const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? "untitled-workspace";
   context.subscriptions.push(teamView);
 
   const refreshCommand = vscode.commands.registerCommand('collabAgent.refreshPanel', () => {
@@ -153,8 +154,9 @@ export async function activate(context: vscode.ExtensionContext) {
       try {
         const userId = await getCurrentUserId();
         if (userId) {
-          await snapshotManager.takeSnapshot(userId);
-          console.log("Initial snapshot captured for user:", userId);
+          const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? "untitled-workspace";
+          await snapshotManager.takeSnapshot(userId, projectName);
+          console.log("Initial snapshot captured for:", projectName);
         } else {
           console.warn("No user ID found — skipping initial snapshot");
         }
@@ -172,9 +174,10 @@ export async function activate(context: vscode.ExtensionContext) {
         return;
       }
 
-      await snapshotManager.userTriggeredSnapshot(userId);
-      vscode.window.showInformationMessage("Manual snapshot saved and timeline updated!");
-      console.log("Manual snapshot and timeline post recorded for user:", userId);
+      const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? "untitled-workspace";
+      await snapshotManager.userTriggeredSnapshot(userId, projectName);
+      vscode.window.showInformationMessage("Manual snapshot saved for project!");
+      console.log(`Manual snapshot and timeline post recorded for project: ${projectName}`);
     })
   );
 
@@ -187,11 +190,11 @@ export async function activate(context: vscode.ExtensionContext) {
           return;
         }
 
-        const snapshotManager = new SnapshotManager(context);
-        await snapshotManager.publishSnapshot(userId); // <– call the new method we wrote earlier
+        const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? "untitled-workspace";
+        await snapshotManager.publishSnapshot(userId, projectName);
 
         vscode.window.showInformationMessage("Snapshot published successfully!");
-        console.log("[Publish] Snapshot published and timeline_post updated.");
+        console.log(`[Publish] Snapshot published for project: ${projectName}`);
       } catch (err) {
         console.error("[Publish] Failed to publish snapshot:", err);
         vscode.window.showErrorMessage("Failed to publish snapshot. Check console for details.");

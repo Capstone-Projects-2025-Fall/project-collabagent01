@@ -1,218 +1,256 @@
 // snapshotManager.ts
 import * as vscode from "vscode";
-import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { diffLines } from "diff";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { createTwoFilesPatch } from "diff"; // ensure `diff` is installed
 import { getCurrentUserId } from "../services/auth-service";
 import { getSupabase } from "../auth/supabaseClient";
 
+type FileMap = Record<string, string>;
 
 export class SnapshotManager {
-  private idleTimers: Map<string, NodeJS.Timeout> = new Map();
-  private IDLE_DELAY = 30000; // 30 seconds
-  private lastSnapshot: Record<string, string> = {}; // maps file path -> content
   private supabase: SupabaseClient;
+  private idleTimer: NodeJS.Timeout | null = null;
+  private IDLE_DELAY = 30_000; // 30s idle window per your requirement
 
-  constructor(
-    private context: vscode.ExtensionContext,
-  ) {
+  /** The original/baseline snapshot of the whole workspace (first full capture) */
+  private baselineSnapshot: FileMap | null = null;
+
+  constructor(private context: vscode.ExtensionContext) {
     this.supabase = getSupabase();
-
-    // Listen for all text changes in the workspace
-    vscode.workspace.onDidChangeTextDocument(event => this.onDocumentChange(event));
+    vscode.workspace.onDidChangeTextDocument(() => this.onWorkspaceActivity());
+    vscode.workspace.onDidCreateFiles(() => this.onWorkspaceActivity());
+    vscode.workspace.onDidDeleteFiles(() => this.onWorkspaceActivity());
+    vscode.workspace.onDidRenameFiles(() => this.onWorkspaceActivity());
   }
 
-  /** Called whenever a document changes */
-  private onDocumentChange(event: vscode.TextDocumentChangeEvent) {
-    console.log("Detected file change:", event.document.uri.fsPath);
+  // ——————————————————————
+  // Public APIs you already call
+  // ——————————————————————
 
-    const fileKey = event.document.uri.toString();
+  /** Initial full snapshot (called on activate and from the “Publish” flow after committing a timeline_post) */
+  public async takeSnapshot(userId: string, projectName: string) {
+    const snapshot = await this.captureWholeWorkspace();
 
-    // Clear existing timer
-    if (this.idleTimers.has(fileKey)) clearTimeout(this.idleTimers.get(fileKey)!);
+    // Save baseline in memory
+    this.baselineSnapshot = snapshot;
 
-    // Set new idle timer
-    this.idleTimers.set(
-      fileKey,
-      setTimeout(async () => {
-        const userId = await this.requireUser();
-        if (userId) {
-          await this.takeIncrementalSnapshot(userId);
-        }
-      }, this.IDLE_DELAY)
-    );
+    // Write to DB: snapshot (all files), clear changes
+    await this.upsertUnifiedRow(userId, projectName, snapshot, {});
+    console.log("Full workspace snapshot saved.");
   }
 
-  /** Capture the full workspace state */
-  private async captureRepoSnapshot(): Promise<Record<string, string>> {
-    const files = vscode.workspace.textDocuments;
-    const snapshot: Record<string, string> = {};
-    for (const file of files) {
-      snapshot[file.uri.fsPath] = file.getText();
-    }
-    return snapshot;
-  }
-
-  private computeDiff(oldSnap: Record<string, string>, newSnap: Record<string, string>) {
-    const diffs: Record<string, string> = {};
-
-    for (const filePath in newSnap) {
-      const oldContent = oldSnap[filePath] || "";
-      const newContent = newSnap[filePath];
-      const changes = diffLines(oldContent, newContent);
-
-      let formattedDiff = "";
-      for (const part of changes) {
-        if (part.added) {
-          formattedDiff += part.value
-            .split("\n")
-            .filter(line => line.trim() !== "")
-            .map(line => `+ ${line}`)
-            .join("\n") + "\n";
-        } else if (part.removed) {
-          formattedDiff += part.value
-            .split("\n")
-            .filter(line => line.trim() !== "")
-            .map(line => `- ${line}`)
-            .join("\n") + "\n";
-        }
-      }
-
-      if (formattedDiff.trim().length > 0) {
-        diffs[filePath] = formattedDiff.trim();
-      }
-    }
-
-    return diffs;
-  }
-
-  /** Take a full snapshot (first time or manual trigger) */
-  public async takeSnapshot(userId: string) {
-    const files = vscode.workspace.textDocuments;
-    for (const file of files) {
-      const content = file.getText();
-      await this.overwriteSnapshot(userId, file.uri, content);
-    }
-
-    // Initialize lastSnapshot
-    this.lastSnapshot = await this.captureRepoSnapshot();
-
-    console.log("Full snapshot taken for all open files.");
-  }
-
-  /** Take incremental snapshot based on lastSnapshot */
+  /** Idle-based incremental snapshot: recompute ALL changes vs baseline and store them merged in one row */
   public async takeIncrementalSnapshot(userId: string) {
-    const newSnapshot = await this.captureRepoSnapshot();
-    const diff = this.computeDiff(this.lastSnapshot, newSnapshot);
+    // We require a baseline snapshot to compare against.
+    if (!this.baselineSnapshot) {
+      // No baseline yet? Create one now (e.g., first run after opening project).
+      const projectName = this.getProjectName();
+      await this.takeSnapshot(userId, projectName);
+      return;
+    }
 
-    if (Object.keys(diff).length > 0) {
-      for (const filePath in diff) {
-        const fileUri = vscode.Uri.file(filePath);
-        await this.overwriteSnapshot(userId, fileUri, newSnapshot[filePath], diff[filePath]);
+    const projectName = this.getProjectName();
+    const current = await this.captureWholeWorkspace();
+
+    // Build merged diffs vs the ORIGINAL baseline, per file
+    const mergedChanges = this.computeUnifiedDiffs(this.baselineSnapshot, current);
+
+    // Replace DB `changes` with this merged object (no history — just current delta)
+    await this.upsertUnifiedRow(userId, projectName, /*snapshot*/ undefined, mergedChanges);
+    console.log("Incremental (merged) changes saved.");
+  }
+
+  // ——————————————————————
+  // Idle handling
+  // ——————————————————————
+  private onWorkspaceActivity() {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.idleTimer = setTimeout(async () => {
+      const userId = await this.requireUser();
+      if (userId) await this.takeIncrementalSnapshot(userId);
+    }, this.IDLE_DELAY);
+  }
+
+  // ——————————————————————
+  // Core helpers
+  // ——————————————————————
+
+  /** Capture ALL text files in the workspace (not just open editors). */
+  private async captureWholeWorkspace(): Promise<FileMap> {
+    const files: FileMap = {};
+
+    if (!vscode.workspace.workspaceFolders?.length) return files;
+
+    // Skip common noise
+    const exclude =
+      "{**/.git/**,**/node_modules/**,**/.vscode/**,**/dist/**,**/out/**," +
+      "**/*.png,**/*.jpg,**/*.jpeg,**/*.gif,**/*.svg,**/*.pdf,**/*.ico," +
+      "**/*.zip,**/*.gz,**/*.tar,**/*.lock,**/*.min.js}";
+
+    // Capture up to ~10k files—adjust if you need more/less
+    const uris = await vscode.workspace.findFiles("**/*", exclude, 10000);
+
+    // Read each as text; errors are ignored (binarys etc)
+    for (const uri of uris) {
+      try {
+        const doc = await vscode.workspace.openTextDocument(uri);
+        files[uri.fsPath] = doc.getText();
+      } catch {
+        // Ignore unreadable files
       }
+    }
+    return files;
+  }
 
-      this.lastSnapshot = newSnapshot; // ✅ reset baseline here
-      console.log("Incremental snapshot saved for changed files.");
+  /** Compute a map: filePath -> unified diff string, comparing current against baseline. */
+  private computeUnifiedDiffs(baseline: FileMap, current: FileMap): Record<string, string> {
+    const changed: Record<string, string> = {};
+    const seen = new Set<string>([...Object.keys(baseline), ...Object.keys(current)]);
+
+    for (const file of seen) {
+      const oldText = baseline[file] ?? "";
+      const newText = current[file] ?? "";
+      if (oldText === newText) continue;
+
+      // Unified diff (shows + and - clearly, and handles add/delete/edit)
+      const patch = createTwoFilesPatch(file, file, oldText, newText, "baseline", "current");
+      changed[file] = patch;
+    }
+
+    return changed;
+  }
+
+  /** Single-row upsert per (user_id, project_name). Optionally update snapshot and/or changes. */
+  private async upsertUnifiedRow(
+    userId: string,
+    projectName: string,
+    snapshot?: FileMap,
+    changes?: Record<string, string>
+  ) {
+    // Always send a valid snapshot and changes object to satisfy NOT NULL constraints
+    const safeSnapshot =
+      snapshot ?? this.baselineSnapshot ?? {}; // fallback to baseline or empty object
+    const safeChanges = changes ?? {};
+
+    const payload = {
+      user_id: userId,
+      project_name: projectName,
+      snapshot: safeSnapshot,
+      changes: safeChanges,
+      updated_at: new Date().toISOString(),
+    };
+
+    console.log("[DB UPSERT] payload:", JSON.stringify(payload, null, 2));
+
+    const { error } = await this.supabase
+      .from("file_snapshots")
+      .upsert(payload, { onConflict: "user_id,project_name" });
+
+    if (error) {
+      console.error("Failed to upsert unified snapshot:", error);
+    } else {
+      console.log(`Snapshot successfully upserted for project: ${projectName}`);
     }
   }
 
-  /** Database methods */
+  private getProjectName(): string {
+    const w = vscode.workspace.workspaceFolders?.[0];
+    return w?.name ?? "untitled-workspace";
+  }
 
-  public async overwriteSnapshot(
-    userId: string,
-    fileUri: vscode.Uri,
-    content: string,
-    changes?: string
-  ) {
-    // Fetch the current row first
-    const { data: existingRows } = await this.supabase
+  /** 
+   * Publishes a timeline snapshot:
+   * Moves all current diffs (`changes`) into `timeline_post`,
+   * replaces the `snapshot` with the current repo snapshot,
+   * and clears `changes`.
+   */
+  public async publishSnapshot(userId: string, projectName: string) {
+    const newSnapshot = await this.captureWholeWorkspace();
+    const diff = this.computeUnifiedDiffs(this.baselineSnapshot || {}, newSnapshot);
+
+    // Fetch existing record so we can move `changes` -> `timeline_post`
+    const { data: existing, error: fetchErr } = await this.supabase
       .from("file_snapshots")
       .select("changes")
       .eq("user_id", userId)
-      .eq("file_path", fileUri.fsPath)
-      .single();
+      .eq("project_name", projectName)
+      .maybeSingle();
 
-    const mergedChanges = existingRows?.changes
-      ? existingRows.changes + (changes ?? "")
-      : (changes ?? "");
+    if (fetchErr) {
+      console.error("Failed to fetch existing snapshot before publish:", fetchErr);
+      return;
+    }
+
+    const previousChanges = existing?.changes || {};
 
     const { error } = await this.supabase
       .from("file_snapshots")
-      .upsert(
-        {
-          user_id: userId,
-          file_path: fileUri.fsPath,
-          snapshot: content,
-          changes: mergedChanges,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,file_path" }
-      );
+      .update({
+        snapshot: newSnapshot,
+        timeline_post: previousChanges,
+        changes: {},
+        updated_at: new Date().toISOString(),
+      })
+      .eq("user_id", userId)
+      .eq("project_name", projectName);
 
     if (error) {
-      console.error("Failed to upsert snapshot:", error);
+      console.error("Failed to publish snapshot:", error);
     } else {
-      console.log(`Snapshot saved for ${fileUri.fsPath}`);
-    }
-  }
-
-  public async userTriggeredSnapshot(userId: string) {
-    const newSnapshot = await this.captureRepoSnapshot();
-    const diff = this.computeDiff(this.lastSnapshot, newSnapshot);
-
-    // Merge all file changes into a single summary string
-    const aggregatedChanges = Object.values(diff).join("\n");
-
-    for (const filePath in newSnapshot) {
-      const fileUri = vscode.Uri.file(filePath);
-      const { error } = await this.supabase
-        .from("file_snapshots")
-        .update({
-          snapshot: newSnapshot[filePath],
-          timeline_post: aggregatedChanges,
-          changes: "", // clear incremental changes
-          updated_at: new Date().toISOString(),
-        })
-        .eq("user_id", userId)
-        .eq("file_path", fileUri.fsPath);
-
-      if (error) {
-        console.error("Failed to update timeline_post:", error);
-      }
+      console.log(`✅ Published snapshot for project: ${projectName}`);
     }
 
-    this.lastSnapshot = newSnapshot;
-    console.log("User-triggered snapshot and timeline_post saved.");
+    this.baselineSnapshot = newSnapshot;
   }
 
-  public async publishSnapshot(userId: string) {
-    const newSnapshot = await this.captureRepoSnapshot();
-    const diff = this.computeDiff(this.lastSnapshot, newSnapshot);
 
-    const combinedChanges = Object.values(diff).join("\n");
+  /**
+   * Manual user-triggered snapshot that merges new diffs into `changes`
+   * without publishing yet.
+   */
+  public async userTriggeredSnapshot(userId: string, projectName: string) {
+    const newSnapshot = await this.captureWholeWorkspace();
+    const diff = this.computeUnifiedDiffs(this.baselineSnapshot || {}, newSnapshot);
 
-    // Move current changes → timeline_post, reset changes, update snapshot
+    // Fetch existing changes to merge with new ones
+    const { data: existing, error: fetchErr } = await this.supabase
+      .from("file_snapshots")
+      .select("changes")
+      .eq("user_id", userId)
+      .eq("project_name", projectName)
+      .maybeSingle();
+
+    if (fetchErr) {
+      console.error("Failed to fetch existing snapshot before update:", fetchErr);
+      return;
+    }
+
+    const mergedChanges = { ...(existing?.changes || {}), ...diff };
+
     const { error } = await this.supabase
-      .from('file_snapshots')
+      .from("file_snapshots")
       .update({
-        timeline_post: combinedChanges,
-        changes: '',
-        snapshot: JSON.stringify(newSnapshot),
-        updated_at: new Date().toISOString()
+        snapshot: newSnapshot,
+        changes: mergedChanges,
+        updated_at: new Date().toISOString(),
       })
-      .eq('user_id', userId);
+      .eq("user_id", userId)
+      .eq("project_name", projectName);
 
-    if (error) console.error('Failed to publish snapshot:', error);
-    else console.log('Snapshot successfully published to timeline_post.');
+    if (error) {
+      console.error("Failed to save user-triggered snapshot:", error);
+    } else {
+      console.log(`💾 Manual snapshot saved for project: ${projectName}`);
+    }
 
-    this.lastSnapshot = newSnapshot;
+    this.baselineSnapshot = newSnapshot;
   }
 
   private async requireUser(): Promise<string> {
     const userId = await getCurrentUserId();
     if (!userId) {
-      console.warn("User is not signed in — skipping snapshot");
-      return "";
+      console.warn("User not signed in — skipping snapshot");
     }
-    return userId;
+    return userId ?? "";
   }
 }
