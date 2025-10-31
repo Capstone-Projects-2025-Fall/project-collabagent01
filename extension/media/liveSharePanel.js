@@ -522,6 +522,11 @@
 			case 'manualLinkPasteInvalid':
 				showManualLinkFeedback('Clipboard was empty.', 'warn');
 				break;
+			case 'refreshActivityFeed':
+				// Refresh the activity feed when Live Share events occur
+				console.log('Refreshing activity feed due to Live Share event');
+				requestActivityFeed();
+				break;
 		}
 	});
 
@@ -635,7 +640,7 @@
 		section.id = 'activityFeedSection';
 		section.className = 'section';
 		section.innerHTML = `
-			<h3 style="margin-top:12px;">Recent Activity</h3>
+			<h3 style="margin-top:12px;">Team Activity Timeline</h3>
 			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
 				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
 				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
@@ -667,25 +672,291 @@
 	function renderActivityFeed(items){
 		const list = document.getElementById('activityList');
 		if (!list) return;
+
+		// Store items for viewChanges function
+		currentActivityItems = items;
+
 		if (!items.length){
 			list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No recent activity.</div>';
 			showActivityFeedback('');
 			return;
 		}
-		const html = items.map((it)=>{
+		const html = items.map((it, index)=>{
 			const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
 			const file = it.file_path || '';
 			const who = it.user_id ? it.user_id.substring(0,8)+'…' : '';
 			const summary = it.summary || '';
+			const activityType = it.activity_type || 'file_snapshot';
+			const itemId = `activity-item-${index}`;
+			const detailsId = `activity-details-${index}`;
+
+			// Determine icon and styling based on activity type
+			let icon = '📄';
+			let iconColor = 'var(--vscode-descriptionForeground)';
+			let buttons = '';
+
+			if (activityType === 'live_share_started') {
+				// Green circle for session start
+				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#4caf50; border-radius:50%; margin-right:6px;"></span>';
+				iconColor = '#4caf50';
+				// No buttons for started events
+				buttons = '';
+			} else if (activityType === 'live_share_ended') {
+				// Red circle for session end
+				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#f44336; border-radius:50%; margin-right:6px;"></span>';
+				iconColor = '#f44336';
+				// Show View Changes and View Summary (if AI summary exists)
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
+					${it.ai_summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
+				`;
+			} else if (activityType === 'ai_summary') {
+				// Skip rendering ai_summary events separately (they're now part of live_share_ended)
+				return '';
+			} else {
+				// Regular file snapshots
+				icon = '📄';
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the changes made">View Changes</button>
+				`;
+			}
+
+			// Only show details section if there are buttons
+			const detailsSection = buttons ? `
+				<div id="${detailsId}" style="display:none; margin-top:8px; padding-top:8px; border-top:1px solid var(--vscode-editorWidget-border);">
+					<div style="display:flex; gap:6px; flex-wrap:wrap;">
+						${buttons}
+					</div>
+				</div>
+			` : '';
+
 			return `
-				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); padding:8px; border-radius:4px;">
-					<div style="font-size:12px; color: var(--vscode-descriptionForeground);">${when} • ${who} ${file ? '• '+file : ''}</div>
-					<div style="margin-top:4px;">${escapeHtml(summary)}</div>
+				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); padding:12px; border-radius:6px; background: var(--vscode-editor-background);">
+					<div id="${itemId}" style="cursor:${buttons ? 'pointer' : 'default'}; user-select:none;" ${buttons ? `onclick="toggleActivityDetails('${detailsId}')"` : ''}>
+						<div style="font-size:11px; color: var(--vscode-descriptionForeground); opacity:0.8;">
+							${icon} ${when} • ${who}
+						</div>
+						<div style="margin-top:6px; font-size:13px; font-weight:500; line-height:1.4;">${escapeHtml(summary)}</div>
+					</div>
+					${detailsSection}
 				</div>
 			`;
 		}).join('');
 		list.innerHTML = html;
 		showActivityFeedback('');
+	}
+
+	// Toggle details visibility for activity items
+	window.toggleActivityDetails = function(detailsId) {
+		const details = document.getElementById(detailsId);
+		if (details) {
+			details.style.display = details.style.display === 'none' ? 'block' : 'none';
+		}
+	};
+
+	// Store activity items for later reference
+	let currentActivityItems = [];
+
+	// Placeholder functions for viewing snapshot and changes (no functionality yet)
+	window.viewSnapshot = function(activityId) {
+		console.log('View snapshot for activity:', activityId);
+		// TODO: Implement snapshot viewing functionality
+	};
+
+	window.viewChanges = function(activityId) {
+		console.log('View changes for activity:', activityId);
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Check if this activity has changes (from file_snapshots via source_snapshot_id)
+		if (activity.changes) {
+			// Show diff in a modal or panel
+			showDiffModal(activity.changes, 'Git Diff - ' + (activity.summary || 'Changes'));
+		} else {
+			console.log('No changes available for this activity');
+			console.log('Activity data:', activity);
+		}
+	};
+
+	window.viewSummary = function(activityId) {
+		console.log('View summary for activity:', activityId);
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Check if this activity has an AI summary
+		if (activity.ai_summary) {
+			// Show AI summary in a modal
+			showSummaryModal(activity.ai_summary, activity.summary);
+		} else {
+			console.log('No AI summary available for this activity');
+			console.log('Activity data:', activity);
+		}
+	};
+
+	function showDiffModal(diffContent, title) {
+		// Create modal overlay
+		const existingModal = document.getElementById('diffModal');
+		if (existingModal) {
+			existingModal.remove();
+		}
+
+		const modal = document.createElement('div');
+		modal.id = 'diffModal';
+		modal.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(0,0,0,0.7);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 10000;
+			padding: 20px;
+		`;
+
+		modal.innerHTML = `
+			<div style="
+				background: var(--vscode-editor-background);
+				border: 1px solid var(--vscode-editorWidget-border);
+				border-radius: 6px;
+				width: 90%;
+				max-width: 900px;
+				max-height: 80vh;
+				display: flex;
+				flex-direction: column;
+			">
+				<div style="
+					padding: 16px;
+					border-bottom: 1px solid var(--vscode-editorWidget-border);
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+				">
+					<h3 style="margin: 0;">${escapeHtml(title || 'Git Diff')}</h3>
+					<button class="button" onclick="document.getElementById('diffModal').remove()">Close</button>
+				</div>
+				<div style="
+					padding: 16px;
+					overflow: auto;
+					flex: 1;
+					font-family: monospace;
+					font-size: 12px;
+					white-space: pre-wrap;
+					word-break: break-all;
+				">${escapeHtml(diffContent)}</div>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		// Close on background click
+		modal.addEventListener('click', (e) => {
+			if (e.target === modal) {
+				modal.remove();
+			}
+		});
+	}
+
+	function showSummaryModal(aiSummary, eventTitle) {
+		// Create modal overlay
+		const existingModal = document.getElementById('summaryModal');
+		if (existingModal) {
+			existingModal.remove();
+		}
+
+		const modal = document.createElement('div');
+		modal.id = 'summaryModal';
+		modal.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(0,0,0,0.7);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 10000;
+			padding: 20px;
+		`;
+
+		modal.innerHTML = `
+			<div style="
+				background: var(--vscode-editor-background);
+				border: 1px solid var(--vscode-editorWidget-border);
+				border-radius: 6px;
+				width: 90%;
+				max-width: 700px;
+				max-height: 80vh;
+				display: flex;
+				flex-direction: column;
+			">
+				<div style="
+					padding: 16px;
+					border-bottom: 1px solid var(--vscode-editorWidget-border);
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+				">
+					<h3 style="margin: 0;">AI Summary</h3>
+					<button class="button" onclick="document.getElementById('summaryModal').remove()">Close</button>
+				</div>
+				<div style="padding: 20px;">
+					<div style="
+						font-size: 11px;
+						color: var(--vscode-descriptionForeground);
+						opacity: 0.8;
+						margin-bottom: 12px;
+					">Session Event</div>
+					<div style="
+						font-size: 13px;
+						font-weight: 500;
+						margin-bottom: 20px;
+						padding: 12px;
+						background: var(--vscode-editorWidget-background);
+						border-radius: 4px;
+					">${escapeHtml(eventTitle)}</div>
+
+					<div style="
+						font-size: 11px;
+						color: var(--vscode-descriptionForeground);
+						opacity: 0.8;
+						margin-bottom: 12px;
+					">What was accomplished</div>
+					<div style="
+						font-size: 14px;
+						line-height: 1.6;
+						padding: 16px;
+						background: var(--vscode-textBlockQuote-background);
+						border-left: 3px solid var(--vscode-textBlockQuote-border);
+						border-radius: 4px;
+					">${escapeHtml(aiSummary)}</div>
+				</div>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		// Close on background click
+		modal.addEventListener('click', (e) => {
+			if (e.target === modal) {
+				modal.remove();
+			}
+		});
 	}
 
 	function showActivityFeedback(msg){
