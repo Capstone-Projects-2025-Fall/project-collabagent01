@@ -2,6 +2,8 @@ import * as vscode from 'vscode';
 import { LiveShareManager } from './LiveSharePanel';
 import { AgentPanelProvider } from './AgentPanel';
 import { HomeScreenPanel } from './HomeScreenPanel';
+import { getPresenceService } from '../services/presence-service';
+import { getCollaborationNotificationManager } from '../services/collaboration-notifications';
 
 /**
  * Main orchestrator panel that manages and displays three sub-panels:
@@ -69,9 +71,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         // Set up sub-panels with the webview for delegation
         this._liveShareManager.setView(webviewView);
         this._agentPanel.setWebviewForDelegation(webviewView);
-        
+
         await this._liveShareManager.initializeLiveShare();
         await this._agentPanel.refreshTeamsList(); // Initialize agent teams
+
+        // Initialize presence tracking for current team (if any)
+        await this._agentPanel.startPresenceForCurrentTeam();
+
         this.startAuthMonitor();
 
         webviewView.webview.onDidReceiveMessage(

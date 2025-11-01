@@ -130,6 +130,21 @@ export async function activate(context: vscode.ExtensionContext) {
 /**
  * Called when the extension is deactivated.
  */
-export function deactivate() {
+export async function deactivate() {
+  console.log("Collab Agent Deactivating...");
+
+  // Clean up presence tracking
+  try {
+    const { stopPresenceTracking } = require('./services/presence-service');
+    const { stopCollaborationNotifications } = require('./services/collaboration-notifications');
+
+    await stopPresenceTracking();
+    stopCollaborationNotifications();
+
+    console.log("Presence tracking stopped");
+  } catch (error) {
+    console.warn("Error stopping presence tracking:", error);
+  }
+
   console.log("Collab Agent Deactivated");
 }

@@ -288,6 +288,9 @@
           if (upEl) upEl.value = new Date().toISOString();
         } catch (err) {}
         break;
+      case 'updateOnlineMembers':
+        updateOnlineMembersDisplay(m.members);
+        break;
       case 'aiResponse':
         const log = document.getElementById('ai-chat-log');
         if (log){
@@ -325,6 +328,94 @@
         break;
     }
   });
+
+  /**
+   * Update the display of online team members
+   */
+  function updateOnlineMembersDisplay(members) {
+    const section = document.getElementById('onlineMembersSection');
+    const list = document.getElementById('onlineMembersList');
+    const count = document.getElementById('onlineCount');
+
+    if (!section || !list || !count) {
+      return;
+    }
+
+    // Show/hide section based on whether there are online members
+    if (!members || members.length === 0) {
+      section.style.display = 'none';
+      return;
+    }
+
+    section.style.display = 'block';
+    count.textContent = members.length;
+
+    // Clear existing list
+    list.innerHTML = '';
+
+    // Create member items
+    members.forEach(member => {
+      const memberDiv = document.createElement('div');
+      memberDiv.style.cssText = `
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px;
+        margin: 4px 0;
+        background: var(--vscode-list-hoverBackground);
+        border-radius: 4px;
+        cursor: pointer;
+      `;
+
+      // Online status indicator
+      const statusDot = document.createElement('span');
+      statusDot.style.cssText = `
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: ${member.status === 'online' ? '#22c55e' : '#9ca3af'};
+        flex-shrink: 0;
+      `;
+
+      // Avatar (if available)
+      let avatarHTML = '';
+      if (member.avatarUrl) {
+        avatarHTML = `<img src="${member.avatarUrl}" alt="${member.username}" style="width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;" />`;
+      } else {
+        avatarHTML = `<div style="width: 24px; height: 24px; border-radius: 50%; background: var(--vscode-button-background); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0;">${member.username.charAt(0).toUpperCase()}</div>`;
+      }
+
+      // Member info
+      const infoDiv = document.createElement('div');
+      infoDiv.style.cssText = 'flex: 1; min-width: 0; overflow: hidden;';
+
+      const username = document.createElement('div');
+      username.style.cssText = 'font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+      username.textContent = member.username;
+
+      const activity = document.createElement('div');
+      activity.style.cssText = 'font-size: 0.85em; color: var(--vscode-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;';
+      activity.textContent = member.currentActivity || 'Active';
+
+      infoDiv.appendChild(username);
+      infoDiv.appendChild(activity);
+
+      // Assemble member item
+      memberDiv.appendChild(statusDot);
+      memberDiv.innerHTML += avatarHTML;
+      memberDiv.appendChild(infoDiv);
+
+      // Add tooltip with more info
+      let tooltipText = `${member.username} - ${member.status}`;
+      if (member.currentFile) {
+        const fileName = member.currentFile.split(/[\\/]/).pop();
+        tooltipText += `\nEditing: ${fileName}`;
+      }
+      memberDiv.title = tooltipText;
+
+      list.appendChild(memberDiv);
+    });
+  }
 })();
   function cryptoRandomUUIDFallback(){
     try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch {}

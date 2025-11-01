@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, type TeamWithMembership } from '../services/team-service';
 import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
+import { getPresenceService, type OnlineTeamMember } from '../services/presence-service';
 
 /**
  * Provides the webview panel for Agent-specific features (separate from Live Share).
@@ -15,9 +16,12 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     /** Global state keys */
     private readonly _teamStateKey = 'collabAgent.currentTeam';
-    
+
     /** Current teams cache */
     private _userTeams: TeamWithMembership[] = [];
+
+    /** Presence change listener disposable */
+    private _presenceDisposable?: vscode.Disposable;
 
     constructor(private readonly _extensionUri: vscode.Uri, private readonly _context: vscode.ExtensionContext) {
         // Monitor workspace changes - clear team when no folder open
@@ -218,6 +222,24 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Updates the online team members display in the webview
+     */
+    public updateOnlineMembers(members: OnlineTeamMember[]) {
+        this._view?.webview.postMessage({
+            command: 'updateOnlineMembers',
+            members: members.map(m => ({
+                userId: m.user_id,
+                username: m.github_username || 'Unknown',
+                avatarUrl: m.avatar_url,
+                status: m.status,
+                currentFile: m.current_file,
+                currentActivity: m.current_activity,
+                lastHeartbeat: m.last_heartbeat
+            }))
+        });
+    }
+
+    /**
      * Adds a file snapshot row via service and reports back to webview
      */
     public async addFileSnapshot(payload: any) {
@@ -304,6 +326,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 if (result.team) {
                     await this._context.globalState.update(this._teamStateKey, result.team.id);
                     this.postTeamInfo();
+
+                    // Start presence tracking for the new team
+                    await this.startPresenceForCurrentTeam();
                 }
             }
         });
@@ -380,11 +405,14 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 vscode.window.showErrorMessage(`Failed to join team: ${result.error}`);
             } else if (result.team) {
                 vscode.window.showInformationMessage(`Successfully joined team "${result.team.lobby_name}"`);
-                
+
                 // Refresh teams and set new team as current
                 await this.refreshTeams();
                 await this._context.globalState.update(this._teamStateKey, result.team.id);
                 this.postTeamInfo();
+
+                // Start presence tracking for the new team
+                await this.startPresenceForCurrentTeam();
             }
         });
     }
@@ -463,9 +491,81 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             // Project matches - allow switch
             await this._context.globalState.update(this._teamStateKey, selected.team.id);
             vscode.window.showInformationMessage(`Successfully switched to team "${selected.team.lobby_name}"`);
-            
+
             this.postTeamInfo();
+
+            // Start presence tracking for the new team
+            await this.startPresenceForCurrentTeam();
         }
+    }
+
+    /**
+     * Start presence tracking and collaboration notifications for the current team
+     */
+    public async startPresenceForCurrentTeam(): Promise<void> {
+        // Get current team ID
+        const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+
+        if (!currentTeamId) {
+            console.log('No current team selected, skipping presence tracking');
+            return;
+        }
+
+        console.log(`Starting presence tracking for team ${currentTeamId}`);
+
+        try {
+            // Clean up previous presence listener if exists
+            if (this._presenceDisposable) {
+                this._presenceDisposable.dispose();
+            }
+
+            // Get presence service and start tracking
+            const presenceService = getPresenceService(this._context);
+            await presenceService.startPresence(currentTeamId);
+
+            // Set up presence change listener to update UI
+            this._presenceDisposable = presenceService.onPresenceChange(async (event) => {
+                console.log('Presence change detected:', event.type, event.member.github_username);
+
+                // Fetch updated list of online members
+                const onlineMembers = presenceService.getOnlineMembers();
+
+                // Update the UI with online members
+                this.updateOnlineMembers(onlineMembers);
+            });
+
+            // Get initial online members and update UI
+            const onlineMembers = await presenceService.fetchOnlineMembers();
+            this.updateOnlineMembers(onlineMembers);
+
+            // Start collaboration notification manager
+            const notificationManager = getCollaborationNotificationManager(this._context);
+            await notificationManager.start(currentTeamId);
+
+            console.log(`Presence tracking started successfully for team ${currentTeamId}`);
+        } catch (error) {
+            console.error('Failed to start presence tracking:', error);
+            vscode.window.showErrorMessage(`Failed to start presence tracking: ${error}`);
+        }
+    }
+
+    /**
+     * Stop presence tracking
+     */
+    public async stopPresence(): Promise<void> {
+        if (this._presenceDisposable) {
+            this._presenceDisposable.dispose();
+            this._presenceDisposable = undefined;
+        }
+
+        const presenceService = getPresenceService(this._context);
+        await presenceService.stopPresence();
+
+        const notificationManager = getCollaborationNotificationManager(this._context);
+        notificationManager.stop();
+
+        // Clear online members UI
+        this.updateOnlineMembers([]);
     }
 
     private handleAiQuery(text: string) {
@@ -582,10 +682,22 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
                     <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
                     <div id="joinCodeSection" style="display:none;">
-                        <strong>Join Code:</strong> 
+                        <strong>Join Code:</strong>
                         <span id="teamJoinCode">—</span>
                         <button class="button" id="copyJoinCodeBtn" title="Copy join code">Copy</button>
                     </div>
+
+                    <!-- Online Team Members Section -->
+                    <div id="onlineMembersSection" style="display:none; margin-top: 12px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between;">
+                            <strong>Online Team Members:</strong>
+                            <span id="onlineCount" style="color: var(--vscode-descriptionForeground); font-size: 0.9em;">0</span>
+                        </div>
+                        <div id="onlineMembersList" style="margin-top: 6px; max-height: 150px; overflow-y: auto;">
+                            <!-- Dynamically populated with online members -->
+                        </div>
+                    </div>
+
                     <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
                         <button class="button" id="switchTeamBtn">Switch Team</button>
                         <button class="button" id="createTeamBtn">Create Team</button>
