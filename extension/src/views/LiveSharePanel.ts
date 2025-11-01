@@ -503,17 +503,21 @@ export class LiveShareManager {
             // Get git diff of changes made DURING the session
             let sessionChanges = '(git not available)';
 
+            console.log('[LiveShareManager] _gitService exists:', !!this._gitService);
             if (this._gitService) {
                 try {
                     sessionChanges = await this._gitService.getSessionChanges();
-                    console.log('[LiveShareManager] Captured session changes');
+                    console.log('[LiveShareManager] Captured session changes, length:', sessionChanges.length);
                 } catch (err) {
                     console.error('[LiveShareManager] Failed to get session changes:', err);
                     sessionChanges = `Error capturing changes: ${err}`;
                 }
+            } else {
+                console.log('[LiveShareManager] No git service available, using placeholder changes');
             }
 
             // Create the live_share_ended event FIRST (without snapshot_id yet)
+            console.log('[LiveShareManager] Creating live_share_ended event...');
             const result = await insertLiveShareSessionEnd(
                 teamId,
                 user.id,
@@ -522,10 +526,15 @@ export class LiveShareManager {
                 durationMinutes,
                 undefined  // Don't link snapshot yet
             );
+            console.log('[LiveShareManager] Event creation result:', result);
 
             // Then create the snapshot which will trigger edge function
             // Edge function will find the live_share_ended event and update it with AI summary
-            if (this._gitService && result.success) {
+            console.log('[LiveShareManager] Checking if should create snapshot - gitService:', !!this._gitService, 'result.success:', result.success);
+
+            // Always create snapshot if we have an event (even if git service failed)
+            if (result.success) {
+                console.log('[LiveShareManager] Creating snapshot with changes...');
                 try {
                     const snapshotResult = await this.insertLiveShareSummary(
                         teamId,
@@ -535,13 +544,25 @@ export class LiveShareManager {
                         sessionChanges
                     );
 
+                    console.log('[LiveShareManager] Snapshot result:', snapshotResult);
                     if (snapshotResult.snapshotId) {
                         console.log('[LiveShareManager] Created snapshot with ID:', snapshotResult.snapshotId);
                         console.log('[LiveShareManager] Edge function will update the live_share_ended event with AI summary');
+
+                        // Clean up git stash after snapshot is created
+                        if (this._gitService) {
+                            this._gitService.cleanupSessionSnapshot().catch(err => {
+                                console.error('[LiveShareManager] Failed to cleanup git stash:', err);
+                            });
+                        }
+                    } else {
+                        console.log('[LiveShareManager] No snapshot ID returned');
                     }
                 } catch (err) {
                     console.error('[LiveShareManager] Failed to create snapshot:', err);
                 }
+            } else {
+                console.log('[LiveShareManager] Skipping snapshot creation - event creation failed');
             }
 
             if (result.success) {

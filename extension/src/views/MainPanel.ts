@@ -127,13 +127,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         return [
             'createTeam',
             'joinTeam',
-            'switchTeam', 
+            'switchTeam',
             'refreshTeams',
             'deleteTeam',
             'leaveTeam',
             'aiQuery',
             'addFileSnapshot',
-            'generateSummary',
+            // 'generateSummary' removed - edge function now handles automatic summarization
             'loadActivityFeed'
         ].includes(command);
     }
@@ -208,9 +208,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             case 'addFileSnapshot':
                 await (this._agentPanel as any).addFileSnapshot?.(message.payload);
                 break;
-            case 'generateSummary':
-                await (this._agentPanel as any).generateSummary?.(message.snapshotId);
-                break;
+            // generateSummary case removed - edge function now handles automatic summarization
             case 'loadActivityFeed':
                 await (this._agentPanel as any).loadActivityFeed?.(message.teamId, message.limit);
                 break;

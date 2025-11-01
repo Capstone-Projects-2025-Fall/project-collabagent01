@@ -81,10 +81,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     console.log('Handling addFileSnapshot command');
                     this.addFileSnapshot(message.payload);
                     break;
-                case 'generateSummary':
-                    console.log('Handling generateSummary command');
-                    this.generateSummary(message.snapshotId);
-                    break;
+                // generateSummary handler removed - edge function now handles automatic summarization
                 case 'loadActivityFeed':
                     console.log('Handling loadActivityFeed command');
                     this.loadActivityFeed(message.teamId, message.limit);
@@ -237,24 +234,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
-    /**
-     * Triggers backend to generate an AI summary for a snapshot and persist to the team activity feed.
-     */
-    public async generateSummary(snapshotId: string) {
-        try {
-            const { generateTeamActivityFromSnapshot } = require('../services/file-snapshot-service');
-            // Try to pass current team id if available
-            const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
-            const result = await generateTeamActivityFromSnapshot(snapshotId, currentTeamId);
-            if (result.success) {
-                this._view?.webview.postMessage({ command: 'summaryGenerated', summary: result.summary, snapshotId });
-            } else {
-                this._view?.webview.postMessage({ command: 'summaryError', error: result.error || 'Failed to generate summary' });
-            }
-        } catch (err) {
-            this._view?.webview.postMessage({ command: 'summaryError', error: String(err) });
-        }
-    }
+    // generateSummary method removed - edge function now handles automatic summarization
 
     /**
      * Loads recent activity for a team and posts back to webview.
@@ -575,20 +555,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     </div>
                 </div>
 
-                <!-- AI Summary Section -->
-                <div class="form-section">
-                    <h4>AI Summary</h4>
-                    <div class="form-grid">
-                        <div class="form-row">
-                            <label for="fs-summary-id">Snapshot ID for Summary</label>
-                            <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
-                        </div>
-                        <div class="form-actions">
-                            <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
-                        </div>
-                        <div id="fs-summary-feedback" class="feedback-text"></div>
-                    </div>
-                </div>
+                <!-- AI Summary Section removed - edge function now handles automatic summarization -->
+                <!-- Anchor element for Activity Feed (dynamically inserted by JS) -->
+                <div id="fs-summary-feedback" class="feedback-text" style="display:none;"></div>
             </div>
         `;
     }
@@ -680,20 +649,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     </div>
                 </div>
 
-                <!-- AI Summary Section -->
-                <div class="form-section">
-                    <h4>AI Summary</h4>
-                    <div class="form-grid">
-                        <div class="form-row">
-                            <label for="fs-summary-id">Snapshot ID for Summary</label>
-                            <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
-                        </div>
-                        <div class="form-actions">
-                            <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
-                        </div>
-                        <div id="fs-summary-feedback" class="feedback-text"></div>
-                    </div>
-                </div>
+                <!-- AI Summary Section removed - edge function now handles automatic summarization -->
+                <!-- Anchor element for Activity Feed (dynamically inserted by JS) -->
+                <div id="fs-summary-feedback" class="feedback-text" style="display:none;"></div>
             </div>
 
             <script nonce="${nonce}" src="${scriptUri}"></script>

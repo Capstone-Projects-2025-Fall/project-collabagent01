@@ -156,10 +156,9 @@ def get_feed():
   if not team_id:
     return jsonify({"error": "team_id is required"}), 400
 
-  # Select from team_activity_feed and join with file_snapshots to get changes
-  # Include ai_summary column if it exists
+  # Select from team_activity_feed and join with file_snapshots to get changes and snapshot
   rows = sb_select("team_activity_feed", {
-    "select": "id,team_id,user_id,summary,file_path,source_snapshot_id,activity_type,created_at,ai_summary,file_snapshots(changes)",
+    "select": "id,team_id,user_id,summary,event_header,file_path,source_snapshot_id,activity_type,created_at,file_snapshots(changes,snapshot)",
     "team_id": f"eq.{team_id}",
     "order": "created_at.desc",
     "limit": str(limit)
@@ -169,8 +168,10 @@ def get_feed():
   for row in rows:
     if row.get("file_snapshots") and isinstance(row["file_snapshots"], dict):
       row["changes"] = row["file_snapshots"].get("changes")
+      row["snapshot"] = row["file_snapshots"].get("snapshot")
     else:
       row["changes"] = None
+      row["snapshot"] = None
     # Remove the nested object
     row.pop("file_snapshots", None)
 
@@ -195,10 +196,11 @@ def live_share_event():
 
   # Handle session start event
   if event_type == "started":
-    summary = f"{display_name} started hosting a Live Share session, join up and collaborate"
+    event_header = f"{display_name} started hosting a Live Share session, join up and collaborate"
     activity_type = "live_share_started"
+    summary = None  # No AI summary yet for started events
 
-  # Handle session end event with AI-generated summary
+  # Handle session end event
   elif event_type == "ended":
     if not session_id:
       return jsonify({"error": "session_id is required for ended events"}), 400
@@ -216,43 +218,26 @@ def live_share_event():
 
     # Format duration
     if duration_minutes < 1:
-      duration_str = "less than a minute"
+      duration_str = "quick"
     elif duration_minutes < 60:
-      duration_str = f"{duration_minutes} minute{'s' if duration_minutes != 1 else ''}"
+      duration_str = f"{duration_minutes}-minute"
     else:
       hours = duration_minutes // 60
       mins = duration_minutes % 60
-      duration_str = f"{hours} hour{'s' if hours != 1 else ''}"
       if mins > 0:
-        duration_str += f" and {mins} minute{'s' if mins != 1 else ''}"
+        duration_str = f"{hours}h {mins}m"
+      else:
+        duration_str = f"{hours}-hour"
 
-    # Use AI to create a natural summary
+    # Create preset event header (not AI-generated)
     if teammates:
-      teammates_str = ", ".join(teammates[:-1]) + (" & " + teammates[-1] if len(teammates) > 1 else teammates[0])
-      context = f"{display_name} hosted a {duration_str} Live Share session with {teammates_str}"
+      teammates_str = " & ".join(teammates) if len(teammates) <= 2 else f"{teammates[0]} & others"
+      event_header = f"{display_name} ran a {duration_str} Live Share session with {teammates_str}"
     else:
-      context = f"{display_name} hosted a {duration_str} Live Share session (no teammates joined)"
-
-    prompt = textwrap.dedent(f"""
-      Create a short, natural activity feed summary (max 20 words) for this Live Share session.
-      Make it sound conversational and friendly.
-
-      Context: {context}
-
-      Examples:
-      - "John hosted a 30 minute Live Share session with Sarah & Mike"
-      - "Sarah ran a 2 hour Live Share coding session with the team"
-      - "Mike held a quick 15 minute pair programming session with John"
-    """).strip()
-
-    try:
-      resp = model.generate_content(prompt)
-      summary = (resp.text or "").strip() or context
-    except Exception as e:
-      # Fallback to deterministic summary
-      summary = context
+      event_header = f"{display_name} ran a {duration_str} Live Share solo session"
 
     activity_type = "live_share_ended"
+    summary = None  # Will be filled by edge function with AI summary
     source_snapshot_id = body.get("snapshot_id")  # Will be provided by frontend
 
   else:
@@ -262,7 +247,8 @@ def live_share_event():
   feed_row = {
     "team_id": team_id,
     "user_id": user_id,
-    "summary": summary,
+    "event_header": event_header,  # Preset descriptive header
+    "summary": summary,  # AI summary (null initially, filled by edge function)
     "file_path": f"session:{session_id}" if session_id else None,
     "source_snapshot_id": source_snapshot_id if event_type == "ended" else None,
     "activity_type": activity_type,
@@ -271,8 +257,8 @@ def live_share_event():
 
   return jsonify({
     "inserted": out,
-    "summary": summary,
-    "model": MODEL if event_type == "ended" else "none"
+    "event_header": event_header,
+    "model": "preset"
   }), 201
 
 

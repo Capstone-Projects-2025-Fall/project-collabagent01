@@ -215,12 +215,7 @@
 				showFsFeedback(message.error || 'Failed to save snapshot.', 'warn');
 				setSaving(false);
 				break;
-			case 'summaryGenerated':
-				showSummaryFeedback(`Summary stored: ${message.summary || '(no text)'}`, 'ok');
-				break;
-			case 'summaryError':
-				showSummaryFeedback(message.error || 'Failed to generate summary.', 'warn');
-				break;
+			// summaryGenerated and summaryError handlers removed - edge function now handles automatic summarization
 			case 'activityFeed':
 				renderActivityFeed(message.items || []);
 				break;
@@ -589,47 +584,7 @@
 			addBtn.setAttribute('data-listener-added','true');
 		}
 
-		// Dynamically add Generate Summary controls if not present in HTML yet
-		if (feedbackAnchor && !document.getElementById('fs-generateSummaryBtn')) {
-			const hr = document.createElement('hr');
-			const row = document.createElement('div');
-			row.className = 'form-row';
-			row.innerHTML = `
-				<label for="fs-summary-id">Generate Summary for Snapshot ID</label>
-				<input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
-			`;
-			const actions = document.createElement('div');
-			actions.className = 'form-actions';
-			actions.style.cssText = 'margin-top:8px; display:flex; gap:6px;';
-			const btn = document.createElement('button');
-			btn.className = 'button';
-			btn.id = 'fs-generateSummaryBtn';
-			btn.title = 'Use AI to summarize changes and store in team activity';
-			btn.textContent = 'Generate Summary';
-			actions.appendChild(btn);
-			const fb = document.createElement('div');
-			fb.id = 'fs-summary-feedback';
-			fb.style.cssText = 'font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;';
-
-			// Insert after feedbackAnchor
-			feedbackAnchor.insertAdjacentElement('afterend', fb);
-			fb.insertAdjacentElement('beforebegin', actions);
-			actions.insertAdjacentElement('beforebegin', row);
-			row.insertAdjacentElement('beforebegin', hr);
-		}
-
-		const genSummaryBtn = document.getElementById('fs-generateSummaryBtn');
-		if (genSummaryBtn && !genSummaryBtn.hasAttribute('data-listener-added')) {
-			genSummaryBtn.addEventListener('click', function(){
-				const explicit = document.getElementById('fs-summary-id')?.value?.trim();
-				const current = document.getElementById('fs-id')?.value?.trim();
-				const snapshotId = explicit || current;
-				if (!snapshotId) { showSummaryFeedback('Please enter or generate a Snapshot ID first.', 'warn'); return; }
-				showSummaryFeedback('Generating AI summary…', 'info');
-				post('generateSummary', { snapshotId });
-			});
-			genSummaryBtn.setAttribute('data-listener-added','true');
-		}
+		// Generate Summary section removed - edge function now handles automatic summarization
 	}
 
 	// Activity Feed UI and behavior
@@ -683,39 +638,41 @@
 		}
 		const html = items.map((it, index)=>{
 			const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
-			const file = it.file_path || '';
 			const who = it.user_id ? it.user_id.substring(0,8)+'…' : '';
-			const summary = it.summary || '';
+			const eventHeader = it.event_header || it.summary || '';  // Use event_header as display text
+			const summary = it.summary || '';  // AI-generated summary
 			const activityType = it.activity_type || 'file_snapshot';
 			const itemId = `activity-item-${index}`;
 			const detailsId = `activity-details-${index}`;
 
 			// Determine icon and styling based on activity type
 			let icon = '📄';
-			let iconColor = 'var(--vscode-descriptionForeground)';
 			let buttons = '';
 
 			if (activityType === 'live_share_started') {
 				// Green circle for session start
-				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#4caf50; border-radius:50%; margin-right:6px;"></span>';
-				iconColor = '#4caf50';
+				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#4caf50; border-radius:50%; margin-right:6px;"></span>Live';
 				// No buttons for started events
 				buttons = '';
 			} else if (activityType === 'live_share_ended') {
 				// Red circle for session end
-				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#f44336; border-radius:50%; margin-right:6px;"></span>';
-				iconColor = '#f44336';
-				// Show View Changes and View Summary (if AI summary exists)
+				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#f44336; border-radius:50%; margin-right:6px;"></span>Live';
+				// Show View Changes and View Summary
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
-					${it.ai_summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
+					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
 				`;
 			} else if (activityType === 'ai_summary') {
-				// Skip rendering ai_summary events separately (they're now part of live_share_ended)
-				return '';
+				// Regular file snapshots - show both View Changes and View Summary
+				icon = '📄';
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the changes made">View Changes</button>
+					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
+				`;
 			} else {
-				// Regular file snapshots
+				// Other types
 				icon = '📄';
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
@@ -738,7 +695,7 @@
 						<div style="font-size:11px; color: var(--vscode-descriptionForeground); opacity:0.8;">
 							${icon} ${when} • ${who}
 						</div>
-						<div style="margin-top:6px; font-size:13px; font-weight:500; line-height:1.4;">${escapeHtml(summary)}</div>
+						<div style="margin-top:6px; font-size:13px; font-weight:500; line-height:1.4;">${escapeHtml(eventHeader)}</div>
 					</div>
 					${detailsSection}
 				</div>
@@ -759,10 +716,25 @@
 	// Store activity items for later reference
 	let currentActivityItems = [];
 
-	// Placeholder functions for viewing snapshot and changes (no functionality yet)
+	// View initial snapshot function
 	window.viewSnapshot = function(activityId) {
 		console.log('View snapshot for activity:', activityId);
-		// TODO: Implement snapshot viewing functionality
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Check if this activity has a snapshot
+		if (activity.snapshot) {
+			// Show snapshot in a modal
+			showSnapshotModal(activity.snapshot, activity.event_header || 'Initial Snapshot');
+		} else {
+			console.log('No snapshot available for this activity');
+			console.log('Activity data:', activity);
+		}
 	};
 
 	window.viewChanges = function(activityId) {
@@ -796,9 +768,9 @@
 		}
 
 		// Check if this activity has an AI summary
-		if (activity.ai_summary) {
-			// Show AI summary in a modal
-			showSummaryModal(activity.ai_summary, activity.summary);
+		if (activity.summary) {
+			// Show AI summary in a modal (event_header is the event description)
+			showSummaryModal(activity.summary, activity.event_header || 'Activity');
 		} else {
 			console.log('No AI summary available for this activity');
 			console.log('Activity data:', activity);
@@ -921,7 +893,7 @@
 						color: var(--vscode-descriptionForeground);
 						opacity: 0.8;
 						margin-bottom: 12px;
-					">Session Event</div>
+					">Event</div>
 					<div style="
 						font-size: 13px;
 						font-weight: 500;
@@ -946,6 +918,72 @@
 						border-radius: 4px;
 					">${escapeHtml(aiSummary)}</div>
 				</div>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		// Close on background click
+		modal.addEventListener('click', (e) => {
+			if (e.target === modal) {
+				modal.remove();
+			}
+		});
+	}
+
+	function showSnapshotModal(snapshotContent, title) {
+		// Create modal overlay
+		const existingModal = document.getElementById('snapshotModal');
+		if (existingModal) {
+			existingModal.remove();
+		}
+
+		const modal = document.createElement('div');
+		modal.id = 'snapshotModal';
+		modal.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(0,0,0,0.7);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 10000;
+			padding: 20px;
+		`;
+
+		modal.innerHTML = `
+			<div style="
+				background: var(--vscode-editor-background);
+				border: 1px solid var(--vscode-editorWidget-border);
+				border-radius: 6px;
+				width: 90%;
+				max-width: 900px;
+				max-height: 80vh;
+				display: flex;
+				flex-direction: column;
+			">
+				<div style="
+					padding: 16px;
+					border-bottom: 1px solid var(--vscode-editorWidget-border);
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+				">
+					<h3 style="margin: 0;">${escapeHtml(title)}</h3>
+					<button class="button" onclick="document.getElementById('snapshotModal').remove()">Close</button>
+				</div>
+				<div style="
+					padding: 16px;
+					overflow: auto;
+					flex: 1;
+					font-family: monospace;
+					font-size: 12px;
+					white-space: pre-wrap;
+					word-break: break-all;
+				">${escapeHtml(snapshotContent)}</div>
 			</div>
 		`;
 
@@ -1012,16 +1050,7 @@
 		el.textContent = msg;
 	}
 
-	function showSummaryFeedback(msg, kind){
-		const el = document.getElementById('fs-summary-feedback');
-		if (!el) return;
-		let color = 'var(--vscode-descriptionForeground)';
-		if (kind === 'ok') color = 'var(--vscode-testing-iconPassed)';
-		if (kind === 'warn') color = 'var(--vscode-editorWarning-foreground, orange)';
-		if (kind === 'info') color = 'var(--vscode-descriptionForeground)';
-		el.style.color = color;
-		el.textContent = msg;
-	}
+	// showSummaryFeedback function removed - no longer needed since edge function handles automatic summarization
 
 	function getState(){
 		return (vscode.getState && vscode.getState()) || {};

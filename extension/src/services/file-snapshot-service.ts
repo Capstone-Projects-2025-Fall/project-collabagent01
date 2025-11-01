@@ -92,28 +92,7 @@ export async function addFileSnapshot(input: FileSnapshotInput): Promise<{ succe
   }
 }
 
-/**
- * Calls backend to generate an AI summary for a snapshot and persist to team activity feed.
- */
-export async function generateTeamActivityFromSnapshot(snapshotId: string, teamId?: string): Promise<{ success: boolean; summary?: string; error?: string }>{
-  try {
-    if (!snapshotId) return { success: false, error: 'snapshotId is required' };
-    const url = `${BASE_URL}/api/ai/process_snapshot`;
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ snapshot_id: snapshotId, team_id: teamId })
-    });
-    if (!response.ok) {
-      const txt = await response.text();
-      return { success: false, error: `HTTP ${response.status}: ${txt}` };
-    }
-    const data = await response.json();
-    return { success: true, summary: data?.summary };
-  } catch (err: any) {
-    return { success: false, error: err?.message || String(err) };
-  }
-}
+// generateTeamActivityFromSnapshot function removed - edge function now handles automatic summarization
 
 function cryptoRandomUUIDFallback(): string {
   // Use the Node 18+ crypto.randomUUID if available
