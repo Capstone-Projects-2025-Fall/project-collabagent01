@@ -99,7 +99,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
     private async refreshTeams() {
         const result = await getUserTeams();
         if (result.error) {
-            vscode.window.showErrorMessage(`Failed to load teams: ${result.error}`);
+            vscode.window.showWarningMessage(`Could not load teams: ${result.error}`);
             this._userTeams = [];
         } else {
             this._userTeams = result.teams || [];

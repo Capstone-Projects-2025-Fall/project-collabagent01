@@ -11,6 +11,7 @@ import * as vscode from "vscode";
 import * as vsls from 'vsls';
 import { signInCommand, signOutCommand, createAuthStatusBarItem } from "./commands/auth-commands";
 import { checkUserSignIn } from "./services/auth-service";
+import { setGitHubTokenCommand, clearGitHubTokenCommand, checkGitHubTokenCommand } from "./commands/github-token-commands";
 import { CollabAgentPanelProvider } from "./views/MainPanel";
 import { setDisplayNameExplicit, getOrInitDisplayName } from './services/profile-service';
 import { 
@@ -102,6 +103,10 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('collabAgent.setDisplayName', async () => {
       await setDisplayNameExplicit();
     }),
+    // GitHub token management
+    setGitHubTokenCommand,
+    clearGitHubTokenCommand,
+    checkGitHubTokenCommand,
     // Team project management commands
     validateCurrentProjectCommand,
     showCurrentProjectInfoCommand,
@@ -112,6 +117,50 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Initialize display name for participant updates
   getOrInitDisplayName(true).catch(err => console.warn('Display name init failed', err));
+
+  // Register URI handler for GitHub OAuth callback (optional - only if not already registered)
+  try {
+    const uriHandler = vscode.window.registerUriHandler({
+      handleUri: async (uri: vscode.Uri) => {
+        console.log('[OAuth Callback] Received URI:', uri.toString());
+
+        // Handle GitHub OAuth callback
+        if (uri.path === '/auth/callback') {
+          try {
+            // Extract the session from the URI (Supabase will handle this)
+            const { getSupabase } = require('./auth/supabaseClient');
+            const supabase = getSupabase();
+
+            // Get the session which should now include the provider_token
+            const { data: { session }, error } = await supabase.auth.getSession();
+
+            if (error) {
+              console.error('[OAuth Callback] Error getting session:', error);
+              vscode.window.showErrorMessage('GitHub sign-in failed. Please try again.');
+              return;
+            }
+
+            if (session?.provider_token) {
+              // Store the GitHub token for future use
+              const { storeGitHubAccessToken } = require('./services/github-verification-service');
+              await storeGitHubAccessToken(session.provider_token);
+              console.log('[OAuth Callback] GitHub token stored successfully');
+
+              vscode.window.showInformationMessage('Successfully signed in with GitHub!');
+            } else {
+              console.warn('[OAuth Callback] No provider_token found in session');
+            }
+          } catch (err) {
+            console.error('[OAuth Callback] Error handling callback:', err);
+          }
+        }
+      }
+    });
+    context.subscriptions.push(uriHandler);
+  } catch (error) {
+    // URI handler already registered - that's fine, just log it
+    console.log('[Extension] URI handler already registered (extension reload), skipping registration');
+  }
 
   // Show current project info in console for debugging
   const currentProject = getCurrentProjectInfo();

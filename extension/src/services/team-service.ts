@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { getAuthContext } from './auth-service';
 import { ProjectInfo, getCurrentProjectInfo, validateCurrentProject, getProjectDescription } from './project-detection-service';
+import { verifyGitHubPushAccess, isGitHubRepository, promptGitHubVerification } from './github-verification-service';
 
 // Team-related types
 export interface Team {
@@ -12,6 +13,13 @@ export interface Team {
     project_repo_url?: string;
     project_identifier: string;
     project_name?: string;
+
+    // GitHub verification fields
+    verified?: boolean;
+    verification_method?: string;
+    verified_by?: string;
+    verified_at?: string;
+    github_repo_id?: string;
 }
 
 export interface TeamMembership {
@@ -81,6 +89,46 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
 
         const supabase = await getSupabaseClient();
 
+        // Optional GitHub verification - silently checks if user has a token
+        // If they do and have access, great! If not, no problem - just create unverified team
+        let verificationData: {
+            verified: boolean;
+            verification_method: string;
+            github_repo_id?: string;
+        } = {
+            verified: false,
+            verification_method: 'none'
+        };
+
+        // Try to verify silently (doesn't block team creation if it fails)
+        if (currentProject.remoteUrl && isGitHubRepository(currentProject.remoteUrl)) {
+            try {
+                const verificationResult = await verifyGitHubPushAccess(currentProject.remoteUrl);
+
+                if (verificationResult.hasAccess) {
+                    // User has a token AND has access - mark as verified
+                    verificationData = {
+                        verified: true,
+                        verification_method: 'github_token',
+                        github_repo_id: verificationResult.repoInfo?.repoId.toString()
+                    };
+                    console.log('[Team Creation] ✓ Repository verified with GitHub token');
+                } else {
+                    // No token or no access - that's fine, just create unverified
+                    console.log('[Team Creation] Creating unverified team (no token or no access)');
+                }
+            } catch (error) {
+                // Any error - just create unverified team
+                console.log('[Team Creation] Verification skipped, creating unverified team');
+            }
+        }
+
+        // Get current user's auth ID for verified_by field
+        const { data: { user: authUser }, error: authUserError } = await supabase.auth.getUser();
+        if (authUserError || !authUser) {
+            return { error: 'Failed to get current user for verification record.' };
+        }
+
         // Use secure RPC which creates the team and adds the creator as admin
         const { data: teamData, error: rpcError } = await supabase.rpc('create_team', {
             p_lobby_name: lobbyName,
@@ -91,6 +139,25 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
 
         if (rpcError || !teamData) {
             return { error: `Failed to create team: ${rpcError?.message || 'Unknown error'}` };
+        }
+
+        // Update team with verification data
+        if (verificationData.verified) {
+            const { error: updateError } = await supabase
+                .from('teams')
+                .update({
+                    verified: verificationData.verified,
+                    verification_method: verificationData.verification_method,
+                    verified_by: authUser.id,
+                    verified_at: new Date().toISOString(),
+                    github_repo_id: verificationData.github_repo_id
+                })
+                .eq('id', teamData.id);
+
+            if (updateError) {
+                console.warn('[Team Creation] Failed to update verification data:', updateError);
+                // Don't fail the team creation, just log the warning
+            }
         }
 
         return { team: teamData, joinCode: teamData.join_code };

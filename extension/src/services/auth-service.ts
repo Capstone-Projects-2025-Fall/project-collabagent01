@@ -272,6 +272,15 @@ export async function handleSignOut() {
     await errorNotification(`Failed to set user context: ${setAuthError}`);
     return;
   }
+
+  // Clear the stored GitHub access token
+  try {
+    const { clearGitHubAccessToken } = require('./github-verification-service');
+    await clearGitHubAccessToken();
+  } catch (err) {
+    console.warn('Failed to clear GitHub token:', err);
+  }
+
   await showAuthNotification(`Sign Out Successfully! 👋`);
 
   vscode.commands.executeCommand("collabAgent.authStateChanged");
