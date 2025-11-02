@@ -7,17 +7,20 @@
 <link href="{{MAIN_STYLE_URI}}" rel="stylesheet" />
 <link href="{{LIVESHARE_STYLE_URI}}" rel="stylesheet" />
 <link href="{{AGENT_STYLE_URI}}" rel="stylesheet" />
+<link href="{{PROFILE_STYLE_URI}}" rel="stylesheet" />
 </head>
 <body>
 <div class="tab-header">
     <button class="tab-btn" id="tab-home" data-tab="home">Home</button>
     <button class="tab-btn" id="tab-live" data-tab="live" title="">Live Share</button>
     <button class="tab-btn" id="tab-agent" data-tab="agent" title="">Agent Bot</button>
+    <button class="tab-btn" id="tab-profile" data-tab="profile" title="">Profile</button>
 </div>
 <div id="login-tooltip" class="login-tooltip" style="display: none;">Please log in first</div>
 <div id="panel-home" class="tab-panel" style="display:block;">{{HOME_HTML}}</div>
 <div id="panel-live" class="tab-panel">{{LIVESHARE_HTML}}</div>
 <div id="panel-agent" class="tab-panel">{{AGENT_HTML}}</div>
+<div id="panel-profile" class="tab-panel">{{PROFILE_HTML}}</div>
 <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
 <script nonce="{{NONCE}}">
 (function(){
@@ -31,9 +34,11 @@
         document.getElementById('panel-home').style.display = tab==='home' ? 'block' : 'none';
         document.getElementById('panel-live').style.display = tab==='live' ? 'block' : 'none';
         document.getElementById('panel-agent').style.display = tab==='agent' ? 'block' : 'none';
+        document.getElementById('panel-profile').style.display = tab==='profile' ? 'block' : 'none';
         document.getElementById('tab-home').classList.toggle('active', tab==='home');
         document.getElementById('tab-live').classList.toggle('active', tab==='live');
         document.getElementById('tab-agent').classList.toggle('active', tab==='agent');
+        document.getElementById('tab-profile').classList.toggle('active', tab==='profile');
     }
     
     function showTooltip(element, message) {
@@ -55,8 +60,8 @@
             showTooltip(element, 'Live Share not installed. Click Home to install.');
             return;
         }
-        // Both Live Share and Agent tabs require authentication
-        if ((tab === 'live' || tab === 'agent') && !isAuthenticated) {
+        // Live Share, Agent, and Profile tabs require authentication
+        if ((tab === 'live' || tab === 'agent' || tab === 'profile') && !isAuthenticated) {
             showTooltip(element, 'Please log in first');
             return; // Don't switch tab if not authenticated
         }
@@ -96,6 +101,17 @@
     });
     agentTab.addEventListener('mouseleave', hideTooltip);
     
+    const profileTab = document.getElementById('tab-profile');
+    profileTab.addEventListener('click', function(){ 
+        handleTabClick('profile', this); 
+    });
+    profileTab.addEventListener('mouseenter', function() {
+        if (!isAuthenticated) {
+            showTooltip(this, 'Please log in first');
+        }
+    });
+    profileTab.addEventListener('mouseleave', hideTooltip);
+    
     showTab('home');
     
     // Update authentication state when it changes
@@ -104,8 +120,10 @@
         // Update tab visual states
         const liveTab = document.getElementById('tab-live');
         const agentTab = document.getElementById('tab-agent');
+        const profileTab = document.getElementById('tab-profile');
         if (authenticated) {
             agentTab.classList.remove('disabled');
+            profileTab.classList.remove('disabled');
             if (liveShareInstalled) {
                 liveTab.classList.remove('disabled');
             } else {
@@ -114,6 +132,7 @@
         } else {
             liveTab.classList.add('disabled');
             agentTab.classList.add('disabled');
+            profileTab.classList.add('disabled');
         }
     };
     
@@ -128,6 +147,7 @@
     // Set initial disabled state
     if (!isAuthenticated) {
         document.getElementById('tab-agent').classList.add('disabled');
+        document.getElementById('tab-profile').classList.add('disabled');
     }
     if (!isAuthenticated || !liveShareInstalled) {
         document.getElementById('tab-live').classList.add('disabled');

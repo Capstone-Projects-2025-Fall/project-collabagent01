@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>User Profile</title>
+    <link href="{{PROFILE_STYLE_URI}}" rel="stylesheet" />
+</head>
+<body>
+    <div class="profile-container">
+        <div class="profile-header">
+            <h2>User Profile</h2>
+            <p class="profile-subtitle">Tell us about yourself to help match you with the right team members</p>
+        </div>
+
+        <div class="profile-form">
+            <div class="form-section">
+                <label for="profile-name" class="form-label">Name</label>
+                <input type="text" id="profile-name" class="form-input" placeholder="Enter your name" />
+            </div>
+
+            <div class="form-section">
+                <label class="form-label">Interests & Strengths</label>
+                <p class="form-description">Select areas you're interested in or skilled at</p>
+                <div class="checkbox-grid">
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Java" />
+                        <span>Java</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Python" />
+                        <span>Python</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="TypeScript" />
+                        <span>TypeScript</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="JavaScript" />
+                        <span>JavaScript</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="C++" />
+                        <span>C++</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="C#" />
+                        <span>C#</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Frontend" />
+                        <span>Frontend</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Backend" />
+                        <span>Backend</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Database" />
+                        <span>Database</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="UI/UX" />
+                        <span>UI/UX</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="DevOps" />
+                        <span>DevOps</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Testing" />
+                        <span>Testing</span>
+                    </label>
+                </div>
+                <div class="custom-input-section">
+                    <input type="text" id="custom-interests" class="form-input" placeholder="Add other interests (comma-separated)" />
+                </div>
+            </div>
+
+            <div class="form-section">
+                <label class="form-label">Areas to Avoid or Learn</label>
+                <p class="form-description">Select areas you'd prefer not to work on or want to learn more about</p>
+                <div class="checkbox-grid">
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="Java" />
+                        <span>Java</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="Python" />
+                        <span>Python</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="TypeScript" />
+                        <span>TypeScript</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="JavaScript" />
+                        <span>JavaScript</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="C++" />
+                        <span>C++</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="C#" />
+                        <span>C#</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="Frontend" />
+                        <span>Frontend</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="Backend" />
+                        <span>Backend</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="Database" />
+                        <span>Database</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="UI/UX" />
+                        <span>UI/UX</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="DevOps" />
+                        <span>DevOps</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="weaknesses" value="Testing" />
+                        <span>Testing</span>
+                    </label>
+                </div>
+                <div class="custom-input-section">
+                    <input type="text" id="custom-weaknesses" class="form-input" placeholder="Add other areas (comma-separated)" />
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button id="save-profile-btn" class="button primary">Save Profile</button>
+                <span id="profile-status" class="status-message"></span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

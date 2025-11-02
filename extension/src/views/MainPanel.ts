@@ -2,12 +2,14 @@ import * as vscode from 'vscode';
 import { LiveShareManager } from './LiveSharePanel';
 import { AgentPanelProvider } from './AgentPanel';
 import { HomeScreenPanel } from './HomeScreenPanel';
+import { ProfilePanel } from './ProfilePanel';
 
 /**
- * Main orchestrator panel that manages and displays three sub-panels:
+ * Main orchestrator panel that manages and displays four sub-panels:
  * - Home Screen (authentication, welcome, user info)
  * - Live Share (collaboration sessions, team messaging)
  * - Agent Panel (team management, AI chat bot)
+ * - Profile (user profile and preferences)
  */
 export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** The unique identifier for this webview view type */
@@ -25,6 +27,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** Home screen panel instance for home functionality */
     private _homeScreen: HomeScreenPanel;
     
+    /** Profile panel instance for user profile management */
+    private _profilePanel: ProfilePanel;
+    
     /** Interval to monitor auth state changes */
     private _authMonitorInterval: any | undefined;
     /** Cached last known auth state */
@@ -40,6 +45,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         this._liveShareManager = new LiveShareManager(this._context);
         this._agentPanel = new AgentPanelProvider(this._extensionUri, this._context);
         this._homeScreen = new HomeScreenPanel(this._extensionUri, this._context);
+        this._profilePanel = new ProfilePanel(this._extensionUri, this._context);
     }
 
     /**
@@ -90,6 +96,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     return;
                 }
                 
+                // Delegate Profile commands to Profile handlers
+                if (this.isProfileCommand(message.command)) {
+                    await this.handleProfileMessage(message);
+                    return;
+                }
+                
                 // Handle Home/Auth commands directly in MainPanel
                 switch (message.command) {
                     case 'loginOrSignup':
@@ -135,6 +147,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'addFileSnapshot',
             // 'generateSummary' removed - edge function now handles automatic summarization
             'loadActivityFeed'
+        ].includes(command);
+    }
+
+    private isProfileCommand(command: string): boolean {
+        return [
+            'saveProfile',
+            'loadProfile'
         ].includes(command);
     }
 
@@ -214,6 +233,114 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             default:
                 console.log('Unknown agent command:', message.command);
+        }
+    }
+
+    private async handleProfileMessage(message: any) {
+        console.log('Profile command received:', message.command);
+        
+        switch (message.command) {
+            case 'saveProfile':
+                await this.handleSaveProfile(message.profileData);
+                break;
+            case 'loadProfile':
+                await this.handleLoadProfile();
+                break;
+            default:
+                console.log('Unknown profile command:', message.command);
+        }
+    }
+
+    private async handleSaveProfile(profileData: any) {
+        try {
+            const { getAuthContext } = require('../services/auth-service');
+            const authResult = await getAuthContext();
+            
+            if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
+                vscode.window.showErrorMessage('You must be logged in to save your profile.');
+                return;
+            }
+
+            const userId = authResult.context.user_id;
+            const serverUrl = process.env.SERVER_URL || 'http://localhost:8080';
+            
+            const payload = {
+                user_id: userId,
+                name: profileData.name || '',
+                interests: profileData.interests || [],
+                strengths: profileData.strengths || [],
+                weaknesses: profileData.weaknesses || [],
+                custom_skills: profileData.custom_skills || []
+            };
+
+            const response = await fetch(`${serverUrl}/api/profile`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authResult.token || ''}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                vscode.window.showInformationMessage('Profile saved successfully!');
+                this._view?.webview.postMessage({ 
+                    command: 'profileSaved', 
+                    success: true,
+                    profile: result.profile 
+                });
+            } else {
+                const error = await response.text();
+                vscode.window.showErrorMessage(`Failed to save profile: ${error}`);
+                this._view?.webview.postMessage({ 
+                    command: 'profileSaved', 
+                    success: false,
+                    error: error
+                });
+            }
+        } catch (err) {
+            console.error('Error saving profile:', err);
+            vscode.window.showErrorMessage('Error saving profile. Please try again.');
+            this._view?.webview.postMessage({ 
+                command: 'profileSaved', 
+                success: false,
+                error: String(err)
+            });
+        }
+    }
+
+    private async handleLoadProfile() {
+        try {
+            const { getAuthContext } = require('../services/auth-service');
+            const authResult = await getAuthContext();
+            
+            if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
+                console.log('User not authenticated, cannot load profile');
+                return;
+            }
+
+            const userId = authResult.context.user_id;
+            const serverUrl = process.env.SERVER_URL || 'http://localhost:8080';
+            
+            const response = await fetch(`${serverUrl}/api/profile?user_id=${userId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${authResult.token || ''}`
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                this._view?.webview.postMessage({ 
+                    command: 'profileLoaded', 
+                    profile: result.profile 
+                });
+            } else {
+                console.error('Failed to load profile:', await response.text());
+            }
+        } catch (err) {
+            console.error('Error loading profile:', err);
         }
     }
 
@@ -342,6 +469,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             // Get HTML content from sub-panels
             const homeHtml = await this._homeScreen.getHtml(webview, liveShareInstalled, loggedIn, userInfo);
             const agentHtml = this._agentPanel.getInnerHtml();
+            const profileHtml = await this._profilePanel.getHtml(webview);
             
             // Get Live Share panel content
             const fs = require('fs');
@@ -358,6 +486,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const mainStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'mainPanel.css'));
             const liveShareStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.css'));
             const agentStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.css'));
+            const profileStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'profilePanel.css'));
             const nonce = Date.now().toString();
 
             // Load main panel template
@@ -374,13 +503,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{MAIN_STYLE_URI}}', mainStyleUri.toString())
                 .replace('{{LIVESHARE_STYLE_URI}}', liveShareStyleUri.toString())
                 .replace('{{AGENT_STYLE_URI}}', agentStyleUri.toString())
+                .replace('{{PROFILE_STYLE_URI}}', profileStyleUri.toString())
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)
                 .replace('{{IS_AUTHENTICATED}}', loggedIn.toString())
                 .replace('{{LIVESHARE_INSTALLED}}', liveShareInstalled.toString())
                 .replace('{{HOME_HTML}}', homeHtml)
                 .replace('{{LIVESHARE_HTML}}', liveShareHtml)
-                .replace('{{AGENT_HTML}}', agentHtml);
+                .replace('{{AGENT_HTML}}', agentHtml)
+                .replace('{{PROFILE_HTML}}', profileHtml);
 
             return html;
         })();
