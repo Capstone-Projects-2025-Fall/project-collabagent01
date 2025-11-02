@@ -85,6 +85,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 case 'loadActivityFeed':
                     console.log('Handling loadActivityFeed command');
                     this.loadActivityFeed(message.teamId, message.limit);
+                case 'publishSnapshot':
+                    console.log('Handling publishSnapshot command');
+                    vscode.commands.executeCommand('collabAgent.publishSnapshot');
                     break;
                 default:
                     console.log('Unknown command received:', message.command);

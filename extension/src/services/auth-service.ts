@@ -12,6 +12,8 @@ import {
   showAuthNotification,
 } from "../views/notifications";
 import { BASE_URL } from "../api/types/endpoints";
+import { getSupabase } from "../auth/supabaseClient";
+
 
 /**
  * Sets the authentication context for the user in the VS Code global state.
@@ -197,6 +199,19 @@ export async function handleSignIn() {
     return;
   }
 
+  // Store the Supabase session manually so it's restored later
+  const supabase = getSupabase();
+  const { error: sessionError } = await supabase.auth.setSession({
+    access_token: token,
+    refresh_token: token,
+  });
+  if (sessionError) {
+    console.error("[Auth] Failed to set Supabase session:", sessionError.message);
+  } else {
+    console.log("[Auth] Supabase session persisted successfully.");
+  }
+
+  // Now fetch user data as usual
   const { user, error: getUserError } = await getUserByID(token);
   if (getUserError || !user) {
     vscode.window.showErrorMessage(`Failed to get user data: ${getUserError}`);
@@ -382,4 +397,31 @@ export async function signInWithGithub() {
     await errorNotification(`GitHub Sign In failed: ${error.message}`);
     await authNotification();
   }
+}
+
+export async function getCurrentUserId(): Promise<string | null> {
+  const supabase = getSupabase();
+
+  // Try to refresh and persist the session
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    console.warn("[Auth] getSession error:", sessionError.message);
+  }
+
+  if (sessionData?.session?.user?.id) {
+    console.log("[Auth] Found session user ID:", sessionData.session.user.id);
+    return sessionData.session.user.id;
+  }
+
+  // Try fallback - explicitly fetch user
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) {
+    console.warn("[Auth] getUser fallback failed:", userError.message);
+  } else if (userData?.user) {
+    console.log("[Auth] Found user via getUser fallback:", userData.user.id);
+    return userData.user.id;
+  }
+
+  console.warn("[Auth] No session found in Supabase client.");
+  return null;
 }
