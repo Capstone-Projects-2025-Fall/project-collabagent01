@@ -1,0 +1,207 @@
+/* Generic panel CSS copied from agentPanel.css - fallback for missing panel.css references */
+
+.agent-heading {
+	font-size: 24px;
+	font-weight: bold;
+	text-align: center;
+	color: var(--vscode-textLink-foreground);
+	margin-bottom: 20px;
+	padding: 10px 0;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+}
+
+#joinCodeSection {
+	margin-top: 4px;
+	font-size: 12px;
+}
+
+#teamJoinCode {
+	font-family: 'Courier New', monospace;
+	background: var(--vscode-textCodeBlock-background);
+	padding: 1px 4px;
+	border-radius: 2px;
+	margin: 0 4px;
+}
+
+/* Form Styles */
+.form-grid {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.form-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-row label {
+  font-weight: 500;
+  font-size: 12px;
+  color: var(--vscode-input-foreground);
+  margin-bottom: 2px;
+}
+
+.form-row input,
+.form-row textarea {
+  padding: 6px 8px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: 13px;
+}
+
+.form-row input:focus,
+.form-row textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  border-color: var(--vscode-focusBorder);
+}
+
+.form-row input[readonly] {
+  background: var(--vscode-textCodeBlock-background);
+  color: var(--vscode-textPreformat-foreground);
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.form-row textarea {
+  resize: vertical;
+  min-height: 60px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 12px;
+}
+
+.form-section {
+  margin-bottom: 20px;
+  padding: 12px;
+  background: var(--vscode-textBlockQuote-background);
+  border: 1px solid var(--vscode-textBlockQuote-border);
+  border-radius: 6px;
+}
+
+.form-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--vscode-textLink-foreground);
+  border-bottom: 1px solid var(--vscode-textBlockQuote-border);
+  padding-bottom: 6px;
+}
+
+.readonly-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.readonly-grid .form-row {
+  margin-bottom: 0;
+}
+
+.feedback-text {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 6px;
+  font-style: italic;
+}
+
+/* AI Agent chat area */
+#ai-agent-box {
+  margin-top: 1rem;
+  background: #1e1e1e;
+  padding: 0.5rem;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  height: 250px;
+}
+
+#ai-chat-log {
+  flex: 1;
+  overflow-y: auto;
+  background: #252526;
+  padding: 0.5rem;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  font-size: 13px;
+}
+
+.chat-input-container {
+  display: flex;
+  gap: 0.5rem;
+}
+
+#ai-chat-input {
+  flex: 1;
+  padding: 0.3rem;
+}
+
+#ai-chat-send {
+  background: #007acc;
+  color: white;
+  border: none;
+  padding: 0.3rem 0.8rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Buttons */
+.button {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	padding: 8px 12px;
+	margin: 4px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 12px;
+}
+
+.button:hover {
+	background: var(--vscode-button-hoverBackground);
+}
+
+.button-small {
+	background: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: none;
+	padding: 4px 8px;
+	margin: 2px;
+	border-radius: 4px;
+	cursor: pointer;
+	font-size: 11px;
+	min-width: 24px;
+	text-align: center;
+}
+
+.button-small:hover {
+	background: var(--vscode-button-secondaryHoverBackground);
+}
+
+/* Project Status Indicator */
+#projectStatus {
+	border-left: 3px solid var(--vscode-textLink-foreground);
+	padding-left: 8px;
+	background: var(--vscode-textBlockQuote-background);
+	border-radius: 0 4px 4px 0;
+}
+
+#projectStatusIndicator {
+	font-weight: 500;
+}
+
+#projectStatusIndicator[title] {
+	cursor: help;
+	text-decoration: underline dotted;
+}

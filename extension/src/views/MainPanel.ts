@@ -128,6 +128,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'createTeam',
             'joinTeam',
             'switchTeam',
+            'viewTeam',
             'refreshTeams',
             'deleteTeam',
             'leaveTeam',
@@ -184,6 +185,14 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'switchTeam':
                 await this._agentPanel.switchTeam();
+                break;
+            case 'viewTeam':
+                // show quick pick of team members via AgentPanel
+                if ((this._agentPanel as any).viewTeam) {
+                    await (this._agentPanel as any).viewTeam();
+                } else if ((this._agentPanel as any).handleViewTeam) {
+                    await (this._agentPanel as any).handleViewTeam();
+                }
                 break;
             case 'refreshTeams':
                 await this._agentPanel.refreshTeamsList();

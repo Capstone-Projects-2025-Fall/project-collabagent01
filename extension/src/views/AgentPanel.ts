@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, type TeamWithMembership } from '../services/team-service';
+import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, getTeamMembers, type TeamWithMembership } from '../services/team-service';
 import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
 
 /**
@@ -46,7 +46,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         // Initialize with team info from database
         await this.refreshTeams();
 
-        webviewView.webview.onDidReceiveMessage((message: any) => {
+        webviewView.webview.onDidReceiveMessage(async (message: any) => {
             console.log('AgentPanel received message:', message);
             switch (message.command) {
                 case 'createTeam':
@@ -77,6 +77,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     console.log('Handling leaveTeam command');
                     this.handleLeaveTeam();
                     break;
+                case 'viewTeam':
+                    console.log('Handling viewTeam command');
+                    this.handleViewTeam();
+                    break;
                 case 'addFileSnapshot':
                     console.log('Handling addFileSnapshot command');
                     this.addFileSnapshot(message.payload);
@@ -106,6 +110,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         }
         this.postTeamInfo();
     }
+
 
     /**
      * Posts current team info to webview
@@ -211,6 +216,11 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     public async refreshTeamsList() {
         return await this.refreshTeams();
+    }
+
+    // Expose viewing team members to external callers (MainPanel)
+    public async viewTeam() {
+        return await this.handleViewTeam();
     }
 
     public async processAiQuery(text: string) {
@@ -432,7 +442,6 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
-            // Debug: Log team data to see what's missing
             console.log('Team data for switch:', {
                 name: selected.team.lobby_name,
                 project_identifier: selected.team.project_identifier,
@@ -468,6 +477,45 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /**
+     * Fetches team members and sends them to the webview for display in dropdown
+     */
+    private async handleViewTeam() {
+        const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+        if (!currentTeamId) {
+            this._view?.webview.postMessage({ 
+                command: 'updateTeamMembers', 
+                members: [],
+                error: 'No team selected'
+            });
+            return;
+        }
+
+        try {
+            const { members, error } = await getTeamMembers(currentTeamId);
+            if (error) {
+                this._view?.webview.postMessage({ 
+                    command: 'updateTeamMembers', 
+                    members: [],
+                    error: error
+                });
+                return;
+            }
+
+            this._view?.webview.postMessage({ 
+                command: 'updateTeamMembers', 
+                members: members || [],
+                error: null
+            });
+        } catch (err) {
+            this._view?.webview.postMessage({ 
+                command: 'updateTeamMembers', 
+                members: [],
+                error: String(err)
+            });
+        }
+    }
+
     private handleAiQuery(text: string) {
         const reply = `Agent received: "${text}"`;
         this._view?.webview.postMessage({ command: 'aiResponse', text: reply });
@@ -496,9 +544,17 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         <button class="button" id="switchTeamBtn">Switch Team</button>
                         <button class="button" id="createTeamBtn">Create Team</button>
                         <button class="button" id="joinTeamBtn">Join Team</button>
+                        <button class="button" id="viewTeamBtn">View Team Members ▼</button>
                         <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
                         <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
                         <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
+                    </div>
+                    <!-- Team Members Dropdown (initially hidden) -->
+                    <div id="teamMembersDropdown" style="display:none; margin-top:12px; padding:8px; border:1px solid var(--vscode-editorWidget-border); border-radius:4px; background:var(--vscode-editor-background);">
+                        <div style="font-weight:500; margin-bottom:8px; font-size:12px; color:var(--vscode-descriptionForeground);">Team Members:</div>
+                        <div id="teamMembersList" style="display:flex; flex-direction:column; gap:4px;">
+                            <!-- Members will be populated here -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -564,13 +620,14 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     private _getHtmlForWebview(webview: vscode.Webview) {
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.js'));
-        const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.css'));
+    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.css'));
         const nonce = Date.now().toString();
-        return `<!DOCTYPE html>
-        <html lang="en">
+    return `<!DOCTYPE html>
+    <html lang="en">
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+            <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} https:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}' ${webview.cspSource};">
             <title>Agent Panel</title>
             <link href="${styleUri}" rel="stylesheet" />
         </head>
@@ -590,9 +647,17 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                         <button class="button" id="switchTeamBtn">Switch Team</button>
                         <button class="button" id="createTeamBtn">Create Team</button>
                         <button class="button" id="joinTeamBtn">Join Team</button>
+                        <button class="button" id="viewTeamBtn">View Team Members ▼</button>
                         <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
                         <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
                         <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
+                    </div>
+                    <!-- Team Members Dropdown (initially hidden) -->
+                    <div id="teamMembersDropdown" style="display:none; margin-top:12px; padding:8px; border:1px solid var(--vscode-editorWidget-border); border-radius:4px; background:var(--vscode-editor-background);">
+                        <div style="font-weight:500; margin-bottom:8px; font-size:12px; color:var(--vscode-descriptionForeground);">Team Members:</div>
+                        <div id="teamMembersList" style="display:flex; flex-direction:column; gap:4px;">
+                            <!-- Members will be populated here -->
+                        </div>
                     </div>
                 </div>
             </div>

@@ -588,3 +588,68 @@ export async function leaveTeam(teamId: string): Promise<{ success: boolean; err
         return { success: false, error: `Leave team failed: ${error}` };
     }
 }
+
+// Gets members of a team
+export async function getTeamMembers(teamId: string): Promise<{ members?: Array<{ id: string; email?: string; first_name?: string; last_name?: string; display_name?: string; role: string }>; error?: string }> {
+    try {
+        const { context: user, error: authError } = await getAuthContext();
+        if (authError || !user?.isAuthenticated) {
+            return { error: 'User must be authenticated' };
+        }
+
+        const supabase = await getSupabaseClient();
+
+        // verify the current user is a member of this team
+        const { data: membership, error: membershipError } = await supabase
+            .from('team_membership')
+            .select('role')
+            .eq('team_id', teamId)
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (membershipError) {
+            return { error: `Failed to verify membership: ${membershipError.message}` };
+        }
+
+        if (!membership) {
+            return { error: 'You are not a member of this team' };
+        }
+
+        // Try using an RPC function first (if it exists)
+        // This bypasses RLS and returns all team members
+        const { data: rpcData, error: rpcError } = await supabase
+            .rpc('get_team_members', { p_team_id: teamId });
+
+        if (!rpcError && Array.isArray(rpcData)) {
+            // RPC function exists and returned data
+            const members = rpcData.map((row: any) => ({
+                id: row.user_id || row.id,
+                email: row.email,
+                first_name: row.first_name,
+                last_name: row.last_name,
+                display_name: row.display_name,
+                role: row.role
+            })).filter(m => !!m.id);
+            return { members };
+        }
+
+        // Fallback: Try direct query (may be limited by RLS)
+        const { data: fallbackData, error: fbErr } = await supabase
+            .from('team_membership')
+            .select('user_id, role')
+            .eq('team_id', teamId);
+
+        if (fbErr) {
+            return { error: `Failed to get team members: ${fbErr.message}` };
+        }
+
+        const members = (fallbackData || []).map((row: any) => ({
+            id: row.user_id,
+            role: row.role
+        }));
+
+        return { members };
+    } catch (err) {
+        return { error: `Get team members failed: ${err}` };
+    }
+}

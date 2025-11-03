@@ -1,6 +1,13 @@
 (function(){
   const vscode = acquireVsCodeApi();
 
+  // Debug logging for webview load
+  console.log('AgentPanel webview loaded');
+  window.addEventListener('load', () => {
+    console.log('Window load event fired');
+    initializeButtons();
+  });
+
   function post(command, payload={}){ 
     console.log('Posting message:', {command, ...payload});
     vscode.postMessage({command, ...payload}); 
@@ -10,13 +17,54 @@
   const createBtn = () => document.getElementById('createTeamBtn');
   const joinBtn = () => document.getElementById('joinTeamBtn');
   const refreshBtn = () => document.getElementById('refreshTeamsBtn');
+  const viewBtn = () => document.getElementById('viewTeamBtn');
   const copyJoinCodeBtn = () => document.getElementById('copyJoinCodeBtn');
   const deleteBtn = () => document.getElementById('deleteTeamBtn');
   const leaveBtn = () => document.getElementById('leaveTeamBtn');
 
+
   function initializeButtons() {
     console.log('Initializing Agent Panel buttons');
-    
+    // Update on-page debug status (visible inside the panel)
+    try {
+      const dbg = document.getElementById('debugStatus');
+      if (dbg) dbg.textContent = 'Debug: initializing buttons...';
+    } catch (e) { console.warn('Failed to update debugStatus', e); }
+
+    // Debug logging for button states
+    const viewTeamButton = viewBtn();
+    if (viewTeamButton) {
+      let debugDiv = document.getElementById('debug-js-visibility');
+      if (!debugDiv) {
+        debugDiv = document.createElement('div');
+        debugDiv.id = 'debug-js-visibility';
+        debugDiv.style.background = '#0f0';
+        debugDiv.style.color = '#090';
+        debugDiv.style.fontSize = '18px';
+        debugDiv.style.padding = '10px';
+        debugDiv.style.marginBottom = '10px';
+        debugDiv.style.border = '2px solid #090';
+        debugDiv.style.textAlign = 'center';
+        debugDiv.textContent = 'DEBUG: JS found the View Team button in the DOM and is running.';
+        const parent = document.body;
+        if (parent.firstChild) {
+          parent.insertBefore(debugDiv, parent.firstChild.nextSibling);
+        } else {
+          parent.appendChild(debugDiv);
+        }
+      }
+    }
+    console.log('Button elements:', {
+      switchTeam: !!switchBtn(),
+      createTeam: !!createBtn(),
+      joinTeam: !!joinBtn(),
+      viewTeam: !!viewBtn(),
+      refreshTeam: !!refreshBtn(),
+      copyJoinCode: !!copyJoinCodeBtn(),
+      deleteTeam: !!deleteBtn(),
+      leaveTeam: !!leaveBtn()
+    });
+
     // Add event listeners with debug logging
     const s = switchBtn(); 
     if (s && !s.hasAttribute('data-listener-added')) {
@@ -53,6 +101,34 @@
     } else if (!j) {
       console.log('Join Team button not found');
     }
+    
+    const v = viewBtn(); 
+    if (v && !v.hasAttribute('data-listener-added')) {
+        v.addEventListener('click', (event) => {
+          try {
+            console.log('View Team button clicked');
+            event.preventDefault();
+            // Visual feedback to confirm click handler ran
+            try {
+              v.setAttribute('data-was-clicked', 'true');
+              const original = v.textContent;
+              v.textContent = 'Checking...';
+              setTimeout(() => { v.textContent = original; }, 1000);
+            } catch (uiErr) { console.warn('UI feedback failed', uiErr); }
+          // update on-page debug status
+          try { const dbg = document.getElementById('debugStatus'); if (dbg) dbg.textContent = 'Debug: View Team clicked'; } catch(e){}
+            post('viewTeam');
+            console.log('viewTeam message posted');
+          } catch (error) {
+            console.error('Error handling view team click:', error);
+          }
+        });
+      v.setAttribute('data-listener-added', 'true');
+      console.log('View Team button listener added');
+    } else if (!v) {
+      console.log('View Team button not found');
+    }
+    
     
     const r = refreshBtn(); 
     if (r && !r.hasAttribute('data-listener-added')) {

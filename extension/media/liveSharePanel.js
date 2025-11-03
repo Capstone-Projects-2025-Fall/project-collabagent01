@@ -66,6 +66,27 @@
 		} else if (!switchTeamBtn) {
 			console.log('Switch Team button not found');
 		}
+
+		// View Team button wiring
+		const viewTeamBtn = document.getElementById('viewTeamBtn');
+		if (viewTeamBtn && !viewTeamBtn.hasAttribute('data-listener-added')) {
+			viewTeamBtn.addEventListener('click', function() {
+				const dropdown = document.getElementById('teamMembersDropdown');
+				if (dropdown) {
+					if (dropdown.style.display === 'none') {
+						// Show dropdown and fetch members
+						dropdown.style.display = 'block';
+						viewTeamBtn.textContent = 'View Team Members ▲';
+						post('viewTeam');
+					} else {
+						// Hide dropdown
+						dropdown.style.display = 'none';
+						viewTeamBtn.textContent = 'View Team Members ▼';
+					}
+				}
+			});
+			viewTeamBtn.setAttribute('data-listener-added', 'true');
+		}
 		
 		const refreshTeamsBtn = document.getElementById('refreshTeamsBtn');
 		if (refreshTeamsBtn && !refreshTeamsBtn.hasAttribute('data-listener-added')) {
@@ -229,6 +250,9 @@
 					if (u) u.value = '';
 				}
 				break;
+			case 'updateTeamMembers':
+				renderTeamMembers(message.members || [], message.error);
+				break;
 		}
 	});
 
@@ -270,6 +294,51 @@
 		if (fsTeamId) fsTeamId.value = team?.id || '';
 		if (fsUserId && userId) fsUserId.value = userId;
 		persistFsIds({ userId: (fsUserId && fsUserId.value) || '', teamId: (fsTeamId && fsTeamId.value) || '' });
+	}
+
+	function renderTeamMembers(members, error) {
+		const membersList = document.getElementById('teamMembersList');
+		const dropdown = document.getElementById('teamMembersDropdown');
+		
+		if (!membersList) return;
+
+		if (error) {
+			membersList.innerHTML = `<div style="color: var(--vscode-errorForeground); font-size: 12px;">${escapeHtml(error)}</div>`;
+			return;
+		}
+
+		if (!members || members.length === 0) {
+			membersList.innerHTML = `<div style="color: var(--vscode-descriptionForeground); font-size: 12px;">No members found.</div>`;
+			return;
+		}
+
+		// Render each member as a row with display name (or user id) and role
+		const html = members.map(m => {
+			const roleLabel = m.role === 'admin' ? 'Admin' : 'Member';
+			const roleBadgeColor = m.role === 'admin' ? 'var(--vscode-charts-blue)' : 'var(--vscode-charts-green)';
+			
+			// Use display_name if available, otherwise fall back to truncated user_id
+			let displayText = '';
+			let titleText = '';
+			
+			if (m.display_name && m.display_name.trim()) {
+				displayText = m.display_name;
+				titleText = `${m.display_name} (${m.id || 'Unknown'})`;
+			} else {
+				const shortId = m.id && m.id.length > 12 ? m.id.substring(0, 12) + '…' : (m.id || 'Unknown');
+				displayText = shortId;
+				titleText = m.id || 'Unknown';
+			}
+			
+			return `
+				<div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 8px; background: var(--vscode-editorWidget-background); border-radius: 3px; font-size: 12px;">
+					<span style="font-family: ${m.display_name ? 'inherit' : 'monospace'}; color: var(--vscode-editor-foreground);" title="${escapeHtml(titleText)}">${escapeHtml(displayText)}</span>
+					<span style="background: ${roleBadgeColor}; color: #fff; padding: 2px 8px; border-radius: 3px; font-size: 11px; font-weight: 500;">${roleLabel}</span>
+				</div>
+			`;
+		}).join('');
+
+		membersList.innerHTML = html;
 	}
 
 	function appendAIMessage(text) {
