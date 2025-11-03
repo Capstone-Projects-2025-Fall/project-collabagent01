@@ -13,9 +13,11 @@ CORS(app)  # allow cross-origin for development
 
 from .routes.notes_route import notes_bp
 from .routes.api_route import ai_bp
+from .routes.profile_route import profile_bp
 
 app.register_blueprint(notes_bp)
 app.register_blueprint(ai_bp)
+app.register_blueprint(profile_bp)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))

@@ -261,11 +261,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
-            const userId = authResult.context.user_id;
-            const serverUrl = process.env.SERVER_URL || 'http://localhost:8080';
+            const user = authResult.context;
+            const { BASE_URL } = require('../api/types/endpoints');
             
             const payload = {
-                user_id: userId,
+                user_id: user.id,
                 name: profileData.name || '',
                 interests: profileData.interests || [],
                 strengths: profileData.strengths || [],
@@ -273,11 +273,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 custom_skills: profileData.custom_skills || []
             };
 
-            const response = await fetch(`${serverUrl}/api/profile`, {
+            const token = user.auth_token || user.id || 'no-token-available';
+
+            const response = await fetch(`${BASE_URL}/api/profile`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${authResult.token || ''}`
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify(payload)
             });
@@ -320,13 +322,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 return;
             }
 
-            const userId = authResult.context.user_id;
-            const serverUrl = process.env.SERVER_URL || 'http://localhost:8080';
+            const user = authResult.context;
+            const { BASE_URL } = require('../api/types/endpoints');
             
-            const response = await fetch(`${serverUrl}/api/profile?user_id=${userId}`, {
+            const response = await fetch(`${BASE_URL}/api/profile?user_id=${user.id}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${authResult.token || ''}`
+                    'Authorization': `Bearer ${user.auth_token || ''}`
                 }
             });
 
