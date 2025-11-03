@@ -1,5 +1,6 @@
 (function () {
-	const vscode = acquireVsCodeApi();
+	// Use global vscode if already initialized (when embedded in mainPanel)
+	const vscode = window.vscode || acquireVsCodeApi();
 
 	let isEndingSession = false;
 	let endingSessionTimer = null;

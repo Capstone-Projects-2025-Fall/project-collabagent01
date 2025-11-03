@@ -23,6 +23,9 @@ import { getSupabase } from "./auth/supabaseClient";
 /** Global extension context for state management */
 export let globalContext: vscode.ExtensionContext;
 
+/** Global snapshot manager instance - exported so AgentPanel can trigger initial snapshot */
+export let snapshotManager: SnapshotManager;
+
 export async function activate(context: vscode.ExtensionContext) {
   globalContext = context;
   console.log("Collab Agent Activated");
@@ -54,7 +57,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   // Initialize the snapshot manager (uses the shared client)
-  const snapshotManager = new SnapshotManager(context);
+  snapshotManager = new SnapshotManager(context);
   console.log("SnapshotManager initialized");
 
   vscode.window.showInformationMessage("Collab Agent: Extension activated!");
@@ -196,21 +199,8 @@ export async function activate(context: vscode.ExtensionContext) {
     console.log('Collab Agent - No workspace folder detected');
   }
 
-    // Take a full snapshot automatically when the extension starts
-    (async () => {
-      try {
-        const userId = await getCurrentUserId();
-        if (userId) {
-          const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? "untitled-workspace";
-          await snapshotManager.takeSnapshot(userId, projectName);
-          console.log("Initial snapshot captured for:", projectName);
-        } else {
-          console.warn("No user ID found — skipping initial snapshot");
-        }
-      } catch (err) {
-        console.error("Automatic snapshot failed:", err);
-      }
-    })();
+    // NOTE: Initial snapshot is now taken when team is selected (not on extension load)
+    // This ensures user has proper team context before capturing workspace state
 
   // Register manual snapshot command (available via Command Palette)
   context.subscriptions.push(

@@ -41,14 +41,28 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
 
+        // Initialize with team info from database FIRST (before setting HTML)
+        await this.refreshTeams();
+
+        // THEN set HTML (so team data is already loaded)
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-        // Initialize with team info from database
-        await this.refreshTeams();
+        // Listen for visibility changes - refresh team info when webview becomes visible
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible) {
+                console.log('[AgentPanel] Webview became visible - refreshing team info');
+                this.postTeamInfo();
+            }
+        });
 
         webviewView.webview.onDidReceiveMessage((message: any) => {
             console.log('AgentPanel received message:', message);
             switch (message.command) {
+                case 'webviewReady':
+                    // Webview finished loading - send current team info
+                    console.log('Webview ready - posting team info');
+                    this.postTeamInfo();
+                    break;
                 case 'createTeam':
                     console.log('Handling createTeam command');
                     this.handleCreateTeam();
@@ -114,6 +128,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
      * Posts current team info to webview
      */
     private postTeamInfo() {
+        console.log('[AgentPanel] postTeamInfo() called');
+        console.log('[AgentPanel] _userTeams count:', this._userTeams.length);
+
         const { getAuthContext } = require('../services/auth-service');
         let userId: string | null = null;
         try {
@@ -124,18 +141,19 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
         // IMPORTANT: If no workspace folder is open, clear current team
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+            console.log('[AgentPanel] No workspace folders - clearing team');
             // Clear the current team - user must open a project folder first
             this._context.globalState.update(this._teamStateKey, undefined);
-            const teamInfo = { 
-                name: null, 
-                role: null, 
-                joinCode: null, 
+            const teamInfo = {
+                name: null,
+                role: null,
+                joinCode: null,
                 id: null,
                 projectValidation: null
             };
-            
-            this._view?.webview.postMessage({ 
-                command: 'teamInfo', 
+
+            this._view?.webview.postMessage({
+                command: 'teamInfo',
                 teamInfo,
                 teams: this._userTeams.map(t => ({
                     id: t.id,
@@ -149,7 +167,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
         // Get currently selected team from storage
         const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+        console.log('[AgentPanel] currentTeamId from globalState:', currentTeamId);
         let currentTeam = this._userTeams.find(t => t.id === currentTeamId);
+        console.log('[AgentPanel] currentTeam found:', currentTeam ? currentTeam.lobby_name : 'NOT FOUND');
         
         // Don't auto-select a team - user must explicitly switch to a team
         // This prevents confusion when switching between projects
@@ -181,6 +201,14 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 const res = await getAuthContext();
                 userId = res?.context?.id || null;
             } catch {}
+
+            console.log('[AgentPanel] Sending updateTeamInfo to webview:', {
+                command: 'updateTeamInfo',
+                team: teamInfo,
+                userId,
+                allTeamsCount: this._userTeams.length
+            });
+
             this._view?.webview.postMessage({
                 command: 'updateTeamInfo',
                 team: teamInfo,
@@ -466,8 +494,36 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             // Project matches - allow switch
             await this._context.globalState.update(this._teamStateKey, selected.team.id);
             vscode.window.showInformationMessage(`Successfully switched to team "${selected.team.lobby_name}"`);
-            
+
             this.postTeamInfo();
+
+            // Take initial snapshot for this team
+            await this.takeInitialSnapshot(selected.team.id);
+        }
+    }
+
+    /**
+     * Takes initial snapshot when team is selected
+     */
+    private async takeInitialSnapshot(teamId: string) {
+        try {
+            const { getCurrentUserId } = require('../services/auth-service');
+            const userId = await getCurrentUserId();
+
+            if (!userId) {
+                console.warn('[AgentPanel] No user ID - skipping initial snapshot');
+                return;
+            }
+
+            const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? "untitled-workspace";
+            const { snapshotManager } = require('../extension');
+
+            if (snapshotManager) {
+                await snapshotManager.takeSnapshot(userId, projectName, teamId);
+                console.log(`[AgentPanel] Initial snapshot captured for team: ${teamId}`);
+            }
+        } catch (error) {
+            console.error('[AgentPanel] Failed to take initial snapshot:', error);
         }
     }
 

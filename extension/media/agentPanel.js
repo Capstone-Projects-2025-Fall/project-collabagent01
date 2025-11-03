@@ -1,5 +1,6 @@
 (function(){
-  const vscode = acquireVsCodeApi();
+  // Use global vscode if already initialized (when embedded in mainPanel)
+  const vscode = window.vscode || acquireVsCodeApi();
 
   function post(command, payload={}){ 
     console.log('Posting message:', {command, ...payload});
@@ -160,6 +161,17 @@
       });
       genSummaryBtn.setAttribute('data-listener-added', 'true');
     }
+
+    // Add publish snapshot button
+    const publishBtn = document.getElementById('publishSnapshotBtn');
+    if (publishBtn && !publishBtn.hasAttribute('data-listener-added')) {
+      publishBtn.addEventListener('click', () => {
+        console.log('Publish Snapshot button clicked');
+        post('publishSnapshot');
+      });
+      publishBtn.setAttribute('data-listener-added', 'true');
+      console.log('Publish Snapshot button listener added');
+    }
   }
 
   function sendMessage(){
@@ -186,6 +198,31 @@
   window.addEventListener('DOMContentLoaded', () => {
     console.log('DOM Content Loaded');
     initializeButtons();
+
+    // Restore team info from webview state if available
+    const previousState = vscode.getState();
+    console.log('[agentPanel] Restored state:', previousState);
+    if (previousState && previousState.team) {
+      console.log('[agentPanel] Restoring team info from state');
+      // Update UI with restored state
+      const tn = document.getElementById('teamName');
+      const tr = document.getElementById('teamRole');
+      const tc = document.getElementById('teamJoinCode');
+      const jcs = document.getElementById('joinCodeSection');
+
+      if (tn) tn.textContent = previousState.team.name ?? '—';
+      if (tr) tr.textContent = previousState.team.role ?? '—';
+      if (tc && jcs) {
+        if (previousState.team.joinCode && previousState.team.name !== 'No Team') {
+          tc.textContent = previousState.team.joinCode;
+          jcs.style.display = 'block';
+        }
+      }
+    }
+
+    // Notify extension that webview is ready to receive team info
+    console.log('Sending webviewReady message to extension');
+    post('webviewReady');
   });
 
   // Fallback: try to initialize immediately if document is already loaded
@@ -194,6 +231,30 @@
   } else {
     console.log('Document already loaded, initializing immediately');
     initializeButtons();
+
+    // Restore team info from webview state if available
+    const previousState = vscode.getState();
+    console.log('[agentPanel] Restored state (immediate):', previousState);
+    if (previousState && previousState.team) {
+      console.log('[agentPanel] Restoring team info from state (immediate)');
+      const tn = document.getElementById('teamName');
+      const tr = document.getElementById('teamRole');
+      const tc = document.getElementById('teamJoinCode');
+      const jcs = document.getElementById('joinCodeSection');
+
+      if (tn) tn.textContent = previousState.team.name ?? '—';
+      if (tr) tr.textContent = previousState.team.role ?? '—';
+      if (tc && jcs) {
+        if (previousState.team.joinCode && previousState.team.name !== 'No Team') {
+          tc.textContent = previousState.team.joinCode;
+          jcs.style.display = 'block';
+        }
+      }
+    }
+
+    // Notify extension that webview is ready
+    console.log('Sending webviewReady message to extension (immediate)');
+    post('webviewReady');
   }
 
   // Additional fallback: try again after a short delay
@@ -231,6 +292,12 @@
     const m = e.data;
     switch(m.command){
       case 'updateTeamInfo':
+        console.log('[agentPanel] Received updateTeamInfo:', m);
+
+        // Save team info to webview state for persistence
+        vscode.setState({ team: m.team, userId: m.userId, allTeams: m.allTeams });
+        console.log('[agentPanel] Saved team info to webview state');
+
         const tn = document.getElementById('teamName');
         const tr = document.getElementById('teamRole');
         const tc = document.getElementById('teamJoinCode');
@@ -238,10 +305,28 @@
         const ps = document.getElementById('projectStatus');
         const psi = document.getElementById('projectStatusIndicator');
         const del = deleteBtn();
-  const leave = leaveBtn();
-        
-        if (tn) tn.textContent = m.team?.name ?? '—';
-        if (tr) tr.textContent = m.team?.role ?? '—';
+        const leave = leaveBtn();
+
+        console.log('[agentPanel] DOM elements found:', {
+          teamName: !!tn,
+          teamRole: !!tr,
+          teamJoinCode: !!tc,
+          joinCodeSection: !!jcs
+        });
+
+        if (tn) {
+          console.log('[agentPanel] Setting teamName to:', m.team?.name ?? '—');
+          tn.textContent = m.team?.name ?? '—';
+        } else {
+          console.error('[agentPanel] teamName element NOT FOUND!');
+        }
+
+        if (tr) {
+          console.log('[agentPanel] Setting teamRole to:', m.team?.role ?? '—');
+          tr.textContent = m.team?.role ?? '—';
+        } else {
+          console.error('[agentPanel] teamRole element NOT FOUND!');
+        }
         
         // Show/hide join code section based on whether user has a team
         if (tc && jcs) {
@@ -325,16 +410,6 @@
         break;
     }
   });
-      document.addEventListener("DOMContentLoaded", () => {
-        const vscode = acquireVsCodeApi();
-
-        const publishBtn = document.getElementById("publishSnapshotBtn");
-        if (publishBtn) {
-            publishBtn.addEventListener("click", () => {
-                vscode.postMessage({ command: "publishSnapshot" });
-            });
-        }
-    });
 })();
   function cryptoRandomUUIDFallback(){
     try { if (crypto && crypto.randomUUID) return crypto.randomUUID(); } catch {}
