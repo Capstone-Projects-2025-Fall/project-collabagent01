@@ -20,6 +20,12 @@ export class SnapshotManager {
   /** The original/baseline snapshot of the whole workspace (first full capture) */
   private baselineSnapshot: FileMap | null = null;
 
+  /** Session baseline snapshot for Live Share sessions (host only) */
+  private sessionBaselineSnapshot: FileMap | null = null;
+
+  /** Flag to track if automatic snapshotting is paused (during Live Share) */
+  private isAutomaticTrackingPaused: boolean = false;
+
   /** Workspace root path for relative path conversion */
   private workspaceRoot: string;
 
@@ -119,6 +125,12 @@ export class SnapshotManager {
   // Idle handling
   // ——————————————————————
   private onWorkspaceActivity() {
+    // Don't start idle timer if automatic tracking is paused
+    if (this.isAutomaticTrackingPaused) {
+      console.log('[SnapshotManager] Automatic tracking paused - ignoring workspace activity');
+      return;
+    }
+
     if (this.idleTimer) clearTimeout(this.idleTimer);
     this.idleTimer = setTimeout(async () => {
       const userId = await this.requireUser();
@@ -312,5 +324,109 @@ export class SnapshotManager {
       console.warn("User not signed in — skipping snapshot");
     }
     return userId ?? "";
+  }
+
+  // ——————————————————————
+  // Live Share Integration Methods
+  // ——————————————————————
+
+  /**
+   * Saves any pending local changes and pauses automatic snapshot tracking.
+   * Called when user joins or starts a Live Share session.
+   */
+  public async pauseAutomaticTracking(userId: string, teamId?: string) {
+    console.log('[SnapshotManager] Pausing automatic tracking for Live Share session');
+
+    if (!teamId) {
+      console.warn('[SnapshotManager] No team selected - skipping final snapshot');
+    } else {
+      // Save any pending local changes before pausing
+      await this.takeIncrementalSnapshot(userId, teamId);
+    }
+
+    // Pause automatic tracking
+    this.isAutomaticTrackingPaused = true;
+
+    // Clear any pending idle timer
+    if (this.idleTimer) {
+      clearTimeout(this.idleTimer);
+      this.idleTimer = null;
+    }
+
+    console.log('[SnapshotManager] Automatic tracking paused');
+  }
+
+  /**
+   * Creates a session baseline snapshot for the host.
+   * This snapshot will be used to calculate the diff when the session ends.
+   * Called only when user is the host (starts a session).
+   */
+  public async createSessionBaseline() {
+    console.log('[SnapshotManager] Creating session baseline snapshot');
+
+    // Capture current workspace state as session baseline
+    this.sessionBaselineSnapshot = await this.captureWholeWorkspace();
+
+    const fileCount = Object.keys(this.sessionBaselineSnapshot).length;
+    console.log(`[SnapshotManager] Session baseline created: ${fileCount} files`);
+  }
+
+  /**
+   * Resumes automatic snapshot tracking after a Live Share session ends.
+   * Takes a new initial snapshot to set a fresh baseline for local changes.
+   * Called when session ends (both host and guest).
+   */
+  public async resumeAutomaticTracking(userId: string, projectName: string, teamId?: string) {
+    console.log('[SnapshotManager] Resuming automatic tracking after Live Share session');
+
+    if (!teamId) {
+      console.warn('[SnapshotManager] No team selected - skipping snapshot');
+    } else {
+      // Take a new initial snapshot to set a fresh baseline for local changes
+      vscode.window.showInformationMessage('📸 Taking snapshot after session...');
+      await this.takeSnapshot(userId, projectName, teamId);
+    }
+
+    // Resume automatic tracking
+    this.isAutomaticTrackingPaused = false;
+
+    console.log('[SnapshotManager] Automatic tracking resumed');
+  }
+
+  /**
+   * Calculates and saves the session diff (host only).
+   * Compares current state against the session baseline created at session start.
+   * Returns the changes as a unified diff string.
+   * Called only when the host ends the session.
+   */
+  public async captureSessionChanges(userId: string, teamId: string): Promise<string> {
+    console.log('[SnapshotManager] Capturing session changes');
+
+    if (!this.sessionBaselineSnapshot) {
+      console.warn('[SnapshotManager] No session baseline found - cannot calculate session changes');
+      return '';
+    }
+
+    // Capture current workspace state
+    const currentSnapshot = await this.captureWholeWorkspace();
+
+    // Calculate diff against session baseline
+    const sessionDiff = this.computeUnifiedDiffs(this.sessionBaselineSnapshot, currentSnapshot);
+
+    // Convert diff map to a single string
+    let diffString = '';
+    for (const [filePath, diff] of Object.entries(sessionDiff)) {
+      diffString += `\n=== ${filePath} ===\n${diff}\n`;
+    }
+
+    const filesChanged = Object.keys(sessionDiff).length;
+    const linesChanged = this.countTotalLines(sessionDiff);
+
+    console.log(`[SnapshotManager] Session changes: ${filesChanged} files, ${linesChanged} lines`);
+
+    // Clear the session baseline
+    this.sessionBaselineSnapshot = null;
+
+    return diffString;
   }
 }
