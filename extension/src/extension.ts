@@ -5,13 +5,14 @@ import { checkUserSignIn, getCurrentUserId } from "./services/auth-service";
 import { setGitHubTokenCommand, clearGitHubTokenCommand, checkGitHubTokenCommand } from "./commands/github-token-commands";
 import { CollabAgentPanelProvider } from "./views/MainPanel";
 import { setDisplayNameExplicit, getOrInitDisplayName } from './services/profile-service';
-import { 
-  validateCurrentProjectCommand, 
-  showCurrentProjectInfoCommand, 
-  updateTeamProjectCommand, 
-  checkTeamProjectCompatibilityCommand, 
-  openTeamProjectCommand 
+import {
+  validateCurrentProjectCommand,
+  showCurrentProjectInfoCommand,
+  updateTeamProjectCommand,
+  checkTeamProjectCompatibilityCommand,
+  openTeamProjectCommand
 } from './commands/team-project-commands';
+import { connectToJiraCommand, createJiraStatusBarItem } from './commands/jira-commands';
 import { getCurrentProjectInfo } from './services/project-detection-service';
 import { SnapshotManager } from './views/snapshotManager';
 import * as path from "path";
@@ -120,10 +121,15 @@ export async function activate(context: vscode.ExtensionContext) {
     // Continue without Live Share features - don't show error popup
   }
 
+  // Create Jira status bar item
+  const jiraStatusBar = createJiraStatusBarItem(context);
+
   context.subscriptions.push(
     authStatusBar,
+    jiraStatusBar,
     signInCommand,
     signOutCommand,
+    vscode.commands.registerCommand('collabAgent.connectToJira', () => connectToJiraCommand(globalContext)),
     vscode.commands.registerCommand('collabAgent.setDisplayName', async () => {
       await setDisplayNameExplicit();
     }),

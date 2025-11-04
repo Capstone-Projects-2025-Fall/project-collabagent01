@@ -116,6 +116,269 @@
   font-style: italic;
 }
 
+/* Tasks Panel Styles */
+.tasks-container {
+  padding: 12px;
+}
+
+.tasks-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--vscode-textBlockQuote-border);
+  padding-bottom: 8px;
+}
+
+.tasks-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--vscode-textLink-foreground);
+}
+
+.tasks-status {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* Setup and Waiting Cards */
+.jira-setup, .jira-waiting, .tasks-error {
+  text-align: center;
+  padding: 20px;
+}
+
+.setup-card, .waiting-card, .error-card {
+  background: var(--vscode-textBlockQuote-background);
+  border: 1px solid var(--vscode-textBlockQuote-border);
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.setup-card h3, .waiting-card h3, .error-card h3 {
+  margin: 0 0 12px 0;
+  color: var(--vscode-textLink-foreground);
+  font-size: 16px;
+}
+
+.setup-card p, .waiting-card p, .error-card p {
+  margin: 0 0 16px 0;
+  color: var(--vscode-foreground);
+  line-height: 1.4;
+}
+
+.setup-steps {
+  text-align: left;
+  margin-bottom: 20px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.step-number {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  background: var(--vscode-textLink-foreground);
+  color: var(--vscode-textLink-activeForeground);
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: bold;
+  margin-right: 8px;
+  flex-shrink: 0;
+}
+
+.waiting-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.7;
+}
+
+.waiting-tip {
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+.error-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+/* Tasks Content */
+.tasks-content {
+  margin-top: 16px;
+}
+
+.tasks-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--vscode-textBlockQuote-border);
+}
+
+.tasks-filters {
+  display: flex;
+  gap: 12px;
+}
+
+.filter-select {
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 3px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-size: 12px;
+}
+
+.tasks-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tasks-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.task-item {
+  padding: 12px;
+  border: 1px solid var(--vscode-textBlockQuote-border);
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: var(--vscode-textBlockQuote-background);
+  transition: border-color 0.2s ease;
+}
+
+.task-item:hover {
+  border-color: var(--vscode-textLink-foreground);
+}
+
+.task-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.task-key {
+  font-family: 'Courier New', monospace;
+  font-weight: bold;
+  font-size: 13px;
+  color: var(--vscode-textLink-foreground);
+}
+
+.task-status {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+
+.task-status.status-to-do {
+  background: var(--vscode-notificationsInfoIcon-foreground);
+  color: var(--vscode-notificationsInfoIcon-foreground);
+  opacity: 0.2;
+}
+
+.task-status.status-in-progress {
+  background: var(--vscode-notificationsWarningIcon-foreground);
+  color: var(--vscode-notificationsWarningIcon-foreground);
+  opacity: 0.2;
+}
+
+.task-status.status-done {
+  background: var(--vscode-notificationsErrorIcon-foreground);
+  color: var(--vscode-notificationsErrorIcon-foreground);
+  opacity: 0.2;
+}
+
+.task-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--vscode-foreground);
+  margin-bottom: 6px;
+  line-height: 1.3;
+}
+
+.task-meta {
+  display: flex;
+  gap: 12px;
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.task-assignee, .task-priority {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.no-tasks {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--vscode-descriptionForeground);
+  font-style: italic;
+}
+
+/* Loading Spinner */
+.loading-spinner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  color: var(--vscode-descriptionForeground);
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--vscode-progressBar-background);
+  border-top: 2px solid var(--vscode-progressBar-foreground);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 12px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Button Enhancements */
+.button.primary {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
+}
+
+.button.primary:hover {
+  background: var(--vscode-button-hoverBackground);
+}
+
+.button.small {
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
 /* AI Agent chat area */
 #ai-agent-box {
   margin-top: 1rem;

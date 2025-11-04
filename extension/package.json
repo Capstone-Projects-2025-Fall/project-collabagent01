@@ -165,7 +165,7 @@
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.js --production",
-  "vsce:login": "vsce login capstone-team-02",
+    "vsce:login": "vsce login capstone-team-02",
     "vsce:package": "vsce package",
     "vsce:publish": "vsce publish",
     "docs:generate": "typedoc",
@@ -175,6 +175,7 @@
   "devDependencies": {
     "@types/diff": "^7.0.2",
     "@types/jest": "^29.5.14",
+    "@types/jira-client": "^7.1.9",
     "@types/node": "22.x",
     "@types/vscode": "^1.97.0",
     "@typescript-eslint/eslint-plugin": "^8.22.0",
@@ -198,6 +199,7 @@
     "@supabase/supabase-js": "^2.58.0",
     "axios": "^1.7.9",
     "dotenv": "^17.2.3",
+    "jira-client": "^8.2.2",
     "typedoc-theme-hierarchy": "^5.0.4",
     "vsls": "^1.0.4753"
   }

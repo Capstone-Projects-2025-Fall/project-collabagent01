@@ -2,12 +2,14 @@ import * as vscode from 'vscode';
 import { LiveShareManager } from './LiveSharePanel';
 import { AgentPanelProvider } from './AgentPanel';
 import { HomeScreenPanel } from './HomeScreenPanel';
+import { TasksPanel } from './TasksPanel';
 
 /**
- * Main orchestrator panel that manages and displays three sub-panels:
+ * Main orchestrator panel that manages and displays four sub-panels:
  * - Home Screen (authentication, welcome, user info)
  * - Live Share (collaboration sessions, team messaging)
  * - Agent Panel (team management, AI chat bot)
+ * - Tasks Panel (Jira task integration)
  */
 export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** The unique identifier for this webview view type */
@@ -24,7 +26,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     
     /** Home screen panel instance for home functionality */
     private _homeScreen: HomeScreenPanel;
-    
+
+    /** Tasks panel instance for Jira task integration */
+    private _tasksPanel: TasksPanel;
+
     /** Interval to monitor auth state changes */
     private _authMonitorInterval: any | undefined;
     /** Cached last known auth state */
@@ -40,6 +45,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         this._liveShareManager = new LiveShareManager(this._context);
         this._agentPanel = new AgentPanelProvider(this._extensionUri, this._context);
         this._homeScreen = new HomeScreenPanel(this._extensionUri, this._context);
+        this._tasksPanel = new TasksPanel(this._context);
     }
 
     /**
@@ -69,9 +75,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         // Set up sub-panels with the webview for delegation
         this._liveShareManager.setView(webviewView);
         this._agentPanel.setWebviewForDelegation(webviewView);
-        
+        this._tasksPanel.setWebview(webviewView);
+
         await this._liveShareManager.initializeLiveShare();
         await this._agentPanel.refreshTeamsList(); // Initialize agent teams
+        await this._tasksPanel.initializePanel(); // Initialize tasks panel
         this.startAuthMonitor();
 
         webviewView.webview.onDidReceiveMessage(
@@ -89,7 +97,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     await this.handleAgentMessage(message);
                     return;
                 }
-                
+
+                // Delegate Tasks commands to TasksPanel
+                if (this.isTasksCommand(message.command)) {
+                    await this.handleTasksMessage(message);
+                    return;
+                }
+
                 // Handle Home/Auth commands directly in MainPanel
                 switch (message.command) {
                     case 'loginOrSignup':
@@ -138,6 +152,15 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         ].includes(command);
     }
 
+    /** Check if a command is related to Tasks functionality */
+    private isTasksCommand(command: string): boolean {
+        return [
+            'connectJira',
+            'refreshTasks',
+            'retryTasks'
+        ].includes(command);
+    }
+
     /** Delegate Live Share message to LiveShareManager */
     private async handleLiveShareMessage(message: any) {
         switch (message.command) {
@@ -174,7 +197,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** Delegate Agent message to AgentPanel */
     private async handleAgentMessage(message: any) {
         console.log('Agent command delegated:', message.command);
-        
+
         switch (message.command) {
             case 'createTeam':
                 await this._agentPanel.createTeam();
@@ -214,6 +237,25 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             default:
                 console.log('Unknown agent command:', message.command);
+        }
+    }
+
+    /** Delegate Tasks message to TasksPanel */
+    private async handleTasksMessage(message: any) {
+        console.log('Tasks command delegated:', message.command);
+
+        switch (message.command) {
+            case 'connectJira':
+                await this._tasksPanel.handleConnectJira();
+                break;
+            case 'refreshTasks':
+                await this._tasksPanel.handleRefreshTasks();
+                break;
+            case 'retryTasks':
+                await this._tasksPanel.handleRefreshTasks();
+                break;
+            default:
+                console.log('Unknown tasks command:', message.command);
         }
     }
 
@@ -342,6 +384,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             // Get HTML content from sub-panels
             const homeHtml = await this._homeScreen.getHtml(webview, liveShareInstalled, loggedIn, userInfo);
             const agentHtml = this._agentPanel.getInnerHtml();
+            const tasksHtml = this._tasksPanel.getHtml();
             
             // Get Live Share panel content
             const fs = require('fs');
@@ -380,7 +423,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{LIVESHARE_INSTALLED}}', liveShareInstalled.toString())
                 .replace('{{HOME_HTML}}', homeHtml)
                 .replace('{{LIVESHARE_HTML}}', liveShareHtml)
-                .replace('{{AGENT_HTML}}', agentHtml);
+                .replace('{{AGENT_HTML}}', agentHtml)
+                .replace('{{TASKS_HTML}}', tasksHtml);
 
             return html;
         })();

@@ -13,15 +13,20 @@
     <button class="tab-btn" id="tab-home" data-tab="home">Home</button>
     <button class="tab-btn" id="tab-live" data-tab="live" title="">Live Share</button>
     <button class="tab-btn" id="tab-agent" data-tab="agent" title="">Agent Bot</button>
+    <button class="tab-btn" id="tab-tasks" data-tab="tasks" title="">Tasks</button>
 </div>
 <div id="login-tooltip" class="login-tooltip" style="display: none;">Please log in first</div>
 <div id="panel-home" class="tab-panel" style="display:block;">{{HOME_HTML}}</div>
 <div id="panel-live" class="tab-panel">{{LIVESHARE_HTML}}</div>
 <div id="panel-agent" class="tab-panel">{{AGENT_HTML}}</div>
+<<<<<<< Updated upstream
 <script nonce="{{NONCE}}">
     // Initialize vscode API once for all scripts to use (make it global)
     window.vscode = acquireVsCodeApi();
 </script>
+=======
+<div id="panel-tasks" class="tab-panel">{{TASKS_HTML}}</div>
+>>>>>>> Stashed changes
 <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
 <script nonce="{{NONCE}}">
 (function(){
@@ -38,9 +43,11 @@
         document.getElementById('panel-home').style.display = tab==='home' ? 'block' : 'none';
         document.getElementById('panel-live').style.display = tab==='live' ? 'block' : 'none';
         document.getElementById('panel-agent').style.display = tab==='agent' ? 'block' : 'none';
+        document.getElementById('panel-tasks').style.display = tab==='tasks' ? 'block' : 'none';
         document.getElementById('tab-home').classList.toggle('active', tab==='home');
         document.getElementById('tab-live').classList.toggle('active', tab==='live');
         document.getElementById('tab-agent').classList.toggle('active', tab==='agent');
+<<<<<<< Updated upstream
 
         // Save active tab to webview state for persistence
         vscode.setState({ activeTab: tab });
@@ -51,6 +58,9 @@
             console.log('[MainPanel] Agent tab visible - requesting team info refresh');
             vscode.postMessage({ command: 'refreshTeams' });
         }
+=======
+        document.getElementById('tab-tasks').classList.toggle('active', tab==='tasks');
+>>>>>>> Stashed changes
     }
     
     function showTooltip(element, message) {
@@ -72,8 +82,8 @@
             showTooltip(element, 'Live Share not installed. Click Home to install.');
             return;
         }
-        // Both Live Share and Agent tabs require authentication
-        if ((tab === 'live' || tab === 'agent') && !isAuthenticated) {
+        // Live Share, Agent, and Tasks tabs require authentication
+        if ((tab === 'live' || tab === 'agent' || tab === 'tasks') && !isAuthenticated) {
             showTooltip(element, 'Please log in first');
             return; // Don't switch tab if not authenticated
         }
@@ -101,10 +111,10 @@
     });
     liveTab.addEventListener('mouseleave', hideTooltip);
     
-    // Agent Bot tab - requires authentication  
+    // Agent Bot tab - requires authentication
     const agentTab = document.getElementById('tab-agent');
-    agentTab.addEventListener('click', function(){ 
-        handleTabClick('agent', this); 
+    agentTab.addEventListener('click', function(){
+        handleTabClick('agent', this);
     });
     agentTab.addEventListener('mouseenter', function() {
         if (!isAuthenticated) {
@@ -113,6 +123,7 @@
     });
     agentTab.addEventListener('mouseleave', hideTooltip);
 
+<<<<<<< Updated upstream
     // Restore previously active tab from state, or default to 'home'
     const previousState = vscode.getState();
     console.log('[MainPanel] Restored state:', previousState);
@@ -129,6 +140,21 @@
     } else {
         showTab(initialTab);
     }
+=======
+    // Tasks tab - requires authentication
+    const tasksTab = document.getElementById('tab-tasks');
+    tasksTab.addEventListener('click', function(){
+        handleTabClick('tasks', this);
+    });
+    tasksTab.addEventListener('mouseenter', function() {
+        if (!isAuthenticated) {
+            showTooltip(this, 'Please log in first');
+        }
+    });
+    tasksTab.addEventListener('mouseleave', hideTooltip);
+    
+    showTab('home');
+>>>>>>> Stashed changes
     
     // Update authentication state when it changes
     window.updateAuthState = function(authenticated) {
@@ -136,8 +162,10 @@
         // Update tab visual states
         const liveTab = document.getElementById('tab-live');
         const agentTab = document.getElementById('tab-agent');
+        const tasksTab = document.getElementById('tab-tasks');
         if (authenticated) {
             agentTab.classList.remove('disabled');
+            tasksTab.classList.remove('disabled');
             if (liveShareInstalled) {
                 liveTab.classList.remove('disabled');
             } else {
@@ -146,6 +174,7 @@
         } else {
             liveTab.classList.add('disabled');
             agentTab.classList.add('disabled');
+            tasksTab.classList.add('disabled');
         }
     };
     
@@ -160,6 +189,7 @@
     // Set initial disabled state
     if (!isAuthenticated) {
         document.getElementById('tab-agent').classList.add('disabled');
+        document.getElementById('tab-tasks').classList.add('disabled');
     }
     if (!isAuthenticated || !liveShareInstalled) {
         document.getElementById('tab-live').classList.add('disabled');
