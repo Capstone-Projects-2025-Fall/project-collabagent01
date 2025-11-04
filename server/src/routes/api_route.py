@@ -5,9 +5,12 @@ from ..database.db import sb_select, sb_insert
 
 ai_bp = Blueprint("ai", __name__, url_prefix="/api/ai")
 
-MODEL = os.getenv("MODEL", "gemini-2.5-flash")
+SIMPLE_MODEL = os.getenv("SIMPLE_MODEL")
+ADVANCE_MODEL = os.getenv("ADVANCE_MODEL")
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel(MODEL)
+simple_model = genai.GenerativeModel(SIMPLE_MODEL)
+advance_model = genai.GenerativeModel(ADVANCE_MODEL)
+
 
 @ai_bp.post("/summarize")
 def summarize():
@@ -43,10 +46,10 @@ def summarize():
       {corpus}
     """).strip()
 
-    resp = model.generate_content(prompt)
+    resp = advance_model.generate_content(prompt)
     return jsonify({
       "summary": (resp.text or "").strip() or "(no output)",
-      "meta": {"row_count": len(rows), "model": MODEL}
+      "meta": {"row_count": len(rows), "model": ADVANCE_MODEL}
     })
 
 
@@ -124,7 +127,7 @@ def process_snapshot():
   """).strip()
 
   try:
-    resp = model.generate_content(prompt)
+    resp = simple_model.generate_content(prompt)
     summary = ((resp.text or "").strip()) or f"Updated {file_path}"
   except Exception as e:
     # Fall back to a deterministic message for demo resilience
@@ -144,7 +147,7 @@ def process_snapshot():
   return jsonify({
     "inserted": out,
     "summary": summary,
-    "model": MODEL
+    "model": SIMPLE_MODEL
   }), 201
 
 
@@ -297,3 +300,77 @@ def live_share_summary():
     "snapshot_id": snapshot_id,
     "message": "Snapshot stored, edge function will auto-generate summary"
   }), 201
+
+
+@ai_bp.get("/skill_summary")
+def skill_summary():
+    """
+    Get an AI-powered summary of users who have a particular skill.
+    Query parameter: skill (e.g., ?skill=Python)
+    Returns: JSON with count, user list, and AI summary
+    """
+    skill = request.args.get("skill", "").strip()
+    if not skill:
+        return jsonify({"error": "skill parameter is required"}), 400
+
+    try:
+        # Query user_profiles for users with this skill in interests, strengths, or custom_skills
+        # PostgreSQL array contains operator: @>
+        profiles = sb_select("user_profiles", {
+            "select": "user_id,name,interests,strengths,weaknesses,custom_skills",
+            "or": f"(interests.cs.{{{skill}}},strengths.cs.{{{skill}}},custom_skills.cs.{{{skill}}})"
+        })
+
+        count = len(profiles) if profiles else 0
+        
+        if count == 0:
+            return jsonify({
+                "skill": skill,
+                "count": 0,
+                "users": [],
+                "summary": f"No users found with {skill} in their profile.",
+                "model": SIMPLE_MODEL
+            }), 200
+
+        # Build a compact summary of matched users
+        matched = []
+        for p in profiles:
+            matched.append({
+                "name": p.get("name") or "Anonymous",
+                "user_id": p.get("user_id"),
+                "interests": p.get("interests") or [],
+                "strengths": p.get("strengths") or []
+            })
+
+        # Build AI prompt
+        user_list = "\n".join([
+            f"- {u['name']}: interests={u['interests']}, strengths={u['strengths']}"
+            for u in matched
+        ])
+
+        prompt = textwrap.dedent(f"""
+            You are a team coordinator AI. Summarize the following users who have "{skill}" 
+            in their profile. Provide a brief, actionable summary highlighting:
+            1. Total count of users with this skill
+            2. Their key strengths and interests related to {skill}
+            3. Suggestions for task delegation based on their profiles
+            
+            Keep it concise (2-3 sentences).
+            
+            USERS:
+            {user_list}
+        """).strip()
+
+        resp = simple_model.generate_content(prompt)
+        summary_text = (resp.text or "").strip() or f"{count} users found with {skill} skill."
+
+        return jsonify({
+            "skill": skill,
+            "count": count,
+            "users": matched,
+            "summary": summary_text,
+            "model": SIMPLE_MODEL
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
