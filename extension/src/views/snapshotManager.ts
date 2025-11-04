@@ -333,6 +333,11 @@ export class SnapshotManager {
   /**
    * Saves any pending local changes and pauses automatic snapshot tracking.
    * Called when user joins or starts a Live Share session.
+   * CRITICAL: This ALWAYS saves pending changes, regardless of thresholds,
+   * to prevent data loss when starting a Live Share session.
+   *
+   * IMPORTANT: This should be called AFTER createSessionBaseline() for hosts,
+   * so the session baseline includes the pending changes.
    */
   public async pauseAutomaticTracking(userId: string, teamId?: string) {
     console.log('[SnapshotManager] Pausing automatic tracking for Live Share session');
@@ -340,8 +345,9 @@ export class SnapshotManager {
     if (!teamId) {
       console.warn('[SnapshotManager] No team selected - skipping final snapshot');
     } else {
-      // Save any pending local changes before pausing
-      await this.takeIncrementalSnapshot(userId, teamId);
+      // IMPORTANT: Force save ANY pending changes, even if below thresholds
+      // This prevents data loss when starting a Live Share session
+      await this.forceSavePendingChanges(userId, teamId);
     }
 
     // Pause automatic tracking
@@ -357,18 +363,97 @@ export class SnapshotManager {
   }
 
   /**
+   * Forces a snapshot of ANY pending changes, regardless of thresholds.
+   * Used when starting a Live Share session to prevent data loss.
+   * This ensures even small uncommitted changes are preserved.
+   */
+  private async forceSavePendingChanges(userId: string, teamId: string) {
+    console.log('[SnapshotManager] Force-saving pending changes (ignoring thresholds)');
+
+    // We require a baseline snapshot to compare against.
+    if (!this.baselineSnapshot) {
+      console.log('[SnapshotManager] No baseline yet - taking initial snapshot first');
+      const projectName = this.getProjectName();
+      await this.takeSnapshot(userId, projectName, teamId);
+      return;
+    }
+
+    const projectName = this.getProjectName();
+    const current = await this.captureWholeWorkspace();
+
+    // Build diffs vs the baseline
+    const changes = this.computeUnifiedDiffs(this.baselineSnapshot, current);
+
+    const filesChanged = Object.keys(changes).length;
+    const linesChanged = this.countTotalLines(changes);
+
+    console.log(`[SnapshotManager] Pending changes: ${filesChanged} files, ${linesChanged} lines`);
+
+    // Save changes REGARDLESS of threshold (this is the key fix for Bug 2)
+    if (filesChanged > 0 || linesChanged > 0) {
+      vscode.window.showInformationMessage(
+        `📸 Saving pending work before session: ${filesChanged} files, ${linesChanged} lines`
+      );
+
+      // Create NEW row with ONLY changes (not full workspace)
+      await this.insertNewSnapshot(userId, projectName, teamId, {}, changes);
+
+      // Update baseline to current state
+      this.baselineSnapshot = current;
+
+      console.log('[SnapshotManager] Pending changes saved successfully');
+    } else {
+      console.log('[SnapshotManager] No pending changes to save');
+    }
+  }
+
+  /**
    * Creates a session baseline snapshot for the host.
    * This snapshot will be used to calculate the diff when the session ends.
    * Called only when user is the host (starts a session).
+   * Returns the snapshot ID for linking to the session event.
+   *
+   * CRITICAL: This captures the CURRENT workspace state, including any uncommitted changes.
+   * This must be called BEFORE pauseAutomaticTracking() so it includes pending work.
    */
-  public async createSessionBaseline() {
-    console.log('[SnapshotManager] Creating session baseline snapshot');
+  public async createSessionBaseline(userId: string, teamId: string, sessionId: string): Promise<string | null> {
+    console.log('[SnapshotManager] Creating session baseline snapshot (including pending changes)');
 
-    // Capture current workspace state as session baseline
+    // Capture current workspace state as session baseline (includes ALL uncommitted work)
     this.sessionBaselineSnapshot = await this.captureWholeWorkspace();
 
     const fileCount = Object.keys(this.sessionBaselineSnapshot).length;
     console.log(`[SnapshotManager] Session baseline created: ${fileCount} files`);
+
+    // Save the session baseline to database so "View Initial Snapshot" button works
+    // Use a special file_path format to identify this as a session baseline
+    const projectName = this.getProjectName();
+    const baselinePayload = {
+      user_id: userId,
+      team_id: teamId,
+      project_name: projectName,
+      snapshot: this.sessionBaselineSnapshot,  // Full snapshot INCLUDING pending changes
+      changes: {},  // No changes - this is the baseline
+      file_path: `Live Share Session ${sessionId} (baseline)`,
+      updated_at: new Date().toISOString(),
+    };
+
+    console.log('[SnapshotManager] Saving session baseline to database...');
+
+    const { data, error } = await this.supabase
+      .from("file_snapshots")
+      .insert(baselinePayload)
+      .select();
+
+    if (error) {
+      console.error('[SnapshotManager] Failed to save session baseline:', error);
+      return null;
+    }
+
+    const snapshotId = data && data.length > 0 ? data[0].id : null;
+    console.log(`[SnapshotManager] Session baseline saved with ID: ${snapshotId}`);
+
+    return snapshotId;
   }
 
   /**
