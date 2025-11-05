@@ -141,6 +141,10 @@ export class JiraService {
     private async testJiraConnection(jiraUrl: string, email: string, apiToken: string): Promise<boolean> {
         try {
             const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
+            console.log('Testing Jira connection to:', jiraUrl);
+            console.log('Using email:', email);
+            console.log('Auth header (first 20 chars):', `Basic ${auth.substring(0, 20)}...`);
+
             const response = await axios.get(`${jiraUrl}/rest/api/3/myself`, {
                 headers: {
                     'Authorization': `Basic ${auth}`,
@@ -148,9 +152,26 @@ export class JiraService {
                 },
                 timeout: 10000
             });
+
+            console.log('Jira connection successful! User:', response.data.displayName);
             return response.status === 200;
-        } catch (error) {
-            console.error('Jira connection test failed:', error);
+        } catch (error: any) {
+            console.error('Jira connection test failed:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+
+            // Provide helpful error message
+            if (error.response?.status === 401) {
+                vscode.window.showErrorMessage(
+                    'Jira authentication failed. Please verify:\n' +
+                    '1. Your email address is correct\n' +
+                    '2. Your API token is correct (generate a new one if needed)\n' +
+                    '3. You have access to this Jira instance'
+                );
+            }
             return false;
         }
     }
@@ -219,10 +240,16 @@ export class JiraService {
      */
     public async getJiraConfig(teamId: string): Promise<JiraConfig | null> {
         try {
-            const response = await axios.get(`${this.baseUrl}/api/jira/config/${teamId}`);
+            const response = await axios.get(`${this.baseUrl}/api/jira/config/${teamId}`, {
+                timeout: 10000
+            });
             return response.data;
-        } catch (error) {
-            console.error('Failed to fetch Jira config:', error);
+        } catch (error: any) {
+            // 404 means no config exists yet - this is expected
+            if (error.response?.status === 404) {
+                return null;
+            }
+            console.error('Failed to fetch Jira config:', error.message);
             return null;
         }
     }
@@ -236,27 +263,87 @@ export class JiraService {
             throw new Error('Jira not configured for this team');
         }
 
+        // Build JQL query - get all issues from the project
+        const jql = `project = ${config.jira_project_key} ORDER BY updated DESC`;
+        const searchUrl = `${config.jira_url}/rest/api/3/search/jql`;
+
         try {
-            const jql = `project = ${config.jira_project_key}`;
-            const response = await axios.post(`${config.jira_url}/rest/api/3/search/jql`, {
+            console.log('Fetching Jira issue IDs:', {
+                url: searchUrl,
                 jql: jql,
-                startAt: 0,
-                maxResults: 50,
-                fields: ['summary', 'status', 'assignee', 'updated', 'reporter', 'created', 'issuetype', 'priority']
-            }, {
+                projectKey: config.jira_project_key
+            });
+
+            // Step 1: Get issue IDs using /search/jql (only accepts JQL string in body)
+            const searchResponse = await axios.post(searchUrl, { jql }, {
                 headers: {
                     'Authorization': `Basic ${config.access_token}`,
                     'Accept': 'application/json',
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'CollabAgent/1.0'
+                    'Content-Type': 'application/json'
                 },
                 timeout: 15000
             });
 
-            return response.data.issues || [];
-        } catch (error) {
-            console.error('Failed to fetch Jira issues:', error);
-            throw new Error('Failed to fetch issues from Jira');
+            const issueIds = searchResponse.data.issues || [];
+            console.log(`Fetched ${issueIds.length} issue IDs from Jira`);
+
+            if (issueIds.length === 0) {
+                return [];
+            }
+
+            // Step 2: Fetch full details for each issue
+            // Limit to first 20 to avoid too many requests
+            const limitedIds = issueIds.slice(0, 20);
+            const issueDetailsPromises = limitedIds.map(async (issue: any) => {
+                const issueUrl = `${config.jira_url}/rest/api/3/issue/${issue.id}`;
+                try {
+                    const detailResponse = await axios.get(issueUrl, {
+                        headers: {
+                            'Authorization': `Basic ${config.access_token}`,
+                            'Accept': 'application/json'
+                        },
+                        params: {
+                            fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority'
+                        },
+                        timeout: 10000
+                    });
+                    return detailResponse.data;
+                } catch (error) {
+                    console.error(`Failed to fetch details for issue ${issue.id}:`, error);
+                    return null;
+                }
+            });
+
+            const issuesWithDetails = await Promise.all(issueDetailsPromises);
+            const validIssues = issuesWithDetails.filter(issue => issue !== null);
+
+            console.log(`Successfully fetched full details for ${validIssues.length} issues`);
+            return validIssues;
+        } catch (error: any) {
+            console.error('Failed to fetch Jira issues:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message,
+                url: searchUrl,
+                projectKey: config.jira_project_key,
+                fullError: JSON.stringify(error.response?.data, null, 2)
+            });
+
+            // Log the exact error from Jira for debugging
+            if (error.response?.data) {
+                console.error('Jira error details:', error.response.data);
+            }
+
+            if (error.response?.status === 401) {
+                throw new Error('Jira authentication failed. Please reconfigure the integration.');
+            } else if (error.response?.status === 404) {
+                throw new Error('Jira project not found. Please check the project key.');
+            } else if (error.response?.status === 410) {
+                throw new Error('Jira API endpoint deprecated or project archived. Please verify the project is active and accessible.');
+            } else {
+                throw new Error(`Failed to fetch issues from Jira: ${error.message}`);
+            }
         }
     }
 

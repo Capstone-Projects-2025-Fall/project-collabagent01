@@ -21,7 +21,7 @@ export async function connectToJiraCommand(context?: vscode.ExtensionContext): P
         const teamsResult = await getUserTeams();
 
         if (teamsResult.error || !teamsResult.teams || teamsResult.teams.length === 0) {
-            vscode.window.showErrorMessage('Please create or join a team first.');
+            vscode.window.showErrorMessage('Please create or join a team first in the Agent Bot tab.');
             return;
         }
 
@@ -29,20 +29,20 @@ export async function connectToJiraCommand(context?: vscode.ExtensionContext): P
         const currentTeamId = context?.globalState.get<string>('collabAgent.currentTeam') ||
                              vscode.workspace.getConfiguration('collabAgent').get<string>('currentTeam');
         if (!currentTeamId) {
-            vscode.window.showErrorMessage('Please select a current team in the extension.');
+            vscode.window.showErrorMessage('Please select a team in the Agent Bot tab first.');
             return;
         }
 
         // Find the current team
         const currentTeam = teamsResult.teams.find((t: any) => t.id === currentTeamId);
         if (!currentTeam) {
-            vscode.window.showErrorMessage('Current team not found. Please refresh teams.');
+            vscode.window.showErrorMessage('Current team not found. Please select a team in the Agent Bot tab.');
             return;
         }
 
-        // Check if user is admin of current team
+        // Check if user is admin of current team (Admin Workflow requirement)
         if (currentTeam.role !== 'admin') {
-            vscode.window.showErrorMessage('Only team admins can configure Jira integration.');
+            vscode.window.showErrorMessage('Only team admins can configure Jira integration. Please ask your team admin to set up Jira.');
             return;
         }
 

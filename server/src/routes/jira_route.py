@@ -25,78 +25,102 @@ def sb_delete(table: str, params: dict):
 @jira_bp.post("/config")
 def save_jira_config():
     """Save Jira configuration for a team."""
-    body = request.get_json(force=True) or {}
+    try:
+        body = request.get_json(force=True) or {}
 
-    required_fields = ['team_id', 'jira_url', 'jira_project_key', 'access_token', 'admin_user_id']
-    for field in required_fields:
-        if field not in body:
-            return jsonify({"error": f"Missing required field: {field}"}), 400
+        # Validate required fields
+        required_fields = ['team_id', 'jira_url', 'jira_project_key', 'access_token', 'admin_user_id']
+        for field in required_fields:
+            if field not in body or not body[field]:
+                return jsonify({"error": f"Missing required field: {field}"}), 400
 
-    # Check if config already exists for this team
-    existing = sb_select("team_jira_configs", {
-        "select": "id",
-        "team_id": f"eq.{body['team_id']}",
-        "limit": "1"
-    })
+        # Basic validation for Jira URL
+        jira_url = body['jira_url'].rstrip('/')
+        if not jira_url.startswith('http://') and not jira_url.startswith('https://'):
+            return jsonify({"error": "Invalid Jira URL format"}), 400
 
-    if existing:
-        # Update existing config
-        result = sb_update("team_jira_configs", {
-            "team_id": f"eq.{body['team_id']}"
-        }, {
-            "jira_url": body['jira_url'],
-            "jira_project_key": body['jira_project_key'],
-            "access_token": body['access_token'],
-            "admin_user_id": body['admin_user_id']
+        # Check if config already exists for this team
+        existing = sb_select("team_jira_configs", {
+            "select": "id",
+            "team_id": f"eq.{body['team_id']}",
+            "limit": "1"
         })
-    else:
-        # Insert new config
-        config_data = {
-            "team_id": body['team_id'],
-            "jira_url": body['jira_url'],
-            "jira_project_key": body['jira_project_key'],
-            "access_token": body['access_token'],
-            "admin_user_id": body['admin_user_id']
-        }
-        result = sb_insert("team_jira_configs", config_data)
 
-    if result:
-        return jsonify({"message": "Jira configuration saved successfully"}), 200
-    else:
-        return jsonify({"error": "Failed to save Jira configuration"}), 500
+        if existing:
+            # Update existing config
+            result = sb_update("team_jira_configs", {
+                "team_id": f"eq.{body['team_id']}"
+            }, {
+                "jira_url": jira_url,
+                "jira_project_key": body['jira_project_key'],
+                "access_token": body['access_token'],
+                "admin_user_id": body['admin_user_id']
+            })
+        else:
+            # Insert new config
+            config_data = {
+                "team_id": body['team_id'],
+                "jira_url": jira_url,
+                "jira_project_key": body['jira_project_key'],
+                "access_token": body['access_token'],
+                "admin_user_id": body['admin_user_id']
+            }
+            result = sb_insert("team_jira_configs", config_data)
+
+        if result:
+            return jsonify({"message": "Jira configuration saved successfully"}), 200
+        else:
+            return jsonify({"error": "Failed to save Jira configuration"}), 500
+
+    except Exception as e:
+        print(f"Error saving Jira config: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 @jira_bp.get("/config/<team_id>")
 def get_jira_config(team_id):
     """Get Jira configuration for a team."""
-    configs = sb_select("team_jira_configs", {
-        "select": "id,team_id,jira_url,jira_project_key,access_token,admin_user_id,created_at",
-        "team_id": f"eq.{team_id}",
-        "limit": "1"
-    })
+    try:
+        if not team_id:
+            return jsonify({"error": "Team ID is required"}), 400
 
-    if configs:
-        return jsonify(configs[0]), 200
-    else:
-        return jsonify({"error": "Jira configuration not found"}), 404
+        configs = sb_select("team_jira_configs", {
+            "select": "id,team_id,jira_url,jira_project_key,access_token,admin_user_id,created_at",
+            "team_id": f"eq.{team_id}",
+            "limit": "1"
+        })
+
+        if configs and len(configs) > 0:
+            return jsonify(configs[0]), 200
+        else:
+            return jsonify({"error": "Jira configuration not found"}), 404
+
+    except Exception as e:
+        print(f"Error fetching Jira config: {str(e)}")
+        return jsonify({"error": f"Server error: {str(e)}"}), 500
 
 @jira_bp.delete("/config/<team_id>")
 def delete_jira_config(team_id):
     """Delete Jira configuration for a team."""
-    # First check if config exists
-    existing = sb_select("team_jira_configs", {
-        "select": "id",
-        "team_id": f"eq.{team_id}",
-        "limit": "1"
-    })
-
-    if not existing:
-        return jsonify({"error": "Jira configuration not found"}), 404
-
-    # Delete the config
     try:
+        if not team_id:
+            return jsonify({"error": "Team ID is required"}), 400
+
+        # First check if config exists
+        existing = sb_select("team_jira_configs", {
+            "select": "id",
+            "team_id": f"eq.{team_id}",
+            "limit": "1"
+        })
+
+        if not existing or len(existing) == 0:
+            return jsonify({"error": "Jira configuration not found"}), 404
+
+        # Delete the config
         sb_delete("team_jira_configs", {
             "team_id": f"eq.{team_id}"
         })
         return jsonify({"message": "Jira configuration deleted successfully"}), 200
+
     except Exception as e:
+        print(f"Error deleting Jira config: {str(e)}")
         return jsonify({"error": f"Failed to delete Jira configuration: {str(e)}"}), 500

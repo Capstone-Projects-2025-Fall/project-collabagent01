@@ -155,6 +155,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** Check if a command is related to Tasks functionality */
     private isTasksCommand(command: string): boolean {
         return [
+            'tasksWebviewReady',
             'connectJira',
             'refreshTasks',
             'retryTasks'
@@ -245,6 +246,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         console.log('Tasks command delegated:', message.command);
 
         switch (message.command) {
+            case 'tasksWebviewReady':
+                // Webview is ready, refresh panel state
+                await this._tasksPanel.updatePanelState();
+                break;
             case 'connectJira':
                 await this._tasksPanel.handleConnectJira();
                 break;

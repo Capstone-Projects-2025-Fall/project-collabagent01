@@ -55,6 +55,12 @@
             console.log('[MainPanel] Agent tab visible - requesting team info refresh');
             vscode.postMessage({ command: 'refreshTeams' });
         }
+
+        // Notify extension that tasks tab became visible (to refresh tasks state)
+        if (tab === 'tasks') {
+            console.log('[MainPanel] Tasks tab visible - requesting tasks state refresh');
+            vscode.postMessage({ command: 'tasksWebviewReady' });
+        }
     }
 
     function showTooltip(element, message) {

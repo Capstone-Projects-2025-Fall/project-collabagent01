@@ -72,9 +72,9 @@ export class TasksPanel {
                     <div class="waiting-card">
                         <div class="waiting-icon">⏳</div>
                         <h3>Jira Integration Not Configured</h3>
-                        <p>Ask your team admin to connect via Jira to enable this feature.</p>
+                        <p>Please ask your team admin to set up the Jira integration.</p>
                         <div class="waiting-tip">
-                            <strong>Tip:</strong> Once connected, all team members can view and track tasks from the shared Jira board.
+                            <strong>Tip:</strong> Once your admin connects Jira, all team members will be able to view and track tasks from the shared Jira board.
                         </div>
                     </div>
                 </div>
@@ -122,6 +122,8 @@ export class TasksPanel {
 
             <script>
             (function(){
+                // Note: The tasksWebviewReady message is sent from mainPanel.html when the tab becomes visible
+
                 // Set up event listeners for Tasks panel
                 const connectBtn = document.getElementById('connect-jira-btn');
                 const refreshBtn = document.getElementById('refresh-tasks-btn');
@@ -129,19 +131,19 @@ export class TasksPanel {
 
                 if (connectBtn) {
                     connectBtn.addEventListener('click', () => {
-                        window.postMessage({ command: 'connectJira' });
+                        window.vscode.postMessage({ command: 'connectJira' });
                     });
                 }
 
                 if (refreshBtn) {
                     refreshBtn.addEventListener('click', () => {
-                        window.postMessage({ command: 'refreshTasks' });
+                        window.vscode.postMessage({ command: 'refreshTasks' });
                     });
                 }
 
                 if (retryBtn) {
                     retryBtn.addEventListener('click', () => {
-                        window.postMessage({ command: 'retryTasks' });
+                        window.vscode.postMessage({ command: 'retryTasks' });
                     });
                 }
 
@@ -223,19 +225,10 @@ export class TasksPanel {
     private setupMessageHandling() {
         if (!this._view) return;
 
+        // Note: Message handling is done in MainPanel.handleTasksMessage
+        // This is kept for reference but messages won't reach here
         this._view.webview.onDidReceiveMessage(async (message: any) => {
-            console.log('TasksPanel received message:', message);
-            switch (message.command) {
-                case 'connectJira':
-                    await this.handleConnectJira();
-                    break;
-                case 'refreshTasks':
-                    await this.handleRefreshTasks();
-                    break;
-                case 'retryTasks':
-                    await this.handleRefreshTasks();
-                    break;
-            }
+            console.log('TasksPanel received message (note: MainPanel handles these):', message);
         });
     }
 
@@ -244,7 +237,11 @@ export class TasksPanel {
      */
     public async initializePanel() {
         await this.refreshTeamState();
-        this.updateUI();
+
+        // Give the webview a moment to fully load before sending the first message
+        setTimeout(() => {
+            this.updateUI();
+        }, 100);
     }
 
     /**
@@ -275,17 +272,9 @@ export class TasksPanel {
             this._currentUserRole = currentTeam?.role || null;
 
             // Check if Jira is configured for this team
-            // Note: Server endpoints don't exist yet, so this will fail gracefully
-            this._jiraConfigured = false;
-            try {
-                const jiraService = JiraService.getInstance();
-                const jiraConfig = await jiraService.getJiraConfig(this._currentTeamId);
-                this._jiraConfigured = !!jiraConfig;
-            } catch (error) {
-                // Server endpoints don't exist yet, so Jira is not configured
-                console.log('Jira config check failed (expected until server endpoints are implemented):', error);
-                this._jiraConfigured = false;
-            }
+            const jiraService = JiraService.getInstance();
+            const jiraConfig = await jiraService.getJiraConfig(this._currentTeamId);
+            this._jiraConfigured = !!jiraConfig;
 
         } catch (error) {
             console.error('Failed to refresh team state:', error);
@@ -297,24 +286,13 @@ export class TasksPanel {
 
     /**
      * Updates the UI based on current state
+     * Implements the three workflows: Admin setup, Non-admin waiting, All users (post-setup)
      */
     private updateUI() {
         if (!this._view) return;
 
-        // Hide all sections first
-        this._view.webview.postMessage({
-            command: 'updateTasksUI',
-            showSetup: false,
-            showWaiting: false,
-            showTasks: false,
-            showError: false,
-            showLoading: true,
-            statusText: 'Loading...'
-        });
-
-        // Determine what to show
-        if (!this._currentTeamId) {
-            // No team selected
+        // Workflow 1 & 2: No team or not a team member
+        if (!this._currentTeamId || !this._currentUserRole) {
             this._view.webview.postMessage({
                 command: 'updateTasksUI',
                 showSetup: false,
@@ -323,30 +301,17 @@ export class TasksPanel {
                 showError: true,
                 showLoading: false,
                 statusText: 'No team selected',
-                errorMessage: 'Please join or create a team first.'
+                errorMessage: !this._currentTeamId
+                    ? 'Please select a team in the Agent Bot tab first.'
+                    : 'You are not a member of the current team.'
             });
             return;
         }
 
-        if (!this._currentUserRole) {
-            // User not on this team
-            this._view.webview.postMessage({
-                command: 'updateTasksUI',
-                showSetup: false,
-                showWaiting: false,
-                showTasks: false,
-                showError: true,
-                showLoading: false,
-                statusText: 'Not a team member',
-                errorMessage: 'You are not a member of the current team.'
-            });
-            return;
-        }
-
+        // Workflow 2: Jira not configured
         if (!this._jiraConfigured) {
-            // Jira not configured
             if (this._currentUserRole === 'admin') {
-                // Show setup for admin
+                // Admin Workflow: Show setup instructions
                 this._view.webview.postMessage({
                     command: 'updateTasksUI',
                     showSetup: true,
@@ -357,7 +322,7 @@ export class TasksPanel {
                     statusText: 'Setup required'
                 });
             } else {
-                // Show waiting for member
+                // Non-Admin Workflow: Show waiting message
                 this._view.webview.postMessage({
                     command: 'updateTasksUI',
                     showSetup: false,
@@ -365,13 +330,13 @@ export class TasksPanel {
                     showTasks: false,
                     showError: false,
                     showLoading: false,
-                    statusText: 'Waiting for setup'
+                    statusText: 'Waiting for admin setup'
                 });
             }
             return;
         }
 
-        // Jira is configured, show tasks
+        // Workflow 3: Jira is configured - show tasks for all users
         this._view.webview.postMessage({
             command: 'updateTasksUI',
             showSetup: false,
@@ -382,33 +347,16 @@ export class TasksPanel {
             statusText: 'Loading tasks...'
         });
 
-        // Load tasks
+        // Load tasks from Jira
         this.loadTasks();
     }
 
     /**
-     * Updates the panel state based on team membership and Jira configuration.
+     * Updates the panel state - refreshes team state and UI
+     * Called externally when team changes
      */
-    public async updatePanelState(teamInfo: any, userRole: string) {
-        this._currentTeamId = teamInfo?.id || null;
-        this._currentUserRole = userRole;
-
-        // Check Jira configuration
-        if (this._currentTeamId) {
-            this._jiraConfigured = false;
-            try {
-                const jiraService = JiraService.getInstance();
-                const jiraConfig = await jiraService.getJiraConfig(this._currentTeamId);
-                this._jiraConfigured = !!jiraConfig;
-            } catch (error) {
-                // Server endpoints don't exist yet, so Jira is not configured
-                console.log('Jira config check failed in updatePanelState:', error);
-                this._jiraConfigured = false;
-            }
-        } else {
-            this._jiraConfigured = false;
-        }
-
+    public async updatePanelState() {
+        await this.refreshTeamState();
         this.updateUI();
     }
 
@@ -424,7 +372,9 @@ export class TasksPanel {
 
             this._view.webview.postMessage({
                 command: 'updateTasksUI',
+                showTasks: true,
                 showLoading: false,
+                showError: false,
                 statusText: `${issues.length} tasks loaded`,
                 tasks: issues
             });
