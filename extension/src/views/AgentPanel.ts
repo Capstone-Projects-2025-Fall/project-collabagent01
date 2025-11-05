@@ -534,188 +534,51 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     /**
      * Gets the inner HTML content for embedding in the main panel
+     * This loads from the external HTML file and extracts only the body content
      */
     public getInnerHtml(): string {
-        return `
-            <div class="agent-heading">Agent</div>
-            <div class="section">
-                <div class="section-title">Team & Product Management</div>
-                <div id="teamProduct">
-                    <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
-                    <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
-                    <div id="projectStatus" style="display:none; margin-top:4px;">
-                        <div id="projectStatusIndicator" style="font-size:12px;"></div>
-                    </div>
-                    <div id="joinCodeSection" style="display:none;">
-                        <strong>Join Code:</strong> 
-                        <span id="teamJoinCode">—</span>
-                        <button class="button" id="copyJoinCodeBtn" title="Copy join code">Copy</button>
-                    </div>
-                    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                        <button class="button" id="switchTeamBtn">Switch Team</button>
-                        <button class="button" id="createTeamBtn">Create Team</button>
-                        <button class="button" id="joinTeamBtn">Join Team</button>
-                        <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
-                        <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
-                        <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
-                    </div>
-                </div>
-            </div>
+        const fs = require('fs');
+        const path = require('path');
 
-            <div id="ai-agent-box" class="section">
-                <h3>Add File Snapshot</h3>
+        try {
+            // Read HTML template from external file
+            const htmlPath = path.join(this._extensionUri.fsPath, 'media', 'agentPanel.html');
+            let htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
-                <!-- Metadata Section -->
-                <div class="form-section">
-                    <h4>Snapshot Metadata</h4>
-                    <div class="readonly-grid">
-                        <div class="form-row">
-                            <label for="fs-id">Snapshot ID</label>
-                            <input id="fs-id" type="text" readonly />
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-userId">User ID</label>
-                            <input id="fs-userId" type="text" readonly />
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-teamId">Team ID</label>
-                            <input id="fs-teamId" type="text" readonly />
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-updatedAt">Updated At</label>
-                            <input id="fs-updatedAt" type="text" readonly />
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button class="button-small" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
-                    </div>
-                </div>
+            // Extract just the body content (between <body> and </body>)
+            const bodyMatch = htmlContent.match(/<body>([\s\S]*)<script/);
+            if (bodyMatch && bodyMatch[1]) {
+                return bodyMatch[1].trim();
+            }
 
-                <!-- Content Section -->
-                <div class="form-section">
-                    <h4>File Content</h4>
-                    <div class="form-grid">
-                        <div class="form-row">
-                            <label for="fs-filePath">File Path</label>
-                            <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-snapshot">Snapshot Content</label>
-                            <textarea id="fs-snapshot" rows="6" placeholder="Paste snapshot content here..."></textarea>
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-changes">Changes Description</label>
-                            <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
-                        </div>
-                        <div class="form-actions">
-                            <button class="button" id="fs-addBtn">Add Snapshot</button>
-                        </div>
-                        <div id="fs-feedback" class="feedback-text"></div>
-                    </div>
-                </div>
-
-                <!-- AI Summary Section removed - edge function now handles automatic summarization -->
-                <!-- Anchor element for Activity Feed (dynamically inserted by JS) -->
-                <div id="fs-summary-feedback" class="feedback-text" style="display:none;"></div>
-            </div>
-        `;
+            // Fallback if pattern doesn't match
+            console.error('[AgentPanel] Could not extract body content from agentPanel.html');
+            return '<div>Error loading panel content</div>';
+        } catch (error) {
+            console.error('[AgentPanel] Error reading agentPanel.html:', error);
+            return '<div>Error loading panel content</div>';
+        }
     }
 
     private _getHtmlForWebview(webview: vscode.Webview) {
+        const fs = require('fs');
+        const path = require('path');
+
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.js'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.css'));
         const nonce = Date.now().toString();
-        return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>Agent Panel</title>
-            <link href="${styleUri}" rel="stylesheet" />
-        </head>
-        <body>
-            <div class="agent-heading">Agent</div>
-            <div class="section">
-                <div class="section-title">Team & Product Management</div>
-                <div id="teamProduct">
-                    <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
-                    <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
-                    <div id="joinCodeSection" style="display:none;">
-                        <strong>Join Code:</strong> 
-                        <span id="teamJoinCode">—</span>
-                        <button class="button" id="copyJoinCodeBtn" title="Copy join code">Copy</button>
-                    </div>
-                    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                        <button class="button" id="switchTeamBtn">Switch Team</button>
-                        <button class="button" id="createTeamBtn">Create Team</button>
-                        <button class="button" id="joinTeamBtn">Join Team</button>
-                        <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
-                        <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
-                        <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
-                    </div>
-                </div>
-            </div>
 
-            <div id="ai-agent-box" class="section">
-                <h3>Add File Snapshot</h3>
+        // Read HTML template from external file
+        const htmlPath = path.join(this._extensionUri.fsPath, 'media', 'agentPanel.html');
+        let htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
-                <!-- Metadata Section -->
-                <div class="form-section">
-                    <h4>Snapshot Metadata</h4>
-                    <div class="readonly-grid">
-                        <div class="form-row">
-                            <label for="fs-id">Snapshot ID</label>
-                            <input id="fs-id" type="text" readonly />
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-userId">User ID</label>
-                            <input id="fs-userId" type="text" readonly />
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-teamId">Team ID</label>
-                            <input id="fs-teamId" type="text" readonly />
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-updatedAt">Updated At</label>
-                            <input id="fs-updatedAt" type="text" readonly />
-                        </div>
-                    </div>
-                    <div class="form-actions">
-                        <button class="button-small" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
-                    </div>
-                </div>
+        // Replace placeholders
+        htmlContent = htmlContent
+            .replace(/\{\{STYLE_URI\}\}/g, styleUri.toString())
+            .replace(/\{\{SCRIPT_URI\}\}/g, scriptUri.toString())
+            .replace(/\{\{NONCE\}\}/g, nonce);
 
-                <!-- Content Section -->
-                <div class="form-section">
-                    <h4>File Content</h4>
-                    <div class="form-grid">
-                        <div class="form-row">
-                            <label for="fs-filePath">File Path</label>
-                            <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-snapshot">Snapshot Content</label>
-                            <textarea id="fs-snapshot" rows="6" placeholder="Paste snapshot content here..."></textarea>
-                        </div>
-                        <div class="form-row">
-                            <label for="fs-changes">Changes Description</label>
-                            <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
-                        </div>
-                        <div class="form-actions">
-                            <button class="button" id="fs-addBtn">Add Snapshot</button>
-                        </div>
-                        <div id="fs-feedback" class="feedback-text"></div>
-                    </div>
-                </div>
-
-                <!-- AI Summary Section removed - edge function now handles automatic summarization -->
-                <!-- Anchor element for Activity Feed (dynamically inserted by JS) -->
-                <div id="fs-summary-feedback" class="feedback-text" style="display:none;"></div>
-            </div>
-
-            <script nonce="${nonce}" src="${scriptUri}"></script>
-        </body>
-        </html>`;
+        return htmlContent;
     }
 
     /**

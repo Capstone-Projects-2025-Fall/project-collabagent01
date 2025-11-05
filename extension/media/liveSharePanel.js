@@ -597,7 +597,18 @@
 		section.id = 'activityFeedSection';
 		section.className = 'section';
 		section.innerHTML = `
-			<h3 style="margin-top:12px;">Team Activity Timeline</h3>
+			<div class="section-header" style="margin-top:12px;">
+				<div class="section-title">Team Activity Timeline</div>
+				<div class="info-icon-wrapper">
+					<svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+						<circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+						<text x="8" y="11.5" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">i</text>
+					</svg>
+					<div class="tooltip">
+						View your team's recent activity and changes. Track file snapshots, code changes, and collaboration events in real-time. Activities are automatically summarized using AI.
+					</div>
+				</div>
+			</div>
 			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
 				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
 				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>

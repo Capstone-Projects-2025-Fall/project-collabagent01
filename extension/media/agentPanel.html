@@ -1,69 +1,60 @@
-<div id="panel-agent" class="tab-panel">
-    <div class="agent-heading">Team</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Agent Panel</title>
+    <link href="{{STYLE_URI}}" rel="stylesheet" />
+</head>
+<body>
+    <div class="agent-heading"></div>
     <div class="section">
-        <div class="section-title">Team & Project Management</div>
+        <div class="section-header">
+            <div class="section-title">Team Management</div>
+            <div class="info-icon-wrapper">
+                <svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    <text x="8" y="11.5" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">i</text>
+                </svg>
+                <div class="tooltip">
+                    Create: Open the Git repo you want to associate with a new team, then click 'Create Team'.<br><br>Join: Make sure you have the correct project folder opened that matches the team you want to join, then click 'Join Team' and enter the code.<br><br>Switch: Open the correct project folder, click 'Switch Team', and select your team.
+                </div>
+            </div>
+        </div>
         <div id="teamProduct">
             <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
             <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
+            <div id="projectStatus" style="display:none; margin-top:4px;">
+                <div id="projectStatusIndicator" style="font-size:12px;"></div>
+            </div>
+            <div id="joinCodeSection" style="display:none;">
+                <strong>Join Code:</strong>
+                <span id="teamJoinCode">—</span>
+                <button class="button" id="copyJoinCodeBtn" title="Copy join code">Copy</button>
+            </div>
             <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
                 <button class="button" id="switchTeamBtn">Switch Team</button>
                 <button class="button" id="createTeamBtn">Create Team</button>
                 <button class="button" id="joinTeamBtn">Join Team</button>
-                <button class="button" id="refreshTeamsBtn">Refresh Teams</button>
-            </div>
-            <div id="joinCodeSection" style="margin-top:8px; display:none; align-items:center; gap:6px;">
-                <div><strong>Team Join Code:</strong> <span id="teamJoinCode">—</span></div>
-                <button class="button small" id="copyJoinCodeBtn">Copy</button>
+                <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
+                <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
+                <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
             </div>
         </div>
     </div>
-    <div id="file-snapshot-box" class="section">
-        <h3>Add File Snapshot</h3>
-        <div class="form-grid">
-            <div class="form-row">
-                <label for="fs-id">Snapshot ID</label>
-                <input id="fs-id" type="text" readonly />
-            </div>
-            <div class="form-row">
-                <label for="fs-userId">User ID</label>
-                <input id="fs-userId" type="text" readonly />
-            </div>
-            <div class="form-row">
-                <label for="fs-teamId">Team ID</label>
-                <input id="fs-teamId" type="text" readonly />
-            </div>
-            <div class="form-row">
-                <label for="fs-updatedAt">Updated At</label>
-                <input id="fs-updatedAt" type="text" readonly />
-            </div>
-            <hr />
-            <div class="form-row">
-                <label for="fs-filePath">File Path</label>
-                <input id="fs-filePath" type="text" placeholder="e.g., src/app.ts" />
-            </div>
-            <div class="form-row">
-                <label for="fs-snapshot">Snapshot (text)</label>
-                <textarea id="fs-snapshot" rows="5" placeholder="Paste snapshot content here..."></textarea>
-            </div>
-            <div class="form-row">
-                <label for="fs-changes">Changes (text)</label>
-                <textarea id="fs-changes" rows="4" placeholder="Describe changes or paste diff..."></textarea>
-            </div>
-            <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
-                <button class="button" id="fs-generateIdBtn" title="Generate a new UUID for snapshot">Regenerate ID</button>
-                <button class="button" id="fs-addBtn">Add Snapshot</button>
-            </div>
-            <div id="fs-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
 
-            <hr />
-            <div class="form-row">
-                <label for="fs-summary-id">Generate Summary for Snapshot ID</label>
-                <input id="fs-summary-id" type="text" placeholder="Paste a Snapshot ID (defaults to current)" />
-            </div>
-            <div class="form-actions" style="margin-top:8px; display:flex; gap:6px;">
-                <button class="button" id="fs-generateSummaryBtn" title="Use AI to summarize changes and store in team activity">Generate Summary</button>
-            </div>
-            <div id="fs-summary-feedback" style="font-size:12px; color: var(--vscode-descriptionForeground); margin-top:4px;"></div>
-        </div>
+    <!-- Hidden metadata fields required by liveSharePanel.js for activity feed -->
+    <div style="display:none;">
+        <input id="fs-id" type="text" />
+        <input id="fs-userId" type="text" />
+        <input id="fs-teamId" type="text" />
+        <input id="fs-updatedAt" type="text" />
     </div>
-</div>
+
+    <!-- AI Summary Section removed - edge function now handles automatic summarization -->
+    <!-- Anchor element for Activity Feed (dynamically inserted by JS) -->
+    <div id="fs-summary-feedback" class="feedback-text" style="display:none;"></div>
+
+    <script nonce="{{NONCE}}" src="{{SCRIPT_URI}}"></script>
+</body>
+</html>
