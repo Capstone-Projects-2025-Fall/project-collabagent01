@@ -7,6 +7,7 @@
 <link href="{{MAIN_STYLE_URI}}" rel="stylesheet" />
 <link href="{{LIVESHARE_STYLE_URI}}" rel="stylesheet" />
 <link href="{{AGENT_STYLE_URI}}" rel="stylesheet" />
+<link href="{{PROFILE_STYLE_URI}}" rel="stylesheet" />
 </head>
 <body>
 <div class="tab-header">
@@ -14,12 +15,14 @@
     <button class="tab-btn" id="tab-live" data-tab="live" title="">Live Share</button>
     <button class="tab-btn" id="tab-agent" data-tab="agent" title="">Agent Bot</button>
     <button class="tab-btn" id="tab-tasks" data-tab="tasks" title="">Tasks</button>
+    <button class="tab-btn" id="tab-profile" data-tab="profile" title="">Profile</button>
 </div>
 <div id="login-tooltip" class="login-tooltip" style="display: none;">Please log in first</div>
 <div id="panel-home" class="tab-panel" style="display:block;">{{HOME_HTML}}</div>
 <div id="panel-live" class="tab-panel">{{LIVESHARE_HTML}}</div>
 <div id="panel-agent" class="tab-panel">{{AGENT_HTML}}</div>
 <div id="panel-tasks" class="tab-panel">{{TASKS_HTML}}</div>
+<div id="panel-profile" class="tab-panel">{{PROFILE_HTML}}</div>
 <script nonce="{{NONCE}}">
     // Initialize vscode API once for all scripts to use (make it global)
     window.vscode = acquireVsCodeApi();
@@ -41,10 +44,12 @@
         document.getElementById('panel-live').style.display = tab==='live' ? 'block' : 'none';
         document.getElementById('panel-agent').style.display = tab==='agent' ? 'block' : 'none';
         document.getElementById('panel-tasks').style.display = tab==='tasks' ? 'block' : 'none';
+        document.getElementById('panel-profile').style.display = tab==='profile' ? 'block' : 'none';
         document.getElementById('tab-home').classList.toggle('active', tab==='home');
         document.getElementById('tab-live').classList.toggle('active', tab==='live');
         document.getElementById('tab-agent').classList.toggle('active', tab==='agent');
         document.getElementById('tab-tasks').classList.toggle('active', tab==='tasks');
+        document.getElementById('tab-profile').classList.toggle('active', tab==='profile');
 
         // Save active tab to webview state for persistence
         vscode.setState({ activeTab: tab });
@@ -82,8 +87,8 @@
             showTooltip(element, 'Live Share not installed. Click Home to install.');
             return;
         }
-        // Live Share, Agent, and Tasks tabs require authentication
-        if ((tab === 'live' || tab === 'agent' || tab === 'tasks') && !isAuthenticated) {
+        // Live Share, Agent, Tasks, and Profile tabs require authentication
+        if ((tab === 'live' || tab === 'agent' || tab === 'tasks' || tab === 'profile') && !isAuthenticated) {
             showTooltip(element, 'Please log in first');
             return; // Don't switch tab if not authenticated
         }
@@ -135,13 +140,25 @@
     });
     tasksTab.addEventListener('mouseleave', hideTooltip);
 
+    // Profile tab - requires authentication
+    const profileTab = document.getElementById('tab-profile');
+    profileTab.addEventListener('click', function(){
+        handleTabClick('profile', this);
+    });
+    profileTab.addEventListener('mouseenter', function() {
+        if (!isAuthenticated) {
+            showTooltip(this, 'Please log in first');
+        }
+    });
+    profileTab.addEventListener('mouseleave', hideTooltip);
+
     // Restore previously active tab from state, or default to 'home'
     const previousState = vscode.getState();
     console.log('[MainPanel] Restored state:', previousState);
     const initialTab = (previousState && previousState.activeTab) ? previousState.activeTab : 'home';
     console.log('[MainPanel] Initial tab:', initialTab);
 
-    // Only restore to agent/live tabs if authenticated and requirements met
+    // Only restore to agent/live/tasks/profile tabs if authenticated and requirements met
     if (initialTab === 'agent' && !isAuthenticated) {
         console.log('[MainPanel] Cannot restore agent tab - not authenticated');
         showTab('home');
@@ -151,9 +168,13 @@
     } else if (initialTab === 'tasks' && !isAuthenticated) {
         console.log('[MainPanel] Cannot restore tasks tab - not authenticated');
         showTab('home');
+    } else if (initialTab === 'profile' && !isAuthenticated) {
+        console.log('[MainPanel] Cannot restore profile tab - not authenticated');
+        showTab('home');
     } else {
         showTab(initialTab);
     }
+
 
     // Update authentication state when it changes
     window.updateAuthState = function(authenticated) {
@@ -162,9 +183,11 @@
         const liveTab = document.getElementById('tab-live');
         const agentTab = document.getElementById('tab-agent');
         const tasksTab = document.getElementById('tab-tasks');
+        const profileTab = document.getElementById('tab-profile');
         if (authenticated) {
             agentTab.classList.remove('disabled');
             tasksTab.classList.remove('disabled');
+            profileTab.classList.remove('disabled');
             if (liveShareInstalled) {
                 liveTab.classList.remove('disabled');
             } else {
@@ -174,6 +197,7 @@
             liveTab.classList.add('disabled');
             agentTab.classList.add('disabled');
             tasksTab.classList.add('disabled');
+            profileTab.classList.add('disabled');
         }
     };
 
@@ -189,6 +213,7 @@
     if (!isAuthenticated) {
         document.getElementById('tab-agent').classList.add('disabled');
         document.getElementById('tab-tasks').classList.add('disabled');
+        document.getElementById('tab-profile').classList.add('disabled');
     }
     if (!isAuthenticated || !liveShareInstalled) {
         document.getElementById('tab-live').classList.add('disabled');

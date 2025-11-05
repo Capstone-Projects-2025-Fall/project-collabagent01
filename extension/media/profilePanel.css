@@ -1,0 +1,174 @@
+.profile-container {
+    padding: 16px;
+    max-width: 100%;
+    overflow-y: auto;
+}
+
+.profile-header {
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+    padding-bottom: 12px;
+}
+
+.profile-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+}
+
+.profile-subtitle {
+    margin: 0;
+    font-size: 13px;
+    color: var(--vscode-descriptionForeground);
+    line-height: 1.4;
+}
+
+.profile-form {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    margin-bottom: 4px;
+}
+
+.form-description {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+    margin: 0 0 8px 0;
+}
+
+.form-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--vscode-input-background);
+    color: var(--vscode-input-foreground);
+    border: 1px solid var(--vscode-input-border);
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: var(--vscode-font-family);
+    box-sizing: border-box;
+}
+
+.form-input:focus {
+    outline: 1px solid var(--vscode-focusBorder);
+    border-color: var(--vscode-focusBorder);
+}
+
+.form-input::placeholder {
+    color: var(--vscode-input-placeholderForeground);
+}
+
+/* Checkbox Grid */
+.checkbox-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    padding: 6px 8px;
+    border-radius: 4px;
+    background: var(--vscode-editor-background);
+    border: 1px solid var(--vscode-panel-border);
+    transition: background-color 0.15s ease;
+}
+
+.checkbox-item:hover {
+    background: var(--vscode-list-hoverBackground);
+}
+
+.checkbox-item input[type="checkbox"] {
+    cursor: pointer;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+}
+
+.checkbox-item span {
+    font-size: 13px;
+    color: var(--vscode-foreground);
+    user-select: none;
+}
+
+.checkbox-item input[type="checkbox"]:checked + span {
+    font-weight: 600;
+    color: var(--vscode-textLink-foreground);
+}
+
+.custom-input-section {
+    margin-top: 8px;
+}
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-top: 8px;
+    border-top: 1px solid var(--vscode-panel-border);
+}
+
+.button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: var(--vscode-font-family);
+    transition: background-color 0.15s ease;
+}
+
+.button.primary {
+    background: var(--vscode-button-background);
+    color: var(--vscode-button-foreground);
+}
+
+.button.primary:hover {
+    background: var(--vscode-button-hoverBackground);
+}
+
+.button.primary:active {
+    opacity: 0.9;
+}
+
+.button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.status-message {
+    font-size: 12px;
+    color: var(--vscode-descriptionForeground);
+}
+
+.status-message.success {
+    color: var(--vscode-terminal-ansiGreen);
+}
+
+.status-message.error {
+    color: var(--vscode-errorForeground);
+}
+
+/* Responsive adjustments */
+@media (max-width: 400px) {
+    .checkbox-grid {
+        grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    }
+}

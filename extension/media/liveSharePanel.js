@@ -138,6 +138,7 @@
 		setupAgentPanelButtons();
 		setupSnapshotForm();
 		setupActivityFeed();
+		setupProfilePanel();
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -1081,5 +1082,138 @@
 			const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
 			return v.toString(16);
 		});
+	}
+
+	function setupProfilePanel() {
+		const saveBtn = document.getElementById('save-profile-btn');
+		if (saveBtn && !saveBtn.hasAttribute('data-listener-added')) {
+			saveBtn.addEventListener('click', handleSaveProfile);
+			saveBtn.setAttribute('data-listener-added', 'true');
+			console.log('Profile save button listener added');
+		}
+
+		loadProfileData();
+	}
+
+	function handleSaveProfile() {
+		const name = document.getElementById('profile-name')?.value || '';
+		
+		const interestsCheckboxes = document.querySelectorAll('input[name="interests"]:checked');
+		const interests = Array.from(interestsCheckboxes).map(cb => cb.value);
+		
+		const customInterests = document.getElementById('custom-interests')?.value || '';
+		if (customInterests) {
+			const customArray = customInterests.split(',').map(s => s.trim()).filter(s => s);
+			interests.push(...customArray);
+		}
+		
+		const weaknessesCheckboxes = document.querySelectorAll('input[name="weaknesses"]:checked');
+		const weaknesses = Array.from(weaknessesCheckboxes).map(cb => cb.value);
+		
+		const customWeaknesses = document.getElementById('custom-weaknesses')?.value || '';
+		if (customWeaknesses) {
+			const customArray = customWeaknesses.split(',').map(s => s.trim()).filter(s => s);
+			weaknesses.push(...customArray);
+		}
+
+		const profileData = {
+			name,
+			interests,
+			strengths: interests,
+			weaknesses,
+			custom_skills: []
+		};
+
+		const statusEl = document.getElementById('profile-status');
+		if (statusEl) {
+			statusEl.textContent = 'Saving...';
+			statusEl.className = 'status-message';
+		}
+
+		post('saveProfile', { profileData });
+	}
+
+	function loadProfileData() {
+		post('loadProfile');
+	}
+
+	window.addEventListener('message', event => {
+		const message = event.data;
+		
+		switch (message.command) {
+			case 'profileSaved':
+				handleProfileSaved(message);
+				break;
+			case 'profileLoaded':
+				handleProfileLoaded(message);
+				break;
+		}
+	});
+
+	function handleProfileSaved(message) {
+		const statusEl = document.getElementById('profile-status');
+		if (statusEl) {
+			if (message.success) {
+				statusEl.textContent = 'Profile saved successfully!';
+				statusEl.className = 'status-message success';
+			} else {
+				statusEl.textContent = 'Error saving profile';
+				statusEl.className = 'status-message error';
+			}
+			
+			setTimeout(() => {
+				statusEl.textContent = '';
+				statusEl.className = 'status-message';
+			}, 3000);
+		}
+	}
+
+	function handleProfileLoaded(message) {
+		if (!message.profile) return;
+		
+		const profile = message.profile;
+		
+		const nameInput = document.getElementById('profile-name');
+		if (nameInput && profile.name) {
+			nameInput.value = profile.name;
+		}
+		
+		if (profile.interests && Array.isArray(profile.interests)) {
+			profile.interests.forEach(interest => {
+				const checkbox = document.querySelector(`input[name="interests"][value="${interest}"]`);
+				if (checkbox) {
+					checkbox.checked = true;
+				}
+			});
+			
+			const predefinedInterests = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 
+				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Testing'];
+			const customInterests = profile.interests.filter(i => !predefinedInterests.includes(i));
+			if (customInterests.length > 0) {
+				const customInput = document.getElementById('custom-interests');
+				if (customInput) {
+					customInput.value = customInterests.join(', ');
+				}
+			}
+		}
+		
+		if (profile.weaknesses && Array.isArray(profile.weaknesses)) {
+			profile.weaknesses.forEach(weakness => {
+				const checkbox = document.querySelector(`input[name="weaknesses"][value="${weakness}"]`);
+				if (checkbox) {
+					checkbox.checked = true;
+				}
+			});
+			
+			const predefinedWeaknesses = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 
+				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Testing'];
+			const customWeaknesses = profile.weaknesses.filter(w => !predefinedWeaknesses.includes(w));
+			if (customWeaknesses.length > 0) {
+				const customInput = document.getElementById('custom-weaknesses');
+				if (customInput) {
+					customInput.value = customWeaknesses.join(', ');
+				}
+			}
+		}
 	}
 })();
