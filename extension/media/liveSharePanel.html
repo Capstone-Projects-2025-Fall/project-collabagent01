@@ -1,6 +1,18 @@
-<div class="live-share-heading">Live Share</div>
+<div class="live-share-heading"></div>
     <div class="section">
-        <div class="section-title">Live Share Session</div>
+        <div class="section-header">
+            <div class="section-title">Live Share Session</div>
+            <div class="info-icon-wrapper">
+                <svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    <text x="8" y="11.5" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">i</text>
+                </svg>
+                <div class="tooltip">
+                    Start a live share session to share your active repo and co-edit with your team in real-time. All changes are saved
+                    locally to the host. You can also join an existing session using an invite link.
+                </div>
+            </div>
+        </div>
         <div id="sessionButtons">
         <button class="button" id="startSessionBtn" onclick="startLiveShare()">Start Session</button>
         <button class="button" id="joinLiveShareBtn" onclick="joinLiveShare()">Join Session</button>
@@ -8,7 +20,18 @@
         <div id="sessionStatus"><div class="status-inactive"><span class="status-indicator loading"></span>Loading session status...</div></div>
     </div>
     <div class="section">
-        <div class="section-title">Team Activity</div>
+        <div class="section-header">
+            <div class="section-title">Team Activity</div>
+            <div class="info-icon-wrapper">
+                <svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                    <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                    <text x="8" y="11.5" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">i</text>
+                </svg>
+                <div class="tooltip">
+                    Shows current members once the session starts.
+                </div>
+            </div>
+        </div>
         <div id="teamActivity">
         <div class="activity-item">
             <span class="status-indicator"></span>
@@ -16,11 +39,11 @@
         </div>
         </div>
     </div>
-    <div class="section">
+    <!-- <div class="section">
         <div class="section-title">Team Chat</div>
         <div id="chatMessages" class="chat-messages">
         <div class="chat-message"><strong>Collab Agent:</strong> Welcome! Start collaborating with your team.</div>
         </div>
         <input type="text" id="chatInput" class="chat-input" placeholder="Start or join a session to chat" disabled onkeypress="handleChatInput(event)" />
-    </div>
+    </div> -->
 </div>

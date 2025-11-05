@@ -12,10 +12,10 @@
 <body>
 <div class="tab-header">
     <button class="tab-btn" id="tab-home" data-tab="home">Home</button>
-    <button class="tab-btn" id="tab-live" data-tab="live" title="">Live Share</button>
-    <button class="tab-btn" id="tab-agent" data-tab="agent" title="">Agent Bot</button>
-    <button class="tab-btn" id="tab-tasks" data-tab="tasks" title="">Tasks</button>
     <button class="tab-btn" id="tab-profile" data-tab="profile" title="">Profile</button>
+    <button class="tab-btn" id="tab-tasks" data-tab="tasks" title="">Tasks</button>
+    <button class="tab-btn" id="tab-agent" data-tab="agent" title="">Team</button>
+    <button class="tab-btn" id="tab-live" data-tab="live" title="">Collaborate</button>
 </div>
 <div id="login-tooltip" class="login-tooltip" style="display: none;">Please log in first</div>
 <div id="panel-home" class="tab-panel" style="display:block;">{{HOME_HTML}}</div>
@@ -45,11 +45,11 @@
         document.getElementById('panel-agent').style.display = tab==='agent' ? 'block' : 'none';
         document.getElementById('panel-tasks').style.display = tab==='tasks' ? 'block' : 'none';
         document.getElementById('panel-profile').style.display = tab==='profile' ? 'block' : 'none';
-        document.getElementById('tab-home').classList.toggle('active', tab==='home');
-        document.getElementById('tab-live').classList.toggle('active', tab==='live');
-        document.getElementById('tab-agent').classList.toggle('active', tab==='agent');
-        document.getElementById('tab-tasks').classList.toggle('active', tab==='tasks');
-        document.getElementById('tab-profile').classList.toggle('active', tab==='profile');
+    document.getElementById('tab-home').classList.toggle('active', tab==='home');
+    document.getElementById('tab-profile').classList.toggle('active', tab==='profile');
+    document.getElementById('tab-tasks').classList.toggle('active', tab==='tasks');
+    document.getElementById('tab-agent').classList.toggle('active', tab==='agent');
+    document.getElementById('tab-live').classList.toggle('active', tab==='live');
 
         // Save active tab to webview state for persistence
         vscode.setState({ activeTab: tab });
