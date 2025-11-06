@@ -651,16 +651,21 @@
 		}
 		const html = items.map((it, index)=>{
 			const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
-			const who = it.user_id ? it.user_id.substring(0,8)+'…' : '';
+			// Use display_name from backend with fallback priority: display_name -> email -> user_id
+		const who = it.display_name || it.user_email || (it.user_id ? it.user_id.substring(0,8)+'…' : '');
 			const eventHeader = it.event_header || it.summary || '';  // Use event_header as display text
 			const summary = it.summary || '';  // AI-generated summary
 			const activityType = it.activity_type || 'file_snapshot';
 			const itemId = `activity-item-${index}`;
 			const detailsId = `activity-details-${index}`;
 
-			// Determine icon and styling based on activity type
-			let icon = '📄';
+			// Determine icon/tag and buttons based on activity type and whether it has changes or snapshot
+			let icon = '';
 			let buttons = '';
+
+			// Helper to determine if this is an initial snapshot vs automatic snapshot (changes)
+			const hasSnapshot = it.snapshot && Object.keys(it.snapshot || {}).length > 0;
+			const hasChanges = it.changes && it.changes.trim().length > 0 && it.changes !== '{}';
 
 			if (activityType === 'live_share_started') {
 				// Green circle for session start
@@ -670,26 +675,32 @@
 			} else if (activityType === 'live_share_ended') {
 				// Red circle for session end
 				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#f44336; border-radius:50%; margin-right:6px;"></span>Live';
-				// Show View Changes and View Summary
+				// Show View Changes and View Summary (initial snapshot available for Live Share)
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
 					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
 				`;
-			} else if (activityType === 'ai_summary') {
-				// Regular file snapshots - show both View Changes and View Summary
-				icon = '📄';
+			} else if (activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges)) {
+				// INITIAL SNAPSHOT: Has full snapshot, no changes
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #4caf50; color:#4caf50; border-radius:4px; margin-right:6px;">Initial Snapshot</span>';
+				// Only show "View Initial Snapshot" button
 				buttons = `
-					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
-					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the changes made">View Changes</button>
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the full workspace snapshot">View Initial Snapshot</button>
+				`;
+			} else if (hasChanges) {
+				// AUTOMATIC SNAPSHOT (Changes): Has changes/diff
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #ffc107; color:#ffc107; border-radius:4px; margin-right:6px;">Changes</span>';
+				// Only show "View Changes" and "View Summary" buttons
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
 					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
 				`;
 			} else {
-				// Other types
-				icon = '📄';
+				// Fallback for other types (shouldn't normally happen)
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #888; color:#888; border-radius:4px; margin-right:6px;">Snapshot</span>';
 				buttons = `
-					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
-					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the changes made">View Changes</button>
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View snapshot">View Snapshot</button>
 				`;
 			}
 

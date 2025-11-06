@@ -9,6 +9,8 @@ export interface ActivityItem {
   source_snapshot_id?: string;
   activity_type?: string;
   created_at?: string;
+  display_name?: string;  // User-friendly name (from user_profiles.name, email, or fallback)
+  user_email?: string;    // User's email address from auth.users
 }
 
 export async function fetchTeamActivity(teamId: string, limit = 25): Promise<{ success: boolean; items?: ActivityItem[]; error?: string }>{

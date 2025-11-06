@@ -178,6 +178,61 @@ def get_feed():
     # Remove the nested object
     row.pop("file_snapshots", None)
 
+  # Get unique user_ids from the activity feed
+  user_ids = list(set(row.get("user_id") for row in rows if row.get("user_id")))
+
+  # Fetch user profiles for display names (name field)
+  user_profiles = {}
+  if user_ids:
+    try:
+      profiles = sb_select("user_profiles", {
+        "select": "user_id,name",
+        "user_id": f"in.({','.join(user_ids)})"
+      })
+      user_profiles = {p["user_id"]: p.get("name") for p in profiles if p.get("name")}
+    except Exception as e:
+      print(f"Warning: Could not fetch user profiles: {e}")
+
+  # Fetch user emails from auth.users using Supabase Admin API
+  user_emails = {}
+  if user_ids:
+    try:
+      from supabase import create_client, Client
+      supabase_url = os.getenv("SUPABASE_URL")
+      service_key = os.getenv("SUPABASE_SERVICE_KEY")
+      if supabase_url and service_key:
+        supabase: Client = create_client(supabase_url, service_key)
+        # Fetch users using admin API
+        for user_id in user_ids:
+          try:
+            user_response = supabase.auth.admin.get_user_by_id(user_id)
+            if user_response and user_response.user:
+              user_emails[user_id] = user_response.user.email
+          except Exception as e:
+            print(f"Warning: Could not fetch user {user_id}: {e}")
+    except Exception as e:
+      print(f"Warning: Could not initialize Supabase client for user emails: {e}")
+
+  # Add display_name to each row with fallback priority: name -> email -> user_id
+  for row in rows:
+    user_id = row.get("user_id")
+    if user_id:
+      # Try name from user_profiles first
+      if user_id in user_profiles and user_profiles[user_id]:
+        row["display_name"] = user_profiles[user_id]
+        row["user_email"] = user_emails.get(user_id)
+      # Fallback to email
+      elif user_id in user_emails and user_emails[user_id]:
+        row["display_name"] = user_emails[user_id]
+        row["user_email"] = user_emails[user_id]
+      # Final fallback to shortened user_id
+      else:
+        row["display_name"] = user_id[:8] + "…"
+        row["user_email"] = None
+    else:
+      row["display_name"] = "Unknown"
+      row["user_email"] = None
+
   return jsonify(rows)
 
 
