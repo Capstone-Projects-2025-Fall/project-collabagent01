@@ -70,8 +70,8 @@ export class JiraService {
     private readonly baseUrl: string;
 
     private constructor() {
-        // Use Flask server URL - default to localhost:8080
-        this.baseUrl = process.env.FLASK_SERVER_URL || 'http://localhost:8080';
+        // Use Flask server URL - default to localhost:5000 (Flask default port)
+        this.baseUrl = process.env.FLASK_SERVER_URL || 'http://localhost:5000';
     }
 
     public static getInstance(): JiraService {
