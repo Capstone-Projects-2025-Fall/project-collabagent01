@@ -33,9 +33,18 @@ export class TasksPanel {
             <div class="tasks-container">
                 <div class="tasks-header">
                     <h2>Team Tasks</h2>
-                    <div id="tasks-status" class="tasks-status">
-                        <span id="status-text">Loading...</span>
+                    <div class="info-icon-wrapper">
+                        <svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                            <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <text x="8" y="11.5" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">i</text>
+                        </svg>
+                        <div class="tooltip">
+                            First, generate your Jira token:<br>Go to Jira in your browser &rarr; your Jira profile &rarr; manage your account &rarr; security tab &rarr; create and manage API tokens &rarr; generate a personal token <br><br> Once you have your token, return to VS Code and use Ctrl+Shift+P to open the command palette. Search for and select "Collab Agent: Connect to Jira" (or click the Jira button in the bottom status bar). When prompted, enter your Jira instance URL, your Jira email address, and paste your personal API token. Finally, select the correct project board from the project dropdown. Your Jira configuration will be saved, and the status bar will show a Jira icon with a checkmark to confirm the connection.
+                        </div>
                     </div>
+                </div>
+                <div id="tasks-status" class="tasks-status" style="text-align: center; margin-bottom: 12px;">
+                    <span id="status-text">Loading...</span>
                 </div>
 
                 <!-- Admin Setup UI -->
@@ -83,6 +92,10 @@ export class TasksPanel {
                 <div id="tasks-content" class="tasks-content" style="display: none;">
                     <div class="tasks-toolbar">
                         <div class="tasks-filters">
+                            <select id="sprint-filter" class="filter-select">
+                                <option value="">All Issues</option>
+                                <option value="backlog">📋 Backlog</option>
+                            </select>
                             <select id="status-filter" class="filter-select">
                                 <option value="">All Statuses</option>
                                 <option value="To Do">To Do</option>
@@ -124,10 +137,14 @@ export class TasksPanel {
             (function(){
                 // Note: The tasksWebviewReady message is sent from mainPanel.html when the tab becomes visible
 
+                // Store all tasks for filtering
+                let allTasks = [];
+
                 // Set up event listeners for Tasks panel
                 const connectBtn = document.getElementById('connect-jira-btn');
                 const refreshBtn = document.getElementById('refresh-tasks-btn');
                 const retryBtn = document.getElementById('retry-tasks-btn');
+                const sprintFilter = document.getElementById('sprint-filter');
 
                 if (connectBtn) {
                     connectBtn.addEventListener('click', () => {
@@ -147,13 +164,76 @@ export class TasksPanel {
                     });
                 }
 
+                if (sprintFilter) {
+                    sprintFilter.addEventListener('change', (e) => {
+                        const value = e.target.value;
+
+                        // Reset other filters when changing sprints
+                        const statusFilterEl = document.getElementById('status-filter');
+                        const assigneeFilterEl = document.getElementById('assignee-filter');
+                        if (statusFilterEl) statusFilterEl.value = '';
+                        if (assigneeFilterEl) assigneeFilterEl.value = '';
+
+                        if (value === 'backlog') {
+                            window.vscode.postMessage({ command: 'loadBacklog' });
+                        } else if (value === '') {
+                            window.vscode.postMessage({ command: 'refreshTasks' });
+                        } else {
+                            // Sprint ID selected
+                            window.vscode.postMessage({
+                                command: 'loadSprint',
+                                sprintId: parseInt(value)
+                            });
+                        }
+                    });
+                }
+
+                // Add listeners for status and assignee filters
+                const statusFilter = document.getElementById('status-filter');
+                const assigneeFilter = document.getElementById('assignee-filter');
+
+                if (statusFilter) {
+                    statusFilter.addEventListener('change', () => {
+                        filterTasks();
+                    });
+                }
+
+                if (assigneeFilter) {
+                    assigneeFilter.addEventListener('change', () => {
+                        filterTasks();
+                    });
+                }
+
                 // Handle UI updates from extension
                 window.addEventListener('message', function(event) {
                     const message = event.data;
                     if (message.command === 'updateTasksUI') {
                         updateTasksUI(message);
+                    } else if (message.command === 'updateSprints') {
+                        updateSprintFilter(message.sprints);
                     }
                 });
+
+                function updateSprintFilter(sprints) {
+                    const sprintFilterEl = document.getElementById('sprint-filter');
+                    if (!sprintFilterEl) return;
+
+                    // Keep existing options (All Issues and Backlog)
+                    let options = '<option value="">All Issues</option><option value="backlog">📋 Backlog</option>';
+
+                    // Add sprints, sorted by state (active first, then future, then closed)
+                    const sortedSprints = sprints.sort((a, b) => {
+                        const stateOrder = { active: 0, future: 1, closed: 2 };
+                        return stateOrder[a.state] - stateOrder[b.state];
+                    });
+
+                    sortedSprints.forEach(function(sprint) {
+                        const icon = sprint.state === 'active' ? '🏃' : sprint.state === 'future' ? '📅' : '✅';
+                        options += '<option value="' + sprint.id + '">' + icon + ' ' + sprint.name + '</option>';
+                    });
+
+                    sprintFilterEl.innerHTML = options;
+                }
 
                 function updateTasksUI(data) {
                     // Update visibility of sections
@@ -189,7 +269,78 @@ export class TasksPanel {
                     }
                 }
 
+                function filterTasks() {
+                    const statusFilterEl = document.getElementById('status-filter');
+                    const assigneeFilterEl = document.getElementById('assignee-filter');
+
+                    const statusValue = statusFilterEl ? statusFilterEl.value : '';
+                    const assigneeValue = assigneeFilterEl ? assigneeFilterEl.value : '';
+
+                    let filteredTasks = allTasks;
+
+                    // Filter by status
+                    if (statusValue) {
+                        filteredTasks = filteredTasks.filter(task => task.fields.status.name === statusValue);
+                    }
+
+                    // Filter by assignee
+                    if (assigneeValue) {
+                        if (assigneeValue === 'unassigned') {
+                            filteredTasks = filteredTasks.filter(task => !task.fields.assignee);
+                        } else {
+                            filteredTasks = filteredTasks.filter(task =>
+                                task.fields.assignee && task.fields.assignee.displayName === assigneeValue
+                            );
+                        }
+                    }
+
+                    renderTasks(filteredTasks);
+                }
+
                 function updateTasksList(tasks) {
+                    // Store all tasks for filtering
+                    allTasks = tasks || [];
+
+                    // Update assignee filter dropdown
+                    updateAssigneeFilter(allTasks);
+
+                    // Render tasks (without any filters initially)
+                    renderTasks(allTasks);
+                }
+
+                function updateAssigneeFilter(tasks) {
+                    const assigneeFilterEl = document.getElementById('assignee-filter');
+                    if (!assigneeFilterEl) return;
+
+                    // Get unique assignees
+                    const assignees = new Set();
+                    let hasUnassigned = false;
+
+                    tasks.forEach(function(task) {
+                        if (task.fields.assignee) {
+                            assignees.add(task.fields.assignee.displayName);
+                        } else {
+                            hasUnassigned = true;
+                        }
+                    });
+
+                    // Build options
+                    let options = '<option value="">All Assignees</option>';
+
+                    // Add unique assignees sorted alphabetically
+                    Array.from(assignees).sort().forEach(function(assignee) {
+                        options += '<option value="' + assignee + '">' + assignee + '</option>';
+                    });
+
+                    // Add unassigned option if there are unassigned tasks
+                    if (hasUnassigned) {
+                        options += '<option value="unassigned">Unassigned</option>';
+                    }
+
+                    assigneeFilterEl.innerHTML = options;
+                }
+
+                function renderTasks(tasks) {
                     const tasksListEl = document.getElementById('tasks-list');
                     if (!tasksListEl) return;
 
@@ -199,20 +350,45 @@ export class TasksPanel {
                     }
 
                     const tasksHtml = tasks.map(function(task) {
+                        const statusName = task.fields.status.name;
+                        const statusClass = statusName.toLowerCase().replace(/ /g, '-');
+
+                        // Determine which transition buttons to show based on current status
+                        let transitionButtons = '';
+                        if (statusName === 'To Do') {
+                            transitionButtons = '<button class="transition-btn btn-in-progress" data-key="' + task.key + '" data-transition="In Progress">Start</button>';
+                        } else if (statusName === 'In Progress') {
+                            transitionButtons = '<button class="transition-btn btn-done" data-key="' + task.key + '" data-transition="Done">Complete</button>';
+                        }
+
                         return '<div class="task-item">' +
                             '<div class="task-header">' +
                                 '<span class="task-key">' + task.key + '</span>' +
-                                '<span class="task-status status-' + task.fields.status.name.toLowerCase().replace(' ', '-') + '">' + task.fields.status.name + '</span>' +
+                                '<span class="task-status status-' + statusClass + '">' + statusName + '</span>' +
                             '</div>' +
                             '<div class="task-title">' + task.fields.summary + '</div>' +
                             '<div class="task-meta">' +
-                                (task.fields.assignee ? '<span class="task-assignee">👤 ' + task.fields.assignee.displayName + '</span>' : '') +
+                                (task.fields.assignee ? '<span class="task-assignee">👤 ' + task.fields.assignee.displayName + '</span>' : '<span class="task-assignee">👤 Unassigned</span>') +
                                 (task.fields.priority ? '<span class="task-priority">⚡ ' + task.fields.priority.name + '</span>' : '') +
                             '</div>' +
+                            (transitionButtons ? '<div class="task-actions">' + transitionButtons + '</div>' : '') +
                         '</div>';
                     }).join('');
 
                     tasksListEl.innerHTML = tasksHtml;
+
+                    // Add event listeners to transition buttons
+                    document.querySelectorAll('.transition-btn').forEach(function(btn) {
+                        btn.addEventListener('click', function(e) {
+                            const key = e.target.getAttribute('data-key');
+                            const transition = e.target.getAttribute('data-transition');
+                            window.vscode.postMessage({
+                                command: 'transitionIssue',
+                                issueKey: key,
+                                targetStatus: transition
+                            });
+                        });
+                    });
                 }
             })();
             </script>
@@ -347,8 +523,9 @@ export class TasksPanel {
             statusText: 'Loading tasks...'
         });
 
-        // Load tasks from Jira
+        // Load tasks and sprints from Jira
         this.loadTasks();
+        this.loadSprints();
     }
 
     /**
@@ -435,6 +612,140 @@ export class TasksPanel {
                 statusText: 'Refreshing tasks...'
             });
             await this.loadTasks();
+            await this.loadSprints();
+        }
+    }
+
+    /**
+     * Loads sprints and updates the sprint filter dropdown.
+     */
+    public async loadSprints() {
+        if (!this._currentTeamId || !this._view || !this._jiraConfigured) return;
+
+        try {
+            const jiraService = JiraService.getInstance();
+            const sprints = await jiraService.fetchSprints(this._currentTeamId);
+
+            this._view.webview.postMessage({
+                command: 'updateSprints',
+                sprints: sprints
+            });
+
+        } catch (error) {
+            console.error('Failed to load sprints:', error);
+            // Don't show error to user, just log it
+        }
+    }
+
+    /**
+     * Loads issues for a specific sprint.
+     */
+    public async handleLoadSprint(sprintId: number) {
+        if (!this._currentTeamId || !this._view) return;
+
+        try {
+            this._view.webview.postMessage({
+                command: 'updateTasksUI',
+                showLoading: true,
+                statusText: 'Loading sprint issues...'
+            });
+
+            const jiraService = JiraService.getInstance();
+            const issues = await jiraService.fetchSprintIssues(this._currentTeamId, sprintId);
+
+            this._view.webview.postMessage({
+                command: 'updateTasksUI',
+                showTasks: true,
+                showLoading: false,
+                showError: false,
+                statusText: `${issues.length} issues in sprint`,
+                tasks: issues
+            });
+
+        } catch (error) {
+            console.error('Failed to load sprint issues:', error);
+            this._view.webview.postMessage({
+                command: 'updateTasksUI',
+                showTasks: false,
+                showError: true,
+                showLoading: false,
+                statusText: 'Error loading sprint',
+                errorMessage: error instanceof Error ? error.message : 'Failed to load sprint issues'
+            });
+        }
+    }
+
+    /**
+     * Loads backlog issues.
+     */
+    public async handleLoadBacklog() {
+        if (!this._currentTeamId || !this._view) return;
+
+        try {
+            this._view.webview.postMessage({
+                command: 'updateTasksUI',
+                showLoading: true,
+                statusText: 'Loading backlog...'
+            });
+
+            const jiraService = JiraService.getInstance();
+            const issues = await jiraService.fetchBacklogIssues(this._currentTeamId);
+
+            this._view.webview.postMessage({
+                command: 'updateTasksUI',
+                showTasks: true,
+                showLoading: false,
+                showError: false,
+                statusText: `${issues.length} issues in backlog`,
+                tasks: issues
+            });
+
+        } catch (error) {
+            console.error('Failed to load backlog:', error);
+            this._view.webview.postMessage({
+                command: 'updateTasksUI',
+                showTasks: false,
+                showError: true,
+                showLoading: false,
+                statusText: 'Error loading backlog',
+                errorMessage: error instanceof Error ? error.message : 'Failed to load backlog issues'
+            });
+        }
+    }
+
+    /**
+     * Handles transitioning an issue to a new status.
+     */
+    public async handleTransitionIssue(issueKey: string, targetStatus: string) {
+        if (!this._currentTeamId) return;
+
+        try {
+            const jiraService = JiraService.getInstance();
+
+            // First, get available transitions for the issue
+            const transitions = await jiraService.fetchTransitions(this._currentTeamId, issueKey);
+
+            // Find the transition that matches the target status
+            const transition = transitions.find(t => t.to.name === targetStatus);
+
+            if (!transition) {
+                vscode.window.showErrorMessage(`Cannot transition ${issueKey} to "${targetStatus}". This transition may not be available.`);
+                return;
+            }
+
+            // Perform the transition
+            await jiraService.transitionIssue(this._currentTeamId, issueKey, transition.id);
+
+            vscode.window.showInformationMessage(`✅ ${issueKey} moved to "${targetStatus}"`);
+
+            // Refresh the task list to show updated status
+            await this.handleRefreshTasks();
+
+        } catch (error) {
+            console.error('Failed to transition issue:', error);
+            vscode.window.showErrorMessage(
+                `Failed to transition ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
         }
     }
 }

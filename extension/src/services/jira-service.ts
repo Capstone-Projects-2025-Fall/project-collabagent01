@@ -9,6 +9,7 @@ export interface JiraIssue {
         description?: string;
         status: {
             name: string;
+            id: string;
         };
         priority?: {
             name: string;
@@ -25,6 +26,26 @@ export interface JiraIssue {
         issuetype: {
             name: string;
         };
+        sprint?: any;
+    };
+}
+
+export interface JiraSprint {
+    id: number;
+    name: string;
+    state: 'active' | 'future' | 'closed';
+    startDate?: string;
+    endDate?: string;
+    completeDate?: string;
+    originBoardId: number;
+}
+
+export interface JiraTransition {
+    id: string;
+    name: string;
+    to: {
+        id: string;
+        name: string;
     };
 }
 
@@ -356,6 +377,200 @@ export class JiraService {
         } catch (error) {
             console.error('Failed to remove Jira config:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Fetches the board ID for a project.
+     */
+    private async getBoardId(config: JiraConfig): Promise<number | null> {
+        try {
+            const response = await axios.get(`${config.jira_url}/rest/agile/1.0/board`, {
+                headers: {
+                    'Authorization': `Basic ${config.access_token}`,
+                    'Accept': 'application/json'
+                },
+                params: {
+                    projectKeyOrId: config.jira_project_key
+                },
+                timeout: 10000
+            });
+
+            const boards = response.data.values || [];
+            if (boards.length === 0) {
+                console.error('No boards found for project:', config.jira_project_key);
+                return null;
+            }
+
+            // Return the first board found for this project
+            return boards[0].id;
+        } catch (error) {
+            console.error('Failed to fetch board ID:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Fetches all sprints for a team's board.
+     */
+    public async fetchSprints(teamId: string): Promise<JiraSprint[]> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        const boardId = await this.getBoardId(config);
+        if (!boardId) {
+            throw new Error('Unable to find board for this project');
+        }
+
+        try {
+            const response = await axios.get(`${config.jira_url}/rest/agile/1.0/board/${boardId}/sprint`, {
+                headers: {
+                    'Authorization': `Basic ${config.access_token}`,
+                    'Accept': 'application/json'
+                },
+                timeout: 10000
+            });
+
+            return response.data.values || [];
+        } catch (error: any) {
+            console.error('Failed to fetch sprints:', error);
+            throw new Error(`Failed to fetch sprints: ${error.message}`);
+        }
+    }
+
+    /**
+     * Fetches issues for a specific sprint.
+     */
+    public async fetchSprintIssues(teamId: string, sprintId: number): Promise<JiraIssue[]> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        const boardId = await this.getBoardId(config);
+        if (!boardId) {
+            throw new Error('Unable to find board for this project');
+        }
+
+        try {
+            const response = await axios.get(
+                `${config.jira_url}/rest/agile/1.0/board/${boardId}/sprint/${sprintId}/issue`,
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json'
+                    },
+                    params: {
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,sprint'
+                    },
+                    timeout: 15000
+                }
+            );
+
+            return response.data.issues || [];
+        } catch (error: any) {
+            console.error('Failed to fetch sprint issues:', error);
+            throw new Error(`Failed to fetch sprint issues: ${error.message}`);
+        }
+    }
+
+    /**
+     * Fetches backlog issues (issues not assigned to any sprint).
+     */
+    public async fetchBacklogIssues(teamId: string): Promise<JiraIssue[]> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        const boardId = await this.getBoardId(config);
+        if (!boardId) {
+            throw new Error('Unable to find board for this project');
+        }
+
+        try {
+            const response = await axios.get(
+                `${config.jira_url}/rest/agile/1.0/board/${boardId}/backlog`,
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json'
+                    },
+                    params: {
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority'
+                    },
+                    timeout: 15000
+                }
+            );
+
+            return response.data.issues || [];
+        } catch (error: any) {
+            console.error('Failed to fetch backlog issues:', error);
+            throw new Error(`Failed to fetch backlog issues: ${error.message}`);
+        }
+    }
+
+    /**
+     * Fetches available transitions for an issue.
+     */
+    public async fetchTransitions(teamId: string, issueKey: string): Promise<JiraTransition[]> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            const response = await axios.get(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}/transitions`,
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            return response.data.transitions || [];
+        } catch (error: any) {
+            console.error('Failed to fetch transitions:', error);
+            throw new Error(`Failed to fetch transitions: ${error.message}`);
+        }
+    }
+
+    /**
+     * Transitions an issue to a new status.
+     */
+    public async transitionIssue(teamId: string, issueKey: string, transitionId: string): Promise<void> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            await axios.post(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}/transitions`,
+                {
+                    transition: {
+                        id: transitionId
+                    }
+                },
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            console.log(`Successfully transitioned issue ${issueKey} using transition ${transitionId}`);
+        } catch (error: any) {
+            console.error('Failed to transition issue:', error);
+            throw new Error(`Failed to transition issue: ${error.message}`);
         }
     }
 }
