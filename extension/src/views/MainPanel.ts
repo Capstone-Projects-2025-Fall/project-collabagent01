@@ -181,7 +181,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private isProfileCommand(command: string): boolean {
         return [
             'saveProfile',
-            'loadProfile'
+            'loadProfile',
+            'deleteAccount'
         ].includes(command);
     }
 
@@ -307,6 +308,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             case 'loadProfile':
                 await this.handleLoadProfile();
                 break;
+            case 'deleteAccount':
+                await this.handleDeleteAccount();
+                break;
             default:
                 console.log('Unknown profile command:', message.command);
         }
@@ -404,6 +408,55 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
         } catch (err) {
             console.error('Error loading profile:', err);
+        }
+    }
+
+    private async handleDeleteAccount() {
+        try {
+            const { getAuthContext } = require('../services/auth-service');
+            const authResult = await getAuthContext();
+
+            if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
+                vscode.window.showErrorMessage('You must be logged in to delete your account.');
+                return;
+            }
+
+            const user = authResult.context;
+            const { getSupabase } = require('../auth/supabaseClient');
+            const supabase = getSupabase();
+
+            // Delete the user from auth.users table (Supabase Admin API)
+            const { error } = await supabase.auth.admin.deleteUser(user.id);
+
+            if (error) {
+                console.error('Error deleting account:', error);
+                vscode.window.showErrorMessage(`Failed to delete account: ${error.message}`);
+                this._view?.webview.postMessage({
+                    command: 'accountDeleted',
+                    success: false,
+                    error: error.message
+                });
+            } else {
+                // Sign out the user locally
+                await supabase.auth.signOut();
+
+                vscode.window.showInformationMessage('Your account has been successfully deleted.');
+                this._view?.webview.postMessage({
+                    command: 'accountDeleted',
+                    success: true
+                });
+
+                // Refresh the panel to show logged-out state
+                await vscode.commands.executeCommand('collabAgent.refreshPanel');
+            }
+        } catch (err) {
+            console.error('Error deleting account:', err);
+            vscode.window.showErrorMessage('Error deleting account. Please try again.');
+            this._view?.webview.postMessage({
+                command: 'accountDeleted',
+                success: false,
+                error: String(err)
+            });
         }
     }
 
