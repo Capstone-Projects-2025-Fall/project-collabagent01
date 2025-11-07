@@ -411,4 +411,40 @@ export class TasksPanel {
             );
         }
     }
+
+    /**
+     * Handles creating a new Jira task.
+     */
+    public async handleCreateTask(taskData: any) {
+        if (!this._currentTeamId || !this._view) {
+            vscode.window.showErrorMessage('No team selected or view not available.');
+            this._view?.webview.postMessage({ command: 'taskCreationFailed' });
+            return;
+        }
+
+        try {
+            const jiraService = JiraService.getInstance();
+
+            // Create the issue in Jira
+            const newIssue = await jiraService.createIssue(this._currentTeamId, taskData);
+
+            // Show success message with the issue key
+            vscode.window.showInformationMessage(`✅ Task created successfully: ${newIssue.key}`);
+
+            // Notify webview of success
+            this._view.webview.postMessage({ command: 'taskCreated' });
+
+            // Refresh the task list to show the new task
+            await this.handleRefreshTasks();
+
+        } catch (error) {
+            console.error('Failed to create task:', error);
+            vscode.window.showErrorMessage(
+                `Failed to create task: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+
+            // Notify webview of failure
+            this._view?.webview.postMessage({ command: 'taskCreationFailed' });
+        }
+    }
 }

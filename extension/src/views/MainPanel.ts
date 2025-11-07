@@ -173,7 +173,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'retryTasks',
             'loadSprint',
             'loadBacklog',
-            'transitionIssue'
+            'transitionIssue',
+            'createTask'
         ].includes(command);
     }
 
@@ -291,6 +292,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'transitionIssue':
                 await this._tasksPanel.handleTransitionIssue(message.issueKey, message.targetStatus);
+                break;
+            case 'createTask':
+                await this._tasksPanel.handleCreateTask(message.taskData);
                 break;
             default:
                 console.log('Unknown tasks command:', message.command);

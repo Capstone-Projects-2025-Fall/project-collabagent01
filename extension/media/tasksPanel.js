@@ -8,7 +8,12 @@
     const connectBtn = document.getElementById('connect-jira-btn');
     const refreshBtn = document.getElementById('refresh-tasks-btn');
     const retryBtn = document.getElementById('retry-tasks-btn');
+    const createTaskBtn = document.getElementById('create-task-btn');
     const sprintFilter = document.getElementById('sprint-filter');
+    const createTaskModal = document.getElementById('create-task-modal');
+    const closeModalBtn = document.getElementById('close-modal-btn');
+    const cancelTaskBtn = document.getElementById('cancel-task-btn');
+    const createTaskForm = document.getElementById('create-task-form');
 
     if (connectBtn) {
         connectBtn.addEventListener('click', () => {
@@ -27,6 +32,104 @@
             window.vscode.postMessage({ command: 'retryTasks' });
         });
     }
+
+    // Create Task Button - Open Modal
+    if (createTaskBtn) {
+        createTaskBtn.addEventListener('click', () => {
+            if (createTaskModal) {
+                createTaskModal.style.display = 'flex';
+                // Focus on summary input
+                const summaryInput = document.getElementById('task-summary');
+                if (summaryInput) {
+                    setTimeout(() => summaryInput.focus(), 100);
+                }
+            }
+        });
+    }
+
+    // Close Modal Handlers
+    function closeModal() {
+        if (createTaskModal) {
+            createTaskModal.style.display = 'none';
+            // Reset form
+            if (createTaskForm) {
+                createTaskForm.reset();
+            }
+        }
+    }
+
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', closeModal);
+    }
+
+    if (cancelTaskBtn) {
+        cancelTaskBtn.addEventListener('click', closeModal);
+    }
+
+    // Close modal when clicking overlay
+    if (createTaskModal) {
+        createTaskModal.addEventListener('click', (e) => {
+            if (e.target.classList.contains('modal-overlay')) {
+                closeModal();
+            }
+        });
+    }
+
+    // Handle form submission
+    if (createTaskForm) {
+        createTaskForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            // Collect form data
+            const formData = new FormData(createTaskForm);
+            const taskData = {
+                summary: formData.get('summary'),
+                description: formData.get('description') || '',
+                issuetype: formData.get('issuetype') || 'Task',
+                priority: formData.get('priority') || ''
+            };
+
+            // Validate summary
+            if (!taskData.summary || taskData.summary.trim() === '') {
+                return; // HTML5 validation should catch this
+            }
+
+            // Show loading state
+            const submitBtn = document.getElementById('submit-task-btn');
+            if (submitBtn) {
+                submitBtn.classList.add('loading');
+                submitBtn.disabled = true;
+            }
+
+            // Send message to extension
+            window.vscode.postMessage({
+                command: 'createTask',
+                taskData: taskData
+            });
+        });
+    }
+
+    // Listen for task creation success/failure
+    const originalMessageHandler = window.addEventListener;
+    window.addEventListener('message', function(event) {
+        const message = event.data;
+        if (message.command === 'taskCreated') {
+            // Success - close modal and reset form
+            closeModal();
+            const submitBtn = document.getElementById('submit-task-btn');
+            if (submitBtn) {
+                submitBtn.classList.remove('loading');
+                submitBtn.disabled = false;
+            }
+        } else if (message.command === 'taskCreationFailed') {
+            // Error - just remove loading state, keep modal open
+            const submitBtn = document.getElementById('submit-task-btn');
+            if (submitBtn) {
+                submitBtn.classList.remove('loading');
+                submitBtn.disabled = false;
+            }
+        }
+    });
 
     if (sprintFilter) {
         sprintFilter.addEventListener('change', (e) => {

@@ -75,8 +75,12 @@
                 </select>
             </div>
             <div class="tasks-actions">
+                <button class="button small" id="create-task-btn" title="Create new task">
+                    <span class="button-icon"></span>
+                    Create Task
+                </button>
                 <button class="button small" id="refresh-tasks-btn" title="Refresh tasks">
-                    <span class="button-icon">🔄</span>
+                    <span class="button-icon"></span>
                     Refresh
                 </button>
             </div>
@@ -97,6 +101,72 @@
             <h3>Unable to Load Tasks</h3>
             <p id="error-message">An error occurred while fetching tasks.</p>
             <button class="button" id="retry-tasks-btn">Try Again</button>
+        </div>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div id="create-task-modal" class="modal" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Task</h3>
+                <button class="modal-close" id="close-modal-btn" title="Close">&times;</button>
+            </div>
+            <form id="create-task-form">
+                <div class="form-group">
+                    <label for="task-summary">Summary <span class="required">*</span></label>
+                    <input
+                        type="text"
+                        id="task-summary"
+                        name="summary"
+                        required
+                        placeholder="Enter task summary"
+                        maxlength="255"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="task-description">Description</label>
+                    <textarea
+                        id="task-description"
+                        name="description"
+                        rows="4"
+                        placeholder="Enter task description (optional)"
+                    ></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="task-type">Issue Type</label>
+                        <select id="task-type" name="issuetype">
+                            <option value="Task">Task</option>
+                            <option value="Story">Story</option>
+                            <option value="Bug">Bug</option>
+                            <option value="Epic">Epic</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="task-priority">Priority</label>
+                        <select id="task-priority" name="priority">
+                            <option value="">None</option>
+                            <option value="Highest">Highest</option>
+                            <option value="High">High</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="Low">Low</option>
+                            <option value="Lowest">Lowest</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="button secondary" id="cancel-task-btn">Cancel</button>
+                    <button type="submit" class="button primary" id="submit-task-btn">
+                        <span class="button-icon">✓</span>
+                        Create Task
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 </div>

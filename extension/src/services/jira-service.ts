@@ -573,4 +573,119 @@ export class JiraService {
             throw new Error(`Failed to transition issue: ${error.message}`);
         }
     }
+
+    /**
+     * Creates a new issue in Jira.
+     */
+    public async createIssue(teamId: string, taskData: any): Promise<JiraIssue> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            // Build the issue payload according to Jira REST API v3 format
+            const issuePayload: any = {
+                fields: {
+                    project: {
+                        key: config.jira_project_key
+                    },
+                    summary: taskData.summary,
+                    issuetype: {
+                        name: taskData.issuetype || 'Task'
+                    }
+                }
+            };
+
+            // Add optional description if provided
+            if (taskData.description) {
+                // Jira Cloud uses Atlassian Document Format (ADF) for descriptions
+                issuePayload.fields.description = {
+                    type: 'doc',
+                    version: 1,
+                    content: [
+                        {
+                            type: 'paragraph',
+                            content: [
+                                {
+                                    type: 'text',
+                                    text: taskData.description
+                                }
+                            ]
+                        }
+                    ]
+                };
+            }
+
+            // Add optional priority if provided
+            if (taskData.priority) {
+                issuePayload.fields.priority = {
+                    name: taskData.priority
+                };
+            }
+
+            console.log('Creating Jira issue with payload:', JSON.stringify(issuePayload, null, 2));
+
+            // Create the issue
+            const response = await axios.post(
+                `${config.jira_url}/rest/api/3/issue`,
+                issuePayload,
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 15000
+                }
+            );
+
+            console.log('Issue created successfully:', response.data);
+
+            // Fetch the full issue details to return
+            const issueKey = response.data.key;
+            const issueResponse = await axios.get(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}`,
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json'
+                    },
+                    params: {
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,description'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            return issueResponse.data;
+
+        } catch (error: any) {
+            console.error('Failed to create Jira issue:', {
+                status: error.response?.status,
+                statusText: error.response?.statusText,
+                data: error.response?.data,
+                message: error.message
+            });
+
+            // Provide detailed error messages
+            if (error.response?.status === 400) {
+                const errorMessages = error.response.data?.errors || {};
+                const errorKeys = Object.keys(errorMessages);
+                if (errorKeys.length > 0) {
+                    const firstError = errorMessages[errorKeys[0]];
+                    throw new Error(`Validation error: ${firstError}`);
+                }
+                throw new Error('Invalid issue data. Please check your input and try again.');
+            } else if (error.response?.status === 401) {
+                throw new Error('Jira authentication failed. Please reconfigure the integration.');
+            } else if (error.response?.status === 403) {
+                throw new Error('Permission denied. You may not have permission to create issues in this project.');
+            } else if (error.response?.status === 404) {
+                throw new Error('Jira project not found. Please check the project configuration.');
+            } else {
+                throw new Error(`Failed to create issue: ${error.message}`);
+            }
+        }
+    }
 }
