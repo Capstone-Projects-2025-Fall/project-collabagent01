@@ -670,14 +670,15 @@
 			if (activityType === 'live_share_started') {
 				// Green circle for session start
 				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#4caf50; border-radius:50%; margin-right:6px;"></span>Live';
-				// No buttons for started events
-				buttons = '';
+				// Show View Initial Snapshot button for started events
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
+				`;
 			} else if (activityType === 'live_share_ended') {
 				// Red circle for session end
 				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#f44336; border-radius:50%; margin-right:6px;"></span>Live';
-				// Show View Changes and View Summary (initial snapshot available for Live Share)
+				// Show View Changes and View Summary (removed View Initial Snapshot)
 				buttons = `
-					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
 					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
 				`;

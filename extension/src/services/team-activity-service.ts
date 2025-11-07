@@ -37,6 +37,7 @@ export async function fetchTeamActivity(teamId: string, limit = 25): Promise<{ s
  * @param eventType - Type of event: 'live_share_started' | 'live_share_joined'
  * @param displayName - The display name of the user
  * @param sessionId - Optional session ID for reference
+ * @param snapshotId - Optional snapshot ID for the initial workspace snapshot (used for started events)
  * @returns Promise with success status
  */
 export async function insertLiveShareActivity(
@@ -44,7 +45,8 @@ export async function insertLiveShareActivity(
   userId: string,
   eventType: 'live_share_started' | 'live_share_joined',
   displayName: string,
-  sessionId?: string
+  sessionId?: string,
+  snapshotId?: string
 ): Promise<{ success: boolean; error?: string; summary?: string }> {
   try {
     const url = new URL(`${BASE_URL}/api/ai/live_share_event`);
@@ -54,7 +56,8 @@ export async function insertLiveShareActivity(
       session_id: sessionId,
       team_id: teamId,
       user_id: userId,
-      display_name: displayName
+      display_name: displayName,
+      snapshot_id: snapshotId  // Include snapshot ID for linking to initial snapshot
     };
 
     console.log('[TeamActivityService] Sending Live Share event to backend:', payload);

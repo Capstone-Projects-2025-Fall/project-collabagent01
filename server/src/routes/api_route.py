@@ -257,6 +257,7 @@ def live_share_event():
     event_header = f"{display_name} started hosting a Live Share session, join up and collaborate"
     activity_type = "live_share_started"
     summary = None  # No AI summary yet for started events
+    source_snapshot_id = body.get("snapshot_id")  # Link to initial workspace snapshot
 
   # Handle session end event
   elif event_type == "ended":
@@ -296,7 +297,7 @@ def live_share_event():
 
     activity_type = "live_share_ended"
     summary = None  # Will be filled by edge function with AI summary
-    source_snapshot_id = body.get("snapshot_id")  # Will be provided by frontend
+    source_snapshot_id = body.get("snapshot_id")  # Link to git diff snapshot
 
   else:
     return jsonify({"error": "Invalid event_type. Must be 'started' or 'ended'"}), 400
@@ -308,7 +309,7 @@ def live_share_event():
     "event_header": event_header,  # Preset descriptive header
     "summary": summary,  # AI summary (null initially, filled by edge function)
     "file_path": f"session:{session_id}" if session_id else None,
-    "source_snapshot_id": source_snapshot_id if event_type == "ended" else None,
+    "source_snapshot_id": source_snapshot_id,  # Link snapshot for both started and ended events
     "activity_type": activity_type,
   }
   out = sb_insert("team_activity_feed", feed_row)

@@ -265,7 +265,9 @@ export class LiveShareManager {
 
                 // Track Live Share event in team activity feed
                 const eventType = isHost ? 'live_share_started' : 'live_share_joined';
-                this.insertLiveShareEvent(eventType, session.id);
+                // For hosts, pass the baseline snapshot ID to link the initial workspace snapshot
+                const snapshotIdToPass = (isHost && baselineSnapshotId) ? baselineSnapshotId : undefined;
+                this.insertLiveShareEvent(eventType, session.id, snapshotIdToPass);
             }
 
 
@@ -431,10 +433,12 @@ export class LiveShareManager {
      * Inserts a Live Share event into the team activity feed
      * @param eventType - Type of event: 'live_share_started' | 'live_share_joined'
      * @param sessionId - Optional session ID for reference
+     * @param snapshotId - Optional snapshot ID for the initial workspace snapshot (for started events)
      */
     private async insertLiveShareEvent(
         eventType: 'live_share_started' | 'live_share_joined',
-        sessionId?: string
+        sessionId?: string,
+        snapshotId?: string
     ) {
         try {
             // Get current team ID
@@ -464,7 +468,8 @@ export class LiveShareManager {
                 user.id,
                 eventType,
                 displayName,
-                sessionId
+                sessionId,
+                snapshotId  // Pass snapshot ID for linking to initial snapshot
             );
 
             if (result.success) {
