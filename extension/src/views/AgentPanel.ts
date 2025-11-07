@@ -121,6 +121,21 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         } else {
             this._userTeams = result.teams || [];
         }
+
+        // Auto-select the only team when user is only apart of one team and has folder relating to team open
+        try {
+            const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+            const hasWorkspace = !!(vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0);
+            if (!currentTeamId && hasWorkspace && this._userTeams.length === 1) {
+                const onlyTeam = this._userTeams[0];
+                const validation = this.validateTeamProject(onlyTeam);
+                if (validation.isMatch) {
+                    this._context.globalState.update(this._teamStateKey, onlyTeam.id);
+                }
+            }
+        } catch (e) {
+        }
+
         this.postTeamInfo();
     }
 
