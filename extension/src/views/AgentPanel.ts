@@ -424,9 +424,16 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             
             if (result.error) {
                 vscode.window.showErrorMessage(`Failed to join team: ${result.error}`);
+            } else if (result.alreadyMember && result.team) {
+                vscode.window.showInformationMessage(`You're already a member of team "${result.team.lobby_name}"`);
+
+                // Ensures selection is set to that team for convenience
+                await this.refreshTeams();
+                await this._context.globalState.update(this._teamStateKey, result.team.id);
+                this.postTeamInfo();
             } else if (result.team) {
                 vscode.window.showInformationMessage(`Successfully joined team "${result.team.lobby_name}"`);
-                
+
                 // Refresh teams and set new team as current
                 await this.refreshTeams();
                 await this._context.globalState.update(this._teamStateKey, result.team.id);
