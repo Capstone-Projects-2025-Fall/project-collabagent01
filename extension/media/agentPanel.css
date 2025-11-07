@@ -294,31 +294,38 @@
   font-style: italic;
 }
 
-/* Tasks Panel Styles */
+/* Tasks Panel Styles - Modernized */
 .tasks-container {
-  padding: 12px;
+  padding: 16px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .tasks-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-  border-bottom: 1px solid var(--vscode-textBlockQuote-border);
-  padding-bottom: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 2px solid var(--vscode-panel-border);
 }
 
 .tasks-header h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 600;
-  color: var(--vscode-textLink-foreground);
+  color: var(--vscode-foreground);
   flex: 1;
+  letter-spacing: 0.3px;
 }
 
 .tasks-status {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--vscode-descriptionForeground);
+  padding: 6px 12px;
+  background: var(--vscode-badge-background);
+  border-radius: 12px;
 }
 
 /* Setup and Waiting Cards */

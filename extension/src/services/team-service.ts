@@ -138,6 +138,10 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
         }).single();
 
         if (rpcError || !teamData) {
+            // Check for duplicate team name error
+            if (rpcError?.message?.includes('DUPLICATE_TEAM_NAME')) {
+                return { error: 'A team with this name already exists. Please choose a different team name.' };
+            }
             return { error: `Failed to create team: ${rpcError?.message || 'Unknown error'}` };
         }
 

@@ -550,6 +550,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const mainStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'mainPanel.css'));
             const liveShareStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.css'));
             const agentStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.css'));
+            const tasksStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'tasksPanel.css'));
             const profileStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'profilePanel.css'));
             const nonce = Date.now().toString();
 
@@ -567,6 +568,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{MAIN_STYLE_URI}}', mainStyleUri.toString())
                 .replace('{{LIVESHARE_STYLE_URI}}', liveShareStyleUri.toString())
                 .replace('{{AGENT_STYLE_URI}}', agentStyleUri.toString())
+                .replace('{{TASKS_STYLE_URI}}', tasksStyleUri.toString())
                 .replace('{{PROFILE_STYLE_URI}}', profileStyleUri.toString())
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)

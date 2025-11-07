@@ -7,6 +7,7 @@
 <link href="{{MAIN_STYLE_URI}}" rel="stylesheet" />
 <link href="{{LIVESHARE_STYLE_URI}}" rel="stylesheet" />
 <link href="{{AGENT_STYLE_URI}}" rel="stylesheet" />
+<link href="{{TASKS_STYLE_URI}}" rel="stylesheet" />
 <link href="{{PROFILE_STYLE_URI}}" rel="stylesheet" />
 </head>
 <body>
@@ -65,6 +66,12 @@
         if (tab === 'tasks') {
             console.log('[MainPanel] Tasks tab visible - requesting tasks state refresh');
             vscode.postMessage({ command: 'tasksWebviewReady' });
+        }
+
+        // Notify extension that profile tab became visible (to load profile data)
+        if (tab === 'profile') {
+            console.log('[MainPanel] Profile tab visible - requesting profile data');
+            vscode.postMessage({ command: 'loadProfile' });
         }
     }
 
