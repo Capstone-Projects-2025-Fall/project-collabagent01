@@ -169,7 +169,7 @@ export async function createTeam(lobbyName: string): Promise<{ team?: Team; join
 
 //Joins a team using a join code
 
-export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?: string }> {
+export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?: string; alreadyMember?: boolean }> {
     try {
         // Check authentication
         const { context: user, error: authError } = await getAuthContext();
@@ -209,6 +209,18 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
 
         if (teamError || !teamData) {
             return { error: `Invalid join code or team not found${teamError ? `: ${teamError.message}` : ''}` };
+        }
+
+        // If the user is already a member of this team, returns a already apart of team status
+        const { data: existingMembership } = await supabase
+            .from('team_membership')
+            .select('id')
+            .eq('team_id', teamData.id)
+            .eq('user_id', authUser.id)
+            .maybeSingle();
+
+        if (existingMembership) {
+            return { team: teamData, alreadyMember: true };
         }
 
         // CRITICAL: Validate that user's current project matches team's project

@@ -121,6 +121,21 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         } else {
             this._userTeams = result.teams || [];
         }
+
+        // Auto-select the only team when user is only apart of one team and has folder relating to team open
+        try {
+            const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+            const hasWorkspace = !!(vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0);
+            if (!currentTeamId && hasWorkspace && this._userTeams.length === 1) {
+                const onlyTeam = this._userTeams[0];
+                const validation = this.validateTeamProject(onlyTeam);
+                if (validation.isMatch) {
+                    this._context.globalState.update(this._teamStateKey, onlyTeam.id);
+                }
+            }
+        } catch (e) {
+        }
+
         this.postTeamInfo();
     }
 
@@ -409,9 +424,16 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             
             if (result.error) {
                 vscode.window.showErrorMessage(`Failed to join team: ${result.error}`);
+            } else if (result.alreadyMember && result.team) {
+                vscode.window.showInformationMessage(`You're already a member of team "${result.team.lobby_name}"`);
+
+                // Ensures selection is set to that team for convenience
+                await this.refreshTeams();
+                await this._context.globalState.update(this._teamStateKey, result.team.id);
+                this.postTeamInfo();
             } else if (result.team) {
                 vscode.window.showInformationMessage(`Successfully joined team "${result.team.lobby_name}"`);
-                
+
                 // Refresh teams and set new team as current
                 await this.refreshTeams();
                 await this._context.globalState.update(this._teamStateKey, result.team.id);

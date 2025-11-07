@@ -9,7 +9,6 @@
 
 </div>
 
-
 ## Keywords
 
 Section #, as well as any words that quickly give your peers insights into the application like programming language, development platform, type of application, etc.
@@ -32,7 +31,100 @@ The background will contain a more detailed description of the product and a com
 
 ## Required Resources
 
-Discuss what you need to develop this project. This includes background information you will need to acquire, hardware resources, and software resources. If these are not part of the standard Computer Science Department lab resources, these must be identified early and discussed with the instructor.
+Visual Studio Code
+
+GitHub Account for OAuth 
+
+VsCode Live Share extension for real-time collaboration
+
+Gemini API Key
+
+Supabase for data management
+
+
+## Getting Started with Collab Agent 01 for Peer Review
+
+This guide will walk you through installing the extension from the VS Code Marketplace and logging in with your GitHub account.
+
+### Step 1: Install the Extension
+1. Launch Visual Studio Code.
+
+2. Click the Extensions icon in the Activity Bar (the vertical toolbar on the far-left side of your window).
+
+3. In the search bar that appears, type: Collab Agent 01.
+
+4. Find the extension in the search results. Verify that you are installing the correct version (e.g., version 0.4.1).
+
+5. Click the blue Install button.
+
+6. Once installed, a new Collab Agent 01 icon (it looks like three people) will appear in your Activity Bar.
+
+7. Click this new icon to open the extension's main panel.
+
+### Step 2: Sign In with GitHub
+Important: The email login option is not currently working. Please follow these steps to log in using GitHub.
+
+1. In the Collab Agent 01 panel you just opened, find the "Sign Up/Login" button.
+
+2. Click the button and choose Sign In (do not select "Sign Up").
+
+3. On the next screen, click the "Sign In with GitHub" button.
+
+4. VS Code will ask for permission to open an external website. Click Open.
+
+5. Your web browser will open to a GitHub authorization page. Click the green Authorize button.
+
+6. After authorizing, your browser will likely show a pop-up: "This site is trying to open Visual Studio Code." Click Open.
+
+7. Finally, VS Code will show one last confirmation: "Allow 'Collab Agent 01' extension to open this URI?". Click Open.
+
+You should now be successfully logged in to the extension. 
+
+
+### How to Create and Join a Team
+Before you can create or join a team, everyone must complete one critical prerequisite.
+
+Important Prerequisite (For ALL Team Members)
+
+This extension links a team to a specific code repository. Therefore, every member (both the creator and the joiners) must follow these steps first:
+
+Choose any Repository that is linked to GitHub: For example, you can create a new, empty repository on GitHub just for this purpose.
+
+Clone the Repository: Every team member must git clone that exact same repository to their local computer.
+
+Open the Folder in VS Code: Launch VS Code and open the folder you just cloned (using File > Open Folder...).
+
+Ensure It's the Only Folder: This is critical. Your cloned repository folder must be the only folder open in your VS Code window. The extension will not work correctly if you have multiple folders open in a "Workspace."
+
+Log In: Make sure you are logged into the Collab Agent 01 extension with your GitHub account.
+
+### Section 1: How to Create a Team (For the Team Leader)
+Only one person needs to create the team.
+
+Click the Collab Agent 01 icon in the Activity Bar (the three-person logo).
+
+In the panel that opens, find and click on the "AgentBot" tab.
+
+Click the "Create Team" button.
+
+A 6-digit team code will be generated.
+
+Share this 6-digit code with the team members who will be joining.
+
+### Section 2: How to Join a Team (For Team Members)
+Everyone else who wants to join the team should follow these steps.
+
+Confirm you have completed the "Important Prerequisite" steps listed above.
+
+Click the Collab Agent 01 icon in the Activity Bar.
+
+In the panel that opens, click on the "AgentBot" tab.
+
+Click the "Join Team" button.
+
+A box will appear. Enter the 6-digit code provided by your team leader.
+
+You should now be successfully connected to the team!
 
 ## Collaborators
 Benjamin O'Neill, Andrew Rush, Jaryn Hernandez, Nicholas Phillips, Alphin Shajan
