@@ -604,3 +604,105 @@ export async function leaveTeam(teamId: string): Promise<{ success: boolean; err
         return { success: false, error: `Leave team failed: ${error}` };
     }
 }
+
+// Gets all members of a team (only accessible to team members)
+export interface TeamMember {
+    id: string;
+    userId: string;
+    role: 'member' | 'admin';
+    joinedAt: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+}
+
+export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMember[]; error?: string }> {
+    try {
+        // Check authentication
+        const { context: user, error: authError } = await getAuthContext();
+        if (authError || !user?.isAuthenticated) {
+            return { error: 'User must be authenticated to view team members' };
+        }
+
+        const supabase = await getSupabaseClient();
+
+        // Get current user's auth ID
+        const { data: currentUser, error: getUserErr } = await supabase.auth.getUser();
+        if (getUserErr || !currentUser.user) {
+            return { error: 'User not authenticated' };
+        }
+
+        // Verify that the current user is a member of this team (security check)
+        const { data: userMembership, error: membershipErr } = await supabase
+            .from('team_membership')
+            .select('id')
+            .eq('team_id', teamId)
+            .eq('user_id', currentUser.user.id)
+            .maybeSingle();
+
+        if (membershipErr || !userMembership) {
+            return { error: 'You must be a member of this team to view its members' };
+        }
+
+        // Create an RPC function call to fetch team members with user data
+        // This uses a stored procedure that can access auth.users with proper permissions
+        const { data: rpcData, error: rpcError } = await supabase
+            .rpc('get_team_members_with_users', { p_team_id: teamId });
+
+        if (rpcError) {
+            // If RPC doesn't exist, fall back to basic query without user details
+            console.warn('[getTeamMembers] RPC function not available, using fallback:', rpcError);
+
+            const { data: fallbackData, error: fallbackError } = await supabase
+                .from('team_membership')
+                .select('id, user_id, role, joined_at')
+                .eq('team_id', teamId)
+                .order('role', { ascending: false })
+                .order('joined_at', { ascending: true });
+
+            if (fallbackError) {
+                return { error: `Failed to fetch team members: ${fallbackError.message}` };
+            }
+
+            // Return members with just user IDs (no names/emails)
+            const members: TeamMember[] = fallbackData.map((membership: any) => ({
+                id: membership.id,
+                userId: membership.user_id,
+                role: membership.role,
+                joinedAt: membership.joined_at,
+                email: membership.user_id, // Use user ID as fallback
+                firstName: undefined,
+                lastName: undefined
+            }));
+
+            return { members };
+        }
+
+        // Transform RPC response into TeamMember format
+        const members: TeamMember[] = rpcData.map((row: any) => {
+            let firstName: string | undefined;
+            let lastName: string | undefined;
+
+            // Parse full_name from user metadata if available
+            if (row.full_name) {
+                const nameParts = row.full_name.split(' ');
+                firstName = nameParts[0];
+                lastName = nameParts.slice(1).join(' ') || undefined;
+            }
+
+            return {
+                id: row.membership_id,
+                userId: row.user_id,
+                role: row.role,
+                joinedAt: row.joined_at,
+                email: row.email || 'Unknown',
+                firstName,
+                lastName
+            };
+        });
+
+        return { members };
+    } catch (error) {
+        return { error: `Failed to get team members: ${error}` };
+    }
+}

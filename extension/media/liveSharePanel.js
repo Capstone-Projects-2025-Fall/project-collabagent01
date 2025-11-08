@@ -201,7 +201,7 @@
 				appendAIMessage(message.text);
 				break;
 			case 'updateTeamInfo':
-				updateTeamInfo(message.team, message.userId);
+				updateTeamInfo(message.team, message.userId, message.teamMembers);
 				break;
 			case 'teamInfo': // fallback when no workspace is open
 				updateTeamInfo(message.teamInfo, undefined);
@@ -234,9 +234,10 @@
 		}
 	});
 
-	function updateTeamInfo(team, userId) {
+	function updateTeamInfo(team, userId, teamMembers) {
 		console.log('Updating team info:', team);
-		
+		console.log('Team members received:', teamMembers);
+
 		const teamName = document.getElementById('teamName');
 		const teamRole = document.getElementById('teamRole');
 		const teamJoinCode = document.getElementById('teamJoinCode');
@@ -245,10 +246,10 @@
 		const leaveTeamBtn = document.getElementById('leaveTeamBtn');
 		const fsTeamId = document.getElementById('fs-teamId');
 		const fsUserId = document.getElementById('fs-userId');
-		
+
 		if (teamName) teamName.textContent = team?.name ?? '—';
 		if (teamRole) teamRole.textContent = team?.role ?? '—';
-		
+
 		// Show/hide join code section based on whether user has a team
 		if (teamJoinCode && joinCodeSection) {
 			if (team?.joinCode && team.name !== 'No Team') {
@@ -269,10 +270,91 @@
 			}
 		}
 
+		// Update Team Members section
+		const teamMembersSection = document.getElementById('teamMembersSection');
+		const memberCount = document.getElementById('memberCount');
+		const membersList = document.getElementById('membersList');
+
+		console.log('[liveSharePanel] Team Members Debug:', {
+			hasSection: !!teamMembersSection,
+			hasCount: !!memberCount,
+			hasList: !!membersList,
+			teamMembers: teamMembers,
+			teamMembersLength: teamMembers?.length,
+			teamName: team?.name
+		});
+
+		if (teamMembersSection && memberCount && membersList) {
+			if (teamMembers && teamMembers.length > 0 && team?.name && team.name !== 'No Team') {
+				console.log('[liveSharePanel] Showing Team Members section with', teamMembers.length, 'members');
+				// Show the team members section
+				teamMembersSection.style.display = 'block';
+				memberCount.textContent = teamMembers.length;
+
+				// Clear existing members
+				membersList.innerHTML = '';
+
+				// Add each member to the list
+				teamMembers.forEach(member => {
+					const memberItem = document.createElement('div');
+					memberItem.className = 'member-item';
+
+					// Format name - show first name + last name if available, otherwise email
+					let displayName = member.email;
+					if (member.firstName || member.lastName) {
+						displayName = [member.firstName, member.lastName].filter(Boolean).join(' ');
+					}
+
+					// Format joined date
+					const joinedDate = new Date(member.joinedAt);
+					const formattedDate = joinedDate.toLocaleDateString('en-US', {
+						month: 'short',
+						day: 'numeric',
+						year: 'numeric'
+					});
+
+					memberItem.innerHTML = `
+						<span class="member-role-badge ${member.role}">${member.role}</span>
+						<div class="member-info">
+							<div class="member-name">${displayName}</div>
+							<div class="member-email">${member.email}</div>
+						</div>
+						<div class="member-joined">Joined ${formattedDate}</div>
+					`;
+
+					membersList.appendChild(memberItem);
+				});
+			} else {
+				console.log('[liveSharePanel] Hiding Team Members section');
+				teamMembersSection.style.display = 'none';
+			}
+		} else {
+			console.error('[liveSharePanel] Team Members elements not found:', {
+				hasSection: !!teamMembersSection,
+				hasCount: !!memberCount,
+				hasList: !!membersList
+			});
+		}
+
 		if (fsTeamId) fsTeamId.value = team?.id || '';
 		if (fsUserId && userId) fsUserId.value = userId;
 		persistFsIds({ userId: (fsUserId && fsUserId.value) || '', teamId: (fsTeamId && fsTeamId.value) || '' });
 	}
+
+	// Toggle team members list
+	window.toggleTeamMembers = function() {
+		const membersList = document.getElementById('membersList');
+		const toggleIcon = document.querySelector('.members-toggle-icon');
+		if (membersList && toggleIcon) {
+			const isHidden = membersList.style.display === 'none';
+			membersList.style.display = isHidden ? 'block' : 'none';
+			if (isHidden) {
+				toggleIcon.classList.add('expanded');
+			} else {
+				toggleIcon.classList.remove('expanded');
+			}
+		}
+	};
 
 	function appendAIMessage(text) {
 		const chatLog = document.getElementById('ai-chat-log');

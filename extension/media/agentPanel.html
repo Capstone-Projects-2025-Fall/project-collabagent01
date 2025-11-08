@@ -24,6 +24,19 @@
         <div id="teamProduct">
             <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
             <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
+
+            <!-- Team Members Section -->
+            <div id="teamMembersSection" style="display:none;">
+                <div id="teamMembersHeader" class="team-members-header" onclick="toggleTeamMembers()">
+                    <span class="members-toggle-icon">▶</span>
+                    <strong>Team Members:</strong>
+                    <span id="memberCount" class="member-count">0</span>
+                </div>
+                <div id="membersList" class="members-list" style="display:none;">
+                    <!-- Members will be dynamically inserted here -->
+                </div>
+            </div>
+
             <div id="projectStatus" style="display:none; margin-top:4px;">
                 <div id="projectStatusIndicator" style="font-size:12px;"></div>
             </div>

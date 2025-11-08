@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, type TeamWithMembership } from '../services/team-service';
+import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, getTeamMembers, type TeamWithMembership, type TeamMember } from '../services/team-service';
 import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
 
 /**
@@ -217,11 +217,23 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 userId = res?.context?.id || null;
             } catch {}
 
+            // Fetch team members if we have an active team
+            let teamMembers: TeamMember[] = [];
+            if (currentTeam) {
+                const membersResult = await getTeamMembers(currentTeam.id);
+                if (!membersResult.error && membersResult.members) {
+                    teamMembers = membersResult.members;
+                } else if (membersResult.error) {
+                    console.warn('[AgentPanel] Failed to fetch team members:', membersResult.error);
+                }
+            }
+
             console.log('[AgentPanel] Sending updateTeamInfo to webview:', {
                 command: 'updateTeamInfo',
                 team: teamInfo,
                 userId,
-                allTeamsCount: this._userTeams.length
+                allTeamsCount: this._userTeams.length,
+                teamMembersCount: teamMembers.length
             });
 
             this._view?.webview.postMessage({
@@ -233,7 +245,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 name: t.lobby_name,
                 role: t.role === 'admin' ? 'Admin' : 'Member',
                 joinCode: t.join_code
-            }))
+            })),
+                teamMembers: teamMembers
             });
         })();
     }

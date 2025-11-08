@@ -15,11 +15,36 @@
   const deleteBtn = () => document.getElementById('deleteTeamBtn');
   const leaveBtn = () => document.getElementById('leaveTeamBtn');
 
+  // Toggle team members list
+  window.toggleTeamMembers = function() {
+    const membersList = document.getElementById('membersList');
+    const toggleIcon = document.querySelector('.members-toggle-icon');
+
+    if (membersList && toggleIcon) {
+      const isHidden = membersList.style.display === 'none';
+      membersList.style.display = isHidden ? 'block' : 'none';
+
+      if (isHidden) {
+        toggleIcon.classList.add('expanded');
+      } else {
+        toggleIcon.classList.remove('expanded');
+      }
+    }
+  };
+
   function initializeButtons() {
     console.log('Initializing Agent Panel buttons');
-    
+
+    // Team Members toggle handler
+    const teamMembersHeader = document.getElementById('teamMembersHeader');
+    if (teamMembersHeader && !teamMembersHeader.hasAttribute('data-listener-added')) {
+      teamMembersHeader.addEventListener('click', window.toggleTeamMembers);
+      teamMembersHeader.setAttribute('data-listener-added', 'true');
+      console.log('Team Members toggle listener added');
+    }
+
     // Add event listeners with debug logging
-    const s = switchBtn(); 
+    const s = switchBtn();
     if (s && !s.hasAttribute('data-listener-added')) {
       s.addEventListener('click', () => {
         console.log('Switch Team button clicked');
@@ -360,6 +385,73 @@
         // Show delete button only for Admin; show leave button only for Members
         if (del) del.style.display = (m.team?.name && m.team?.role === 'Admin') ? 'inline-block' : 'none';
         if (leave) leave.style.display = (m.team?.name && m.team?.role === 'Member') ? 'inline-block' : 'none';
+
+        // Update Team Members section
+        const teamMembersSection = document.getElementById('teamMembersSection');
+        const memberCount = document.getElementById('memberCount');
+        const membersList = document.getElementById('membersList');
+
+        console.log('[agentPanel] Team Members Debug:', {
+          hasSection: !!teamMembersSection,
+          hasCount: !!memberCount,
+          hasList: !!membersList,
+          teamMembers: m.teamMembers,
+          teamMembersLength: m.teamMembers?.length,
+          teamName: m.team?.name
+        });
+
+        if (teamMembersSection && memberCount && membersList) {
+          if (m.teamMembers && m.teamMembers.length > 0 && m.team?.name && m.team.name !== 'No Team') {
+            console.log('[agentPanel] Showing Team Members section with', m.teamMembers.length, 'members');
+            // Show the team members section
+            teamMembersSection.style.display = 'block';
+            memberCount.textContent = m.teamMembers.length;
+
+            // Clear existing members
+            membersList.innerHTML = '';
+
+            // Add each member to the list
+            m.teamMembers.forEach(member => {
+              const memberItem = document.createElement('div');
+              memberItem.className = 'member-item';
+
+              // Format name - show first name + last name if available, otherwise email
+              let displayName = member.email;
+              if (member.firstName || member.lastName) {
+                displayName = [member.firstName, member.lastName].filter(Boolean).join(' ');
+              }
+
+              // Format joined date
+              const joinedDate = new Date(member.joinedAt);
+              const formattedDate = joinedDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric'
+              });
+
+              memberItem.innerHTML = `
+                <span class="member-role-badge ${member.role}">${member.role}</span>
+                <div class="member-info">
+                  <div class="member-name">${displayName}</div>
+                  <div class="member-email">${member.email}</div>
+                </div>
+                <div class="member-joined">Joined ${formattedDate}</div>
+              `;
+
+              membersList.appendChild(memberItem);
+            });
+
+            // Reinitialize toggle handler in case it was lost
+            const teamMembersHeader = document.getElementById('teamMembersHeader');
+            if (teamMembersHeader && !teamMembersHeader.hasAttribute('data-listener-added')) {
+              teamMembersHeader.addEventListener('click', window.toggleTeamMembers);
+              teamMembersHeader.setAttribute('data-listener-added', 'true');
+            }
+          } else {
+            // Hide the team members section if no team or no members
+            teamMembersSection.style.display = 'none';
+          }
+        }
 
         // Pre-fill IDs/time for File Snapshot section
         try {
