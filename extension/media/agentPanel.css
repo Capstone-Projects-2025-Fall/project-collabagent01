@@ -793,14 +793,14 @@
 	opacity: 0.8;
 }
 
-.members-toggle-icon {
+/* .members-toggle-icon {
 	font-size: 12px;
 	display: inline-block;
 	width: 16px;
 	transition: transform 0.2s ease;
 	color: var(--vscode-textLink-foreground);
 	font-weight: bold;
-}
+} */
 
 .members-toggle-icon.expanded {
 	transform: rotate(90deg);
@@ -893,6 +893,31 @@
 	font-style: italic;
 	margin-left: auto;
 	white-space: nowrap;
+}
+
+.member-skills {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	margin-top: 6px;
+}
+
+.skill-tag {
+	font-size: 10px;
+	padding: 2px 6px;
+	border-radius: 3px;
+	background: var(--vscode-charts-purple);
+	color: var(--vscode-editor-background);
+	font-weight: 500;
+	display: inline-block;
+	white-space: nowrap;
+}
+
+.skill-tag.no-skills {
+	background: var(--vscode-input-background);
+	color: var(--vscode-descriptionForeground);
+	border: 1px solid var(--vscode-editorWidget-border);
+	font-style: italic;
 }
 
 /* Scrollbar styling for members list */

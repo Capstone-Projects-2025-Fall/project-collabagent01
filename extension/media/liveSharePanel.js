@@ -299,10 +299,16 @@
 					const memberItem = document.createElement('div');
 					memberItem.className = 'member-item';
 
-					// Format name - show first name + last name if available, otherwise email
-					let displayName = member.email;
-					if (member.firstName || member.lastName) {
+					// Format name - Priority: displayName > full_name > email > userId
+					let displayName = member.displayName;
+					if (!displayName && (member.firstName || member.lastName)) {
 						displayName = [member.firstName, member.lastName].filter(Boolean).join(' ');
+					}
+					if (!displayName) {
+						displayName = member.email;
+					}
+					if (!displayName || displayName === 'Unknown') {
+						displayName = member.userId;
 					}
 
 					// Format joined date
@@ -313,11 +319,21 @@
 						year: 'numeric'
 					});
 
+					// Format skills
+					let skillsHtml = '';
+					if (member.skills && member.skills.length > 0) {
+						const skillTags = member.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('');
+						skillsHtml = `<div class="member-skills">${skillTags}</div>`;
+					} else {
+						skillsHtml = '<div class="member-skills"><span class="skill-tag no-skills">Skills: None</span></div>';
+					}
+
 					memberItem.innerHTML = `
 						<span class="member-role-badge ${member.role}">${member.role}</span>
 						<div class="member-info">
 							<div class="member-name">${displayName}</div>
 							<div class="member-email">${member.email}</div>
+							${skillsHtml}
 						</div>
 						<div class="member-joined">Joined ${formattedDate}</div>
 					`;
@@ -1291,9 +1307,10 @@
 					checkbox.checked = true;
 				}
 			});
-			
-			const predefinedInterests = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 
-				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Testing'];
+	
+			const predefinedInterests = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 'Swift',
+				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Cloud', 'Security', 'Testing',
+				'API', 'Documentation', 'Debugging'];
 			const customInterests = profile.interests.filter(i => !predefinedInterests.includes(i));
 			if (customInterests.length > 0) {
 				const customInput = document.getElementById('custom-interests');
@@ -1310,9 +1327,10 @@
 					checkbox.checked = true;
 				}
 			});
-			
-			const predefinedWeaknesses = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 
-				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Testing'];
+	
+			const predefinedWeaknesses = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 'Swift',
+				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Cloud', 'Security', 'Testing',
+				'API', 'Documentation', 'Debugging'];
 			const customWeaknesses = profile.weaknesses.filter(w => !predefinedWeaknesses.includes(w));
 			if (customWeaknesses.length > 0) {
 				const customInput = document.getElementById('custom-weaknesses');

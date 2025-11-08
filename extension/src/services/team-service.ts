@@ -614,6 +614,8 @@ export interface TeamMember {
     email: string;
     firstName?: string;
     lastName?: string;
+    displayName?: string;
+    skills?: string[];
 }
 
 export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMember[]; error?: string }> {
@@ -650,7 +652,7 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
             .rpc('get_team_members_with_users', { p_team_id: teamId });
 
         if (rpcError) {
-            // If RPC doesn't exist, fall back to basic query without user details
+            // If RPC doesn't exist, fall back to basic query
             console.warn('[getTeamMembers] RPC function not available, using fallback:', rpcError);
 
             const { data: fallbackData, error: fallbackError } = await supabase
@@ -661,19 +663,52 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
                 .order('joined_at', { ascending: true });
 
             if (fallbackError) {
+                console.error('[getTeamMembers] Fallback query failed:', fallbackError);
                 return { error: `Failed to fetch team members: ${fallbackError.message}` };
             }
 
-            // Return members with just user IDs (no names/emails)
-            const members: TeamMember[] = fallbackData.map((membership: any) => ({
-                id: membership.id,
-                userId: membership.user_id,
-                role: membership.role,
-                joinedAt: membership.joined_at,
-                email: membership.user_id, // Use user ID as fallback
-                firstName: undefined,
-                lastName: undefined
-            }));
+            // Fetch user profiles separately
+            const userIds = fallbackData.map((m: any) => m.user_id);
+            const { data: profilesData, error: profilesError } = await supabase
+                .from('user_profiles')
+                .select('user_id, name, strengths, interests')
+                .in('user_id', userIds);
+
+            console.log('[getTeamMembers] Profiles data fetched:', profilesData);
+            if (profilesError) {
+                console.error('[getTeamMembers] Error fetching profiles:', profilesError);
+            }
+
+            // Create a map of profiles
+            const profilesMap = new Map(profilesData?.map((p: any) => [p.user_id, p]) || []);
+
+            // Return members with user_profiles data
+            const members: TeamMember[] = fallbackData.map((membership: any) => {
+                const profile = profilesMap.get(membership.user_id) as any;
+                console.log('[getTeamMembers] Profile for user', membership.user_id, ':', profile);
+
+                // Try strengths first, then interests, handle both array and null
+                let skills: string[] = [];
+                if (profile?.strengths && Array.isArray(profile.strengths) && profile.strengths.length > 0) {
+                    skills = profile.strengths;
+                } else if (profile?.interests && Array.isArray(profile.interests) && profile.interests.length > 0) {
+                    skills = profile.interests;
+                }
+
+                console.log('[getTeamMembers] Skills for user', membership.user_id, ':', skills);
+
+                return {
+                    id: membership.id,
+                    userId: membership.user_id,
+                    role: membership.role,
+                    joinedAt: membership.joined_at,
+                    email: membership.user_id, // Fallback - no auth.users access
+                    displayName: profile?.name || undefined,
+                    skills: skills,
+                    firstName: undefined,
+                    lastName: undefined
+                };
+            });
 
             return { members };
         }
@@ -690,16 +725,47 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
                 lastName = nameParts.slice(1).join(' ') || undefined;
             }
 
+            // Get skills from user profile if available (from enhanced RPC)
+            const skills = row.strengths || row.interests || [];
+
             return {
                 id: row.membership_id,
                 userId: row.user_id,
                 role: row.role,
                 joinedAt: row.joined_at,
                 email: row.email || 'Unknown',
+                displayName: row.display_name || row.full_name || undefined,
                 firstName,
-                lastName
+                lastName,
+                skills: Array.isArray(skills) ? skills : []
             };
         });
+
+        // Fetch user profiles for skills if not already included in RPC response
+        if (members.length > 0 && !rpcData[0]?.strengths && !rpcData[0]?.interests) {
+            console.log('[getTeamMembers] RPC did not include skills, fetching from user_profiles...');
+            const userIds = members.map(m => m.userId);
+
+            const { data: profilesData, error: profilesError } = await supabase
+                .from('user_profiles')
+                .select('user_id, name, strengths, interests')
+                .in('user_id', userIds);
+
+            if (!profilesError && profilesData) {
+                // Map profiles to members
+                const profilesMap = new Map(profilesData.map((p: any) => [p.user_id, p]));
+
+                members.forEach(member => {
+                    const profile = profilesMap.get(member.userId) as any;
+                    if (profile) {
+                        member.skills = profile.strengths || profile.interests || [];
+                        if (!member.displayName && profile.name) {
+                            member.displayName = profile.name;
+                        }
+                    }
+                });
+            }
+        }
 
         return { members };
     } catch (error) {
