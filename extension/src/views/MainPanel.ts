@@ -383,35 +383,85 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
     private async handleLoadProfile() {
         try {
-            const { getAuthContext } = require('../services/auth-service');
+            const { getAuthContext, setAuthContext } = require('../services/auth-service');
             const authResult = await getAuthContext();
 
             if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
                 console.log('User not authenticated, cannot load profile');
+                this._view?.webview.postMessage({
+                    command: 'profileLoadError',
+                    error: 'Not authenticated'
+                });
                 return;
             }
 
-            const user = authResult.context;
+            let user = authResult.context;
+
+            // Migration fix: If auth_token is missing, try to get it from Supabase session
+            if (!user.auth_token) {
+                console.log('Auth token missing, attempting to refresh from Supabase session...');
+                const { getSupabase } = require('../auth/supabaseClient');
+                const supabase = getSupabase();
+                const { data: sessionData } = await supabase.auth.getSession();
+                const token = sessionData?.session?.access_token;
+
+                if (token) {
+                    console.log('Found token in Supabase session, refreshing user data...');
+                    const { getUserByID } = require('../api/user-api');
+                    const { user: refreshedUser, error: refreshError } = await getUserByID(token);
+
+                    if (!refreshError && refreshedUser) {
+                        await setAuthContext(refreshedUser);
+                        user = refreshedUser;
+                        console.log('User context refreshed with auth_token');
+                    } else {
+                        console.error('Failed to refresh user data:', refreshError);
+                        this._view?.webview.postMessage({
+                            command: 'profileLoadError',
+                            error: 'Failed to refresh authentication'
+                        });
+                        return;
+                    }
+                } else {
+                    console.error('No token found in Supabase session');
+                    this._view?.webview.postMessage({
+                        command: 'profileLoadError',
+                        error: 'Auth token missing - please sign out and sign in again'
+                    });
+                    return;
+                }
+            }
+
             const { BASE_URL } = require('../api/types/endpoints');
 
             const response = await fetch(`${BASE_URL}/api/profile?user_id=${user.id}`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer ${user.auth_token || ''}`
+                    'Authorization': `Bearer ${user.auth_token}`
                 }
             });
 
             if (response.ok) {
                 const result = await response.json();
+                console.log('Profile loaded successfully');
                 this._view?.webview.postMessage({
                     command: 'profileLoaded',
                     profile: result.profile
                 });
             } else {
-                console.error('Failed to load profile:', await response.text());
+                const errorText = await response.text();
+                console.error('Failed to load profile:', errorText);
+                this._view?.webview.postMessage({
+                    command: 'profileLoadError',
+                    error: errorText
+                });
             }
         } catch (err) {
             console.error('Error loading profile:', err);
+            this._view?.webview.postMessage({
+                command: 'profileLoadError',
+                error: err instanceof Error ? err.message : 'Unknown error'
+            });
         }
     }
 

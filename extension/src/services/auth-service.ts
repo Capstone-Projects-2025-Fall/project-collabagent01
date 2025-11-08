@@ -76,14 +76,17 @@ export async function checkUserSignIn() {
     return;
   }
 
-  await getUserByID(user.id).then(async ({ user, error }) => {
+  // Get the current session token from Supabase
+  const supabase = getSupabase();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token || user.auth_token || user.id;
+
+  await getUserByID(token).then(async ({ user: refreshedUser, error }) => {
     if (error) {
       console.warn(`Failed to get user data during startup: ${error}`);
-      // Don't show intrusive error popup during extension activation
-      // Just log the issue and continue
       return;
     }
-    setAuthContext(user);
+    setAuthContext(refreshedUser);
   });
 
   if (user.isAuthenticated) {

@@ -15,11 +15,13 @@ from .routes.notes_route import notes_bp
 from .routes.api_route import ai_bp
 from .routes.jira_route import jira_bp
 from .routes.profile_route import profile_bp
+from .routes.user_route import user_bp
 
 app.register_blueprint(notes_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(jira_bp)
 app.register_blueprint(profile_bp)
+app.register_blueprint(user_bp)
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))

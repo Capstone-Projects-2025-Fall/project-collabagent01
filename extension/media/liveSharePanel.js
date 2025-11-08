@@ -1114,8 +1114,6 @@
 			saveBtn.setAttribute('data-listener-added', 'true');
 			console.log('Profile save button listener added');
 		}
-
-		loadProfileData();
 	}
 
 	function handleSaveProfile() {
@@ -1162,13 +1160,16 @@
 
 	window.addEventListener('message', event => {
 		const message = event.data;
-		
+
 		switch (message.command) {
 			case 'profileSaved':
 				handleProfileSaved(message);
 				break;
 			case 'profileLoaded':
 				handleProfileLoaded(message);
+				break;
+			case 'profileLoadError':
+				handleProfileLoadError(message);
 				break;
 		}
 	});
@@ -1238,5 +1239,9 @@
 				}
 			}
 		}
+	}
+
+	function handleProfileLoadError(message) {
+		console.error('Failed to load profile:', message.error);
 	}
 })();
