@@ -709,6 +709,14 @@
 			</div>
 			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
 				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
+				<select id="activityFilterDropdown" class="dropdown" title="Filter events by type" style="padding:4px 8px; font-size:12px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); border-radius:4px; cursor:pointer;">
+					<option value="all">All</option>
+					<option value="ai_task_recommendation">Task Delegation</option>
+					<option value="initial_snapshot">Initial Snapshot</option>
+					<option value="changes">Changes</option>
+					<option value="live_share_started">Started Live Share</option>
+					<option value="live_share_ended">Ended Live Share</option>
+				</select>
 				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
 			</div>
 			<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
@@ -719,6 +727,12 @@
 		if (refresh && !refresh.hasAttribute('data-listener-added')){
 			refresh.addEventListener('click', requestActivityFeed);
 			refresh.setAttribute('data-listener-added','true');
+		}
+
+		const filterDropdown = document.getElementById('activityFilterDropdown');
+		if (filterDropdown && !filterDropdown.hasAttribute('data-listener-added')){
+			filterDropdown.addEventListener('change', filterActivityFeed);
+			filterDropdown.setAttribute('data-listener-added','true');
 		}
 
 		// initial load if a team is present
@@ -735,6 +749,13 @@
 		post('loadActivityFeed', { teamId, limit: 25 });
 	}
 
+	function filterActivityFeed(){
+		// Re-render the activity feed with the current filter applied
+		if (currentActivityItems && currentActivityItems.length > 0) {
+			renderActivityFeed(currentActivityItems);
+		}
+	}
+
 	function renderActivityFeed(items){
 		const list = document.getElementById('activityList');
 		if (!list) return;
@@ -747,7 +768,41 @@
 			showActivityFeedback('');
 			return;
 		}
-		const html = items.map((it, index)=>{
+
+		// Apply filter based on dropdown selection
+		const filterDropdown = document.getElementById('activityFilterDropdown');
+		const filterValue = filterDropdown ? filterDropdown.value : 'all';
+
+		let filteredItems = items;
+		if (filterValue !== 'all') {
+			filteredItems = items.filter(it => {
+				const activityType = it.activity_type || 'file_snapshot';
+				const hasSnapshot = it.snapshot && Object.keys(it.snapshot || {}).length > 0;
+				const hasChanges = it.changes && it.changes.trim().length > 0 && it.changes !== '{}';
+
+				// Map filter value to activity type or condition
+				if (filterValue === 'ai_task_recommendation') {
+					return activityType === 'ai_task_recommendation';
+				} else if (filterValue === 'initial_snapshot') {
+					return activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges);
+				} else if (filterValue === 'changes') {
+					return hasChanges && activityType !== 'live_share_ended';
+				} else if (filterValue === 'live_share_started') {
+					return activityType === 'live_share_started';
+				} else if (filterValue === 'live_share_ended') {
+					return activityType === 'live_share_ended';
+				}
+				return true;
+			});
+		}
+
+		if (!filteredItems.length){
+			list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No activities match the selected filter.</div>';
+			showActivityFeedback('');
+			return;
+		}
+
+		const html = filteredItems.map((it, index)=>{
 			const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
 			// Use display_name from backend with fallback priority: display_name -> email -> user_id
 		const who = it.display_name || it.user_email || (it.user_id ? it.user_id.substring(0,8)+'…' : '');
@@ -766,15 +821,15 @@
 			const hasChanges = it.changes && it.changes.trim().length > 0 && it.changes !== '{}';
 
 			if (activityType === 'live_share_started') {
-				// Green circle for session start
-				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#4caf50; border-radius:50%; margin-right:6px;"></span>Live';
+				// Bright green tag for session start
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; background-color:#4caf50; color:#ffffff; border-radius:4px; margin-right:6px;">Started Live Share</span>';
 				// Show View Initial Snapshot button for started events
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
 				`;
 			} else if (activityType === 'live_share_ended') {
-				// Red circle for session end
-				icon = '<span style="display:inline-block; width:10px; height:10px; background-color:#f44336; border-radius:50%; margin-right:6px;"></span>Live';
+				// Red tag for session end
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; background-color:#f44336; color:#ffffff; border-radius:4px; margin-right:6px;">Ended Live Share</span>';
 				// Show View Changes and View Summary (removed View Initial Snapshot)
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
