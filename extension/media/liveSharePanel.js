@@ -780,6 +780,13 @@
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
 					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
 				`;
+			} else if (activityType === 'ai_task_recommendation') {
+				// Purple badge for AI task recommendations
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';
+				// Show View Reason button
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewTaskReason('${it.id}')" title="View AI's reasoning for this recommendation">View Reason</button>
+				`;
 			} else if (activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges)) {
 				// INITIAL SNAPSHOT: Has full snapshot, no changes
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #4caf50; color:#4caf50; border-radius:4px; margin-right:6px;">Initial Snapshot</span>';
@@ -896,6 +903,26 @@
 			showSummaryModal(activity.summary, activity.event_header || 'Activity');
 		} else {
 			console.log('No AI summary available for this activity');
+			console.log('Activity data:', activity);
+		}
+	};
+
+	window.viewTaskReason = function(activityId) {
+		console.log('View task recommendation reason for activity:', activityId);
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Check if this activity has a summary (reason)
+		if (activity.summary) {
+			// Show the AI's reasoning in a modal
+			showSummaryModal(activity.summary, activity.event_header || 'Task Recommendation');
+		} else {
+			console.log('No reason available for this task recommendation');
 			console.log('Activity data:', activity);
 		}
 	};
