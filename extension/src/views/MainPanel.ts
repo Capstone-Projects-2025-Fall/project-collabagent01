@@ -174,7 +174,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'loadSprint',
             'loadBacklog',
             'transitionIssue',
-            'createTask'
+            'createTask',
+            'getAISuggestions'
         ].includes(command);
     }
 
@@ -295,6 +296,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'createTask':
                 await this._tasksPanel.handleCreateTask(message.taskData);
+                break;
+            case 'getAISuggestions':
+                await this._tasksPanel.handleGetAISuggestions();
                 break;
             default:
                 console.log('Unknown tasks command:', message.command);

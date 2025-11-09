@@ -9,6 +9,7 @@
     const refreshBtn = document.getElementById('refresh-tasks-btn');
     const retryBtn = document.getElementById('retry-tasks-btn');
     const createTaskBtn = document.getElementById('create-task-btn');
+    const aiSuggestionsBtn = document.getElementById('ai-suggestions-btn');
     const sprintFilter = document.getElementById('sprint-filter');
     const createTaskModal = document.getElementById('create-task-modal');
     const closeModalBtn = document.getElementById('close-modal-btn');
@@ -30,6 +31,26 @@
     if (retryBtn) {
         retryBtn.addEventListener('click', () => {
             window.vscode.postMessage({ command: 'retryTasks' });
+        });
+    }
+
+    // AI Suggestions Button - Get AI recommendations for unassigned tasks
+    if (aiSuggestionsBtn) {
+        aiSuggestionsBtn.addEventListener('click', () => {
+            // Disable button and show loading state
+            aiSuggestionsBtn.disabled = true;
+            aiSuggestionsBtn.classList.add('loading');
+            const originalText = aiSuggestionsBtn.innerHTML;
+            aiSuggestionsBtn.innerHTML = '<span class="button-icon"></span>Analyzing...';
+
+            window.vscode.postMessage({ command: 'getAISuggestions' });
+
+            // Re-enable button after 3 seconds (in case no response)
+            setTimeout(() => {
+                aiSuggestionsBtn.disabled = false;
+                aiSuggestionsBtn.classList.remove('loading');
+                aiSuggestionsBtn.innerHTML = originalText;
+            }, 30000); // 30 second timeout
         });
     }
 
@@ -109,7 +130,7 @@
         });
     }
 
-    // Listen for task creation success/failure
+    // Listen for task creation success/failure and AI suggestions completion
     const originalMessageHandler = window.addEventListener;
     window.addEventListener('message', function(event) {
         const message = event.data;
@@ -127,6 +148,14 @@
             if (submitBtn) {
                 submitBtn.classList.remove('loading');
                 submitBtn.disabled = false;
+            }
+        } else if (message.command === 'aiSuggestionsComplete' || message.command === 'aiSuggestionsFailed') {
+            // Reset AI Suggestions button state
+            const aiBtn = document.getElementById('ai-suggestions-btn');
+            if (aiBtn) {
+                aiBtn.disabled = false;
+                aiBtn.classList.remove('loading');
+                aiBtn.innerHTML = '<span class="button-icon"></span>Get AI Suggestions';
             }
         }
     });

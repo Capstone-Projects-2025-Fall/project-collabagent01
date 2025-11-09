@@ -378,7 +378,7 @@ def skill_summary():
         })
 
         count = len(profiles) if profiles else 0
-        
+
         if count == 0:
             return jsonify({
                 "skill": skill,
@@ -405,14 +405,14 @@ def skill_summary():
         ])
 
         prompt = textwrap.dedent(f"""
-            You are a team coordinator AI. Summarize the following users who have "{skill}" 
+            You are a team coordinator AI. Summarize the following users who have "{skill}"
             in their profile. Provide a brief, actionable summary highlighting:
             1. Total count of users with this skill
             2. Their key strengths and interests related to {skill}
             3. Suggestions for task delegation based on their profiles
-            
+
             Keep it concise (2-3 sentences).
-            
+
             USERS:
             {user_list}
         """).strip()
@@ -429,4 +429,188 @@ def skill_summary():
         }), 200
 
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@ai_bp.post("/task_recommendations")
+def task_recommendations():
+    """
+    AI-powered task recommendations: analyzes unassigned Jira tasks and suggests
+    the best team member to complete each task based on their skills.
+    Posts recommendations to the team activity timeline.
+
+    Request body:
+    {
+        "team_id": "uuid",
+        "user_id": "uuid",  # User who triggered the analysis
+        "unassigned_tasks": [
+            {
+                "key": "PROJ-123",
+                "summary": "Create authentication page",
+                "description": "..."
+            }
+        ]
+    }
+
+    Returns: JSON with success status and count of recommendations posted
+    """
+    body = request.get_json(force=True) or {}
+    team_id = body.get("team_id")
+    user_id = body.get("user_id")
+    unassigned_tasks = body.get("unassigned_tasks", [])
+
+    if not team_id:
+        return jsonify({"error": "team_id is required"}), 400
+
+    if not user_id:
+        return jsonify({"error": "user_id is required"}), 400
+
+    if not unassigned_tasks or len(unassigned_tasks) == 0:
+        return jsonify({
+            "message": "No unassigned tasks to analyze",
+            "recommendations_count": 0
+        }), 200
+
+    try:
+        # Fetch team members with their skills
+        team_members = sb_select("team_membership", {
+            "select": "user_id,role",
+            "team_id": f"eq.{team_id}"
+        })
+
+        if not team_members or len(team_members) == 0:
+            return jsonify({"error": "No team members found"}), 404
+
+        # Get user IDs for profile lookup
+        user_ids = [m.get("user_id") for m in team_members]
+
+        # Fetch user profiles with skills
+        profiles = sb_select("user_profiles", {
+            "select": "user_id,name,interests,strengths,custom_skills",
+            "user_id": f"in.({','.join(user_ids)})"
+        })
+
+        # Build team members list with skills
+        members_with_skills = []
+        for profile in profiles:
+            # Combine all skills from strengths and interests
+            skills = []
+            if profile.get("strengths"):
+                skills.extend(profile.get("strengths"))
+            if profile.get("interests"):
+                skills.extend(profile.get("interests"))
+            if profile.get("custom_skills"):
+                skills.extend(profile.get("custom_skills"))
+
+            # Remove duplicates
+            skills = list(set(skills))
+
+            if skills:  # Only include members with skills
+                members_with_skills.append({
+                    "name": profile.get("name") or "Unknown",
+                    "user_id": profile.get("user_id"),
+                    "skills": skills
+                })
+
+        if not members_with_skills or len(members_with_skills) == 0:
+            return jsonify({
+                "error": "No team members with skills found. Please ensure team members have set up their profiles."
+            }), 400
+
+        # Build AI prompt for task-to-member matching
+        tasks_text = "\n".join([
+            f"Task {i+1}: [{task.get('key')}] {task.get('summary')}" +
+            (f" - {task.get('description')[:200]}" if task.get('description') else "")
+            for i, task in enumerate(unassigned_tasks[:10])  # Limit to 10 tasks to avoid token limits
+        ])
+
+        members_text = "\n".join([
+            f"- {member['name']}: {', '.join(member['skills'])}"
+            for member in members_with_skills
+        ])
+
+        prompt = textwrap.dedent(f"""
+            You are a smart task assignment AI. Analyze the following unassigned Jira tasks and recommend
+            the best team member to complete each task based on their skills.
+
+            TEAM MEMBERS AND THEIR SKILLS:
+            {members_text}
+
+            UNASSIGNED TASKS:
+            {tasks_text}
+
+            For each task, provide:
+            1. The task key (e.g., PROJ-123)
+            2. The recommended team member's name
+            3. A brief reason (1 sentence) explaining why they're the best match
+
+            Format your response EXACTLY as follows for each task (one per line):
+            TASK_KEY|MEMBER_NAME|REASON
+
+            Example:
+            PROJ-123|Sarah|Sarah has Security and Authentication skills needed for this login page
+            PROJ-124|Bob|Bob's UI/UX and HTML/CSS expertise make him ideal for frontend work
+
+            Provide recommendations for all tasks listed above.
+        """).strip()
+
+        # Call AI model
+        resp = advance_model.generate_content(prompt)
+        ai_response = (resp.text or "").strip()
+
+        if not ai_response:
+            return jsonify({"error": "AI model returned empty response"}), 500
+
+        # Parse AI response and post to timeline
+        recommendations_posted = 0
+        lines = ai_response.split('\n')
+
+        for line in lines:
+            line = line.strip()
+            if not line or '|' not in line:
+                continue
+
+            parts = line.split('|')
+            if len(parts) != 3:
+                continue
+
+            task_key = parts[0].strip()
+            recommended_member = parts[1].strip()
+            reason = parts[2].strip()
+
+            # Find the task details
+            task_details = next((t for t in unassigned_tasks if t.get('key') == task_key), None)
+            if not task_details:
+                continue
+
+            # Create a summary for the timeline
+            summary = f"AI suggests {recommended_member} for task {task_key}: {task_details.get('summary')}"
+            event_header = f"Task Recommendation: {task_key} → {recommended_member}"
+
+            # Post to team activity feed
+            feed_row = {
+                "team_id": team_id,
+                "user_id": user_id,  # User who triggered the analysis
+                "event_header": event_header,
+                "summary": reason,  # The AI's reasoning
+                "file_path": task_key,  # Store task key for reference
+                "activity_type": "ai_task_recommendation"
+            }
+
+            try:
+                sb_insert("team_activity_feed", feed_row)
+                recommendations_posted += 1
+            except Exception as e:
+                print(f"Failed to insert recommendation for {task_key}: {e}")
+                continue
+
+        return jsonify({
+            "success": True,
+            "recommendations_count": recommendations_posted,
+            "message": f"Posted {recommendations_posted} task recommendations to timeline",
+            "model": ADVANCE_MODEL
+        }), 201
+
+    except Exception as e:
+        print(f"Error in task_recommendations: {e}")
         return jsonify({"error": str(e)}), 500

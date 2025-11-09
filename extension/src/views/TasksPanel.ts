@@ -447,4 +447,95 @@ export class TasksPanel {
             this._view?.webview.postMessage({ command: 'taskCreationFailed' });
         }
     }
+
+    /**
+     * Handles AI task recommendations for unassigned tasks.
+     * Fetches unassigned tasks, calls AI API to get recommendations,
+     * and posts them to the team activity timeline.
+     */
+    public async handleGetAISuggestions() {
+        if (!this._currentTeamId || !this._view) {
+            vscode.window.showErrorMessage('No team selected or view not available.');
+            this._view?.webview.postMessage({ command: 'aiSuggestionsFailed' });
+            return;
+        }
+
+        try {
+            // Show loading message
+            vscode.window.showInformationMessage('🤖 Analyzing unassigned tasks...');
+
+            const jiraService = JiraService.getInstance();
+
+            // Fetch all team issues
+            const allIssues = await jiraService.fetchTeamIssues(this._currentTeamId);
+
+            // Filter for unassigned tasks
+            const unassignedTasks = allIssues.filter(issue => !issue.fields.assignee);
+
+            if (unassignedTasks.length === 0) {
+                vscode.window.showInformationMessage('No unassigned tasks found.');
+                this._view.webview.postMessage({ command: 'aiSuggestionsComplete' });
+                return;
+            }
+
+            // Get current user ID for the API call
+            const { getAuthContext } = require('../services/auth-service');
+            const authResult = await getAuthContext();
+            const userId = authResult?.context?.id;
+
+            if (!userId) {
+                throw new Error('Unable to get user authentication context');
+            }
+
+            // Prepare task data for AI analysis
+            const tasksForAI = unassignedTasks.map(task => ({
+                key: task.key,
+                summary: task.fields.summary,
+                description: task.fields.description || ''
+            }));
+
+            // Call the AI recommendations API
+            const response = await fetch('http://localhost:5000/api/ai/task_recommendations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    team_id: this._currentTeamId,
+                    user_id: userId,
+                    unassigned_tasks: tasksForAI
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to get AI recommendations');
+            }
+
+            const result = await response.json();
+
+            // Show success message
+            if (result.recommendations_count > 0) {
+                vscode.window.showInformationMessage(
+                    `✅ AI posted ${result.recommendations_count} task recommendation(s) to the timeline!`
+                );
+            } else {
+                vscode.window.showInformationMessage(
+                    'AI analysis complete, but no recommendations were generated.'
+                );
+            }
+
+            // Notify webview that operation is complete
+            this._view.webview.postMessage({ command: 'aiSuggestionsComplete' });
+
+        } catch (error) {
+            console.error('Failed to get AI suggestions:', error);
+            vscode.window.showErrorMessage(
+                `Failed to get AI suggestions: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+
+            // Notify webview that operation failed
+            this._view?.webview.postMessage({ command: 'aiSuggestionsFailed' });
+        }
+    }
 }
