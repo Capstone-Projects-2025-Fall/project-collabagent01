@@ -313,8 +313,8 @@ export class JiraService {
             }
 
             // Step 2: Fetch full details for each issue
-            // Limit to first 20 to avoid too many requests
-            const limitedIds = issueIds.slice(0, 20);
+            // Limit to first 100 to show more tasks
+            const limitedIds = issueIds.slice(0, 100);
             const issueDetailsPromises = limitedIds.map(async (issue: any) => {
                 const issueUrl = `${config.jira_url}/rest/api/3/issue/${issue.id}`;
                 try {

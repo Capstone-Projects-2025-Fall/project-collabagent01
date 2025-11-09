@@ -462,7 +462,7 @@ export class TasksPanel {
 
         try {
             // Show loading message
-            vscode.window.showInformationMessage('🤖 Analyzing unassigned tasks...');
+            vscode.window.showInformationMessage('Analyzing unassigned tasks...');
 
             const jiraService = JiraService.getInstance();
 

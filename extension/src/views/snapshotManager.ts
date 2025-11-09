@@ -11,7 +11,7 @@ type FileMap = Record<string, string>;
 export class SnapshotManager {
   private supabase: SupabaseClient;
   private idleTimer: NodeJS.Timeout | null = null;
-  private IDLE_DELAY = 60_000; // 60s idle window (increased from 30s)
+  private IDLE_DELAY = 20_000; // 20s idle window for demo
 
   // Thresholds for creating new snapshots
   private LINES_THRESHOLD = 50;  // Minimum lines changed

@@ -584,8 +584,9 @@ def task_recommendations():
                 continue
 
             # Create a summary for the timeline
-            summary = f"AI suggests {recommended_member} for task {task_key}: {task_details.get('summary')}"
-            event_header = f"Task Recommendation: {task_key} → {recommended_member}"
+            task_summary = task_details.get('summary', '')
+            summary = f"AI suggests {recommended_member} for task {task_key}: {task_summary}"
+            event_header = f"Task Recommendation: {task_key}: {task_summary} → {recommended_member}"
 
             # Post to team activity feed
             feed_row = {
