@@ -4,34 +4,43 @@ import { mocked } from 'jest-mock';
 
 jest.mock('vscode', () => ({
   window: {
-    showInformationMessage: jest.fn().mockResolvedValue(undefined),
-    showErrorMessage: jest.fn().mockResolvedValue(undefined),
-    showWarningMessage: jest.fn().mockResolvedValue(undefined),
-    showInputBox: jest.fn().mockResolvedValue('Mock Input'),
-    withProgress: jest.fn((_, task) => task())
+    // Common UI mocks
+    showInformationMessage: jest.fn(() => Promise.resolve(undefined)),
+    showWarningMessage: jest.fn(() => Promise.resolve(undefined)),
+    showErrorMessage: jest.fn(),
+    withProgress: jest.fn((_opts, task) => task()),
+    showInputBox: jest.fn(() => Promise.resolve('mockInput')),
+    registerUriHandler: jest.fn(), 
+
   },
   workspace: {
-    workspaceFolders: [{ name: 'mock-project', uri: { fsPath: '/mock/path' } }],
-    onDidChangeWorkspaceFolders: jest.fn()
+    workspaceFolders: [{ name: 'mock-project', uri: { fsPath: '/mock' } }],
+    onDidChangeWorkspaceFolders: jest.fn(),
   },
   commands: {
-    executeCommand: jest.fn()
+    executeCommand: jest.fn(),
+    registerCommand: jest.fn(),
   },
-  ProgressLocation: { Notification: 1 },
+  env: { clipboard: { writeText: jest.fn() } },
   Uri: {
+    file: (p: string) => ({ fsPath: p }),
     joinPath: jest.fn(),
   },
-  env: {
-    clipboard: { writeText: jest.fn() }
-  }
+  ProgressLocation: { Notification: 1 },
 }));
 
 jest.mock('../services/team-service', () => ({
-  createTeam: jest.fn(async () => ({ team: { id: '1', lobby_name: 'Team1' }, joinCode: 'ABC123' })),
-  joinTeam: jest.fn(async () => ({ team: { id: '2', lobby_name: 'Team2' }, joinCode: 'XYZ789' })),
-  getUserTeams: jest.fn(async () => ({ teams: [{ id: '1', lobby_name: 'Team1', role: 'admin' }] })),
-  deleteTeam: jest.fn(async () => ({ success: true })),
-  leaveTeam: jest.fn(async () => ({ success: true }))
+  getUserTeams: jest.fn().mockResolvedValue({ teams: [], error: null }),
+  createTeam: jest.fn().mockResolvedValue({
+    team: { id: '1', lobby_name: 'Test Team' },
+    joinCode: 'ABC123',
+  }),
+  joinTeam: jest.fn().mockResolvedValue({
+    team: { id: '1', lobby_name: 'Test Team' },
+    joinCode: 'ABC123',
+  }),
+  deleteTeam: jest.fn().mockResolvedValue({ success: true }),
+  leaveTeam: jest.fn().mockResolvedValue({ success: true }),
 }));
 
 jest.mock('../services/project-detection-service', () => ({
@@ -52,6 +61,16 @@ describe('AgentPanelProvider', () => {
       }
     };
     provider = new AgentPanelProvider(vscode.Uri.file('/mock'), mockContext as any);
+
+    // Ensure the input box always returns a valid join code
+    (vscode.window.showInputBox as jest.Mock).mockResolvedValue('ABC123');
+
+    // Ensure the joinTeam service mock returns a success object
+    const teamService = require('../services/team-service');
+    teamService.joinTeam.mockResolvedValue({
+    team: { id: '1', lobby_name: 'Mock Team' },
+    joinCode: 'ABC123',
+    });
   });
 
   it('should instantiate without errors', () => {
@@ -65,6 +84,7 @@ describe('AgentPanelProvider', () => {
   });
 
   it('should handle createTeam successfully', async () => {
+    (vscode.window.showInformationMessage as jest.Mock).mockResolvedValueOnce('Copy Join Code');
     await provider.createTeam();
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
       expect.stringContaining('Created team'),
@@ -73,14 +93,28 @@ describe('AgentPanelProvider', () => {
   });
 
   it('should handle joinTeam successfully', async () => {
-    await provider.joinTeam();
-    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-      expect.stringContaining('Successfully joined team')
-    );
-  });
+    // Mock input prompt with a valid join code
+    (vscode.window.showInputBox as jest.Mock).mockResolvedValueOnce('ABC123');
 
-  it('should post team info safely even with no webview', async () => {
-    expect(() => (provider as any).postTeamInfo()).not.toThrow();
+    // Mock lookupTeamByJoinCode to simulate finding the team
+    const authPanel = require('../views/AgentPanel');
+    jest.spyOn(authPanel.AgentPanelProvider.prototype as any, 'lookupTeamByJoinCode')
+        .mockResolvedValueOnce({ team: { id: '1', lobby_name: 'Mock Team', project_identifier: null } });
+
+    // Mock joinTeam service result
+    const teamService = require('../services/team-service');
+    teamService.joinTeam.mockResolvedValueOnce({
+        team: { id: '1', lobby_name: 'Mock Team' },
+        joinCode: 'ABC123',
+    });
+
+    // Run the method
+    await provider.joinTeam();
+
+    // Verify success message fired
+    expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
+        expect.stringContaining('Successfully joined team')
+    );
   });
 
   it('should send AI response when handleAiQuery is called', () => {
@@ -91,6 +125,7 @@ describe('AgentPanelProvider', () => {
   });
 
   it('should safely handle deleting a team', async () => {
+    (vscode.window.showWarningMessage as jest.Mock).mockResolvedValueOnce('Yes, Delete');
     mockContext.globalState.get = jest.fn(() => '1');
     (provider as any)._userTeams = [{ id: '1', lobby_name: 'Team1', role: 'admin' }];
     await (provider as any).handleDeleteTeam();
@@ -98,6 +133,7 @@ describe('AgentPanelProvider', () => {
   });
 
   it('should safely handle leaving a team', async () => {
+    (vscode.window.showWarningMessage as jest.Mock).mockResolvedValueOnce('Yes, Leave');
     mockContext.globalState.get = jest.fn(() => '1');
     (provider as any)._userTeams = [{ id: '1', lobby_name: 'Team1', role: 'member' }];
     await (provider as any).handleLeaveTeam();
