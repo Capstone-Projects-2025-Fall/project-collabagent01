@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for src/commands/test-commands.ts</title>
+    <title>Code coverage report for src/views/ProfilePanel.ts</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="../../prettify.css" />
     <link rel="stylesheet" href="../../base.css" />
@@ -19,34 +19,34 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/commands</a> test-commands.ts</h1>
+        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/views</a> ProfilePanel.ts</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">32.35% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/25</span>
+                <span class='fraction'>11/34</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/1</span>
+                <span class='fraction'>2/2</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">66.66% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/1</span>
+                <span class='fraction'>2/3</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">32.35% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/25</span>
+                <span class='fraction'>11/34</span>
             </div>
         
             
@@ -88,7 +88,25 @@
 <a name='L23'></a><a href='#L23'>23</a>
 <a name='L24'></a><a href='#L24'>24</a>
 <a name='L25'></a><a href='#L25'>25</a>
-<a name='L26'></a><a href='#L26'>26</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -112,32 +130,41 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >import * as vscode from "vscode";</span></span></span>
-<span class="cstat-no" title="statement not covered" >import { checkUserSignIn } from "../services/auth-service";</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import * as vscode from 'vscode';
+import * as fs from 'fs';
+&nbsp;
+export class ProfilePanel {
+    constructor(
+        private readonly extensionUri: vscode.Uri, 
+        private readonly context: vscode.ExtensionContext
+    ) {}
+&nbsp;
+    public <span class="fstat-no" title="function not covered" >async getHtml(webview: vscode.Webview): Promise&lt;string&gt; {</span>
+<span class="cstat-no" title="statement not covered" >        const profileStyleUri = webview.asWebviewUri(</span>
+<span class="cstat-no" title="statement not covered" >            vscode.Uri.joinPath(this.extensionUri, 'media', 'profilePanel.css')</span>
+<span class="cstat-no" title="statement not covered" >        );</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >/**</span>
-<span class="cstat-no" title="statement not covered" > * Registers a debug command to manually test suggestion generation.</span>
-<span class="cstat-no" title="statement not covered" > *</span>
-<span class="cstat-no" title="statement not covered" > * Prompts the user for a custom input prompt, fetches AI suggestions,</span>
-<span class="cstat-no" title="statement not covered" > * and displays the results in an information message.</span>
-<span class="cstat-no" title="statement not covered" > */</span>
-<span class="cstat-no" title="statement not covered" >export const testFetchCommand = { dispose() {} } as any;</span>
+<span class="cstat-no" title="statement not covered" >        const templatePath = vscode.Uri.joinPath(</span>
+<span class="cstat-no" title="statement not covered" >            this.extensionUri, </span>
+<span class="cstat-no" title="statement not covered" >            'media', </span>
+<span class="cstat-no" title="statement not covered" >            'profilePanel.html'</span>
+<span class="cstat-no" title="statement not covered" >        ).fsPath;</span>
+<span class="cstat-no" title="statement not covered" >        </span>
+<span class="cstat-no" title="statement not covered" >        let htmlTemplate = '';</span>
+<span class="cstat-no" title="statement not covered" >        try {</span>
+<span class="cstat-no" title="statement not covered" >            htmlTemplate = fs.readFileSync(templatePath, 'utf8');</span>
+<span class="cstat-no" title="statement not covered" >        } catch (e) {</span>
+<span class="cstat-no" title="statement not covered" >            console.error('Failed to read profilePanel.html:', e);</span>
+<span class="cstat-no" title="statement not covered" >            return '&lt;div&gt;Failed to load profile panel.&lt;/div&gt;';</span>
+<span class="cstat-no" title="statement not covered" >        }</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >/**</span>
-<span class="cstat-no" title="statement not covered" > * Registers a debug command to view the incorrect suggestions selected by a user.</span>
-<span class="cstat-no" title="statement not covered" > *</span>
-<span class="cstat-no" title="statement not covered" > * Retrieves stored incorrect choices and displays them in an information message.</span>
-<span class="cstat-no" title="statement not covered" > * (Currently uses a hardcoded test user ID.)</span>
-<span class="cstat-no" title="statement not covered" > */</span>
-<span class="cstat-no" title="statement not covered" >export const incorrectChoicesCommand = { dispose() {} } as any;</span>
+<span class="cstat-no" title="statement not covered" >        const html = htmlTemplate</span>
+<span class="cstat-no" title="statement not covered" >            .replace('{{PROFILE_STYLE_URI}}', profileStyleUri.toString());</span>
 <span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >/**</span>
-<span class="cstat-no" title="statement not covered" > * Registers a debug command to force a check of the user's authentication status.</span>
-<span class="cstat-no" title="statement not covered" > *</span>
-<span class="cstat-no" title="statement not covered" > * Useful for verifying if a user session is active or prompting reauthentication.</span>
-<span class="cstat-no" title="statement not covered" > */</span>
-<span class="cstat-no" title="statement not covered" >export const fetchSettingsCommand = { dispose() {} } as any;</span>
+<span class="cstat-no" title="statement not covered" >        return html;</span>
+<span class="cstat-no" title="statement not covered" >    }</span>
+}
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
