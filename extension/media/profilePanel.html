@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>User Profile</title>
+    <link href="{{PROFILE_STYLE_URI}}" rel="stylesheet" />
+</head>
+<body>
+    <div class="profile-container">
+        <div class="profile-header">
+            <h2>User Profile</h2>
+        </div>
+
+        <div class="profile-form">
+            <div class="form-section">
+                <label for="profile-name" class="form-label">Name</label>
+                <input type="text" id="profile-name" class="form-input" placeholder="Enter your name" />
+            </div>
+
+            <div class="form-section">
+                <div class="section-header">
+                    <label class="form-label">Interests & Strengths</label>
+                    <div class="section-actions">
+                        <div class="info-icon-wrapper">
+                            <svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                                <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                                <path d="M8 7v5M8 4v1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                            </svg>
+                            <div class="tooltip">
+                                Select your skills so AI can effectively assign Jira Tasks!
+                            </div>
+                        </div>
+                        <button id="clear-skills-btn" class="button secondary" type="button">Clear</button>
+                    </div>
+                </div>
+                <div class="checkbox-grid">
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Java" />
+                        <span>Java</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Python" />
+                        <span>Python</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="TypeScript" />
+                        <span>TypeScript</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="JavaScript" />
+                        <span>JavaScript</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="C++" />
+                        <span>C++</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="C#" />
+                        <span>C#</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Swift" />
+                        <span>Swift</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Frontend" />
+                        <span>Frontend</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Backend" />
+                        <span>Backend</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Database" />
+                        <span>Database</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="UI/UX" />
+                        <span>UI/UX</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="DevOps" />
+                        <span>DevOps</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Cloud" />
+                        <span>Cloud</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Security" />
+                        <span>Security</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Testing" />
+                        <span>Testing</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="API" />
+                        <span>API</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Documentation" />
+                        <span>Documentation</span>
+                    </label>
+                    <label class="checkbox-item">
+                        <input type="checkbox" name="interests" value="Debugging" />
+                        <span>Debugging</span>
+                    </label>
+                </div>
+                <div class="custom-input-section">
+                    <input type="text" id="custom-interests" class="form-input" placeholder="Add other interests (comma-separated)" />
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <div class="action-group">
+                    <button id="save-profile-btn" class="button primary">Save Profile</button>
+                    <button id="delete-account-btn" class="button danger">Delete Account</button>
+                </div>
+                <span id="profile-status" class="status-message"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Account Confirmation Modal -->
+    <div id="delete-modal" class="modal" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Delete Account</h3>
+                <button class="modal-close" id="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-warning">This action cannot be undone. All your data will be permanently deleted.</p>
+                <p class="modal-instruction">To confirm, please type <strong>DELETE</strong> below:</p>
+                <input type="text" id="delete-confirmation-input" class="form-input" placeholder="Type DELETE to confirm" autocomplete="off" />
+                <p id="delete-error" class="delete-error" style="display: none;">Please type DELETE to confirm</p>
+            </div>
+            <div class="modal-footer">
+                <button id="modal-cancel-btn" class="button secondary">Cancel</button>
+                <button id="modal-confirm-btn" class="button danger" disabled>Delete My Account</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Clear all skill checkboxes
+        document.getElementById('clear-skills-btn').addEventListener('click', function() {
+            const checkboxes = document.querySelectorAll('input[name="interests"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+
+        // Delete Account Modal Logic
+        const deleteModal = document.getElementById('delete-modal');
+        const deleteBtn = document.getElementById('delete-account-btn');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        const deleteInput = document.getElementById('delete-confirmation-input');
+        const deleteError = document.getElementById('delete-error');
+
+        // Open modal
+        deleteBtn.addEventListener('click', function() {
+            deleteModal.style.display = 'flex';
+            deleteInput.value = '';
+            deleteInput.focus();
+            modalConfirmBtn.disabled = true;
+            deleteError.style.display = 'none';
+        });
+
+        // Close modal functions
+        function closeModal() {
+            deleteModal.style.display = 'none';
+            deleteInput.value = '';
+            modalConfirmBtn.disabled = true;
+            deleteError.style.display = 'none';
+        }
+
+        modalCloseBtn.addEventListener('click', closeModal);
+        modalCancelBtn.addEventListener('click', closeModal);
+
+        // Close modal when clicking overlay
+        deleteModal.querySelector('.modal-overlay').addEventListener('click', closeModal);
+
+        // Enable/disable confirm button based on input
+        deleteInput.addEventListener('input', function() {
+            const inputValue = this.value.trim();
+            if (inputValue === 'DELETE') {
+                modalConfirmBtn.disabled = false;
+                deleteError.style.display = 'none';
+            } else {
+                modalConfirmBtn.disabled = true;
+            }
+        });
+
+        // Handle account deletion
+        modalConfirmBtn.addEventListener('click', function() {
+            const inputValue = deleteInput.value.trim();
+
+            if (inputValue === 'DELETE') {
+                // Send message to extension to delete account
+                const vscode = acquireVsCodeApi();
+                vscode.postMessage({
+                    command: 'deleteAccount'
+                });
+                closeModal();
+            } else {
+                deleteError.style.display = 'block';
+            }
+        });
+
+        // Allow Enter key to confirm if input is valid
+        deleteInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && this.value.trim() === 'DELETE') {
+                modalConfirmBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,176 @@
+<div class="tasks-container">
+    <div class="tasks-header">
+        <h2>Team Tasks</h2>
+        <div class="info-icon-wrapper">
+            <svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <text x="8" y="11.5" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">i</text>
+            </svg>
+            <div class="tooltip">
+                First, generate your Jira token:<br>Go to Jira in your browser &rarr; your Jira profile &rarr; manage your account &rarr; security tab &rarr; create and manage API tokens &rarr; generate a personal token <br><br> Once you have your token, return to VS Code and use Ctrl+Shift+P to open the command palette. Search for and select "Collab Agent: Connect to Jira" (or click the Jira button in the bottom status bar). When prompted, enter your Jira instance URL, your Jira email address, and paste your personal API token. Finally, select the correct project board from the project dropdown. Your Jira configuration will be saved, and the status bar will show a Jira icon with a checkmark to confirm the connection.
+            </div>
+        </div>
+    </div>
+    <div id="tasks-status" class="tasks-status">
+        <span id="status-text">Loading...</span>
+    </div>
+
+    <!-- Admin Setup UI -->
+    <div id="jira-setup" class="jira-setup" style="display: none;">
+        <div class="setup-card">
+            <h3>🔗 Connect to Jira</h3>
+            <p>Connect your team's Jira board to view and track tasks collaboratively.</p>
+            <div class="setup-steps">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <span>Ensure you have a Jira account with access to the team board</span>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <span>Use Command Palette or Status Bar to connect Jira</span>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <span>All team members will be able to view tasks</span>
+                </div>
+            </div>
+            <div class="command-info">
+                <p><strong>How to connect:</strong></p>
+                <ul>
+                    <li><strong>Command Palette:</strong> Ctrl+Shift+P → "Collab Agent: Connect to Jira"</li>
+                    <li><strong>Status Bar:</strong> Click the Jira icon in the bottom status bar</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Member Waiting UI -->
+    <div id="jira-waiting" class="jira-waiting" style="display: none;">
+        <div class="waiting-card">
+            <div class="waiting-icon">⏳</div>
+            <h3>Jira Integration Not Configured</h3>
+            <p>Please ask your team admin to set up the Jira integration.</p>
+            <div class="waiting-tip">
+                <strong>Tip:</strong> Once your admin connects Jira, all team members will be able to view and track tasks from the shared Jira board.
+            </div>
+        </div>
+    </div>
+
+    <!-- Tasks List UI -->
+    <div id="tasks-content" class="tasks-content" style="display: none;">
+        <div class="tasks-toolbar">
+            <div class="tasks-filters">
+                <select id="sprint-filter" class="filter-select">
+                    <option value="">All Issues</option>
+                    <option value="backlog">📋 Backlog</option>
+                </select>
+                <select id="status-filter" class="filter-select">
+                    <option value="">All Statuses</option>
+                    <option value="To Do">To Do</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Done">Done</option>
+                </select>
+                <select id="assignee-filter" class="filter-select">
+                    <option value="">All Assignees</option>
+                </select>
+            </div>
+            <div class="tasks-actions">
+                <button class="button small" id="create-task-btn" title="Create new task">
+                    <span class="button-icon"></span>
+                    Create Task
+                </button>
+                <button class="button small" id="ai-suggestions-btn" title="Get AI task recommendations">
+                    <span class="button-icon"></span>
+                    Get AI Suggestions
+                </button>
+                <button class="button small" id="refresh-tasks-btn" title="Refresh tasks">
+                    <span class="button-icon"></span>
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <div id="tasks-list" class="tasks-list">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <span>Loading tasks...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error State -->
+    <div id="tasks-error" class="tasks-error" style="display: none;">
+        <div class="error-card">
+            <div class="error-icon">⚠️</div>
+            <h3>Unable to Load Tasks</h3>
+            <p id="error-message">An error occurred while fetching tasks.</p>
+            <button class="button" id="retry-tasks-btn">Try Again</button>
+        </div>
+    </div>
+
+    <!-- Create Task Modal -->
+    <div id="create-task-modal" class="modal" style="display: none;">
+        <div class="modal-overlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Create New Task</h3>
+                <button class="modal-close" id="close-modal-btn" title="Close">&times;</button>
+            </div>
+            <form id="create-task-form">
+                <div class="form-group">
+                    <label for="task-summary">Summary <span class="required">*</span></label>
+                    <input
+                        type="text"
+                        id="task-summary"
+                        name="summary"
+                        required
+                        placeholder="Enter task summary"
+                        maxlength="255"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="task-description">Description</label>
+                    <textarea
+                        id="task-description"
+                        name="description"
+                        rows="4"
+                        placeholder="Enter task description (optional)"
+                    ></textarea>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="task-type">Issue Type</label>
+                        <select id="task-type" name="issuetype">
+                            <option value="Task">Task</option>
+                            <option value="Story">Story</option>
+                            <option value="Bug">Bug</option>
+                            <option value="Epic">Epic</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="task-priority">Priority</label>
+                        <select id="task-priority" name="priority">
+                            <option value="">None</option>
+                            <option value="Highest">Highest</option>
+                            <option value="High">High</option>
+                            <option value="Medium" selected>Medium</option>
+                            <option value="Low">Low</option>
+                            <option value="Lowest">Lowest</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="button secondary" id="cancel-task-btn">Cancel</button>
+                    <button type="submit" class="button primary" id="submit-task-btn">
+                        <span class="button-icon">✓</span>
+                        Create Task
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

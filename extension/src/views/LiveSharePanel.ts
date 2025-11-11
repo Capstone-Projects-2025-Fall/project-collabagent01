@@ -1,4 +1,5 @@
 import { SessionSyncService } from '../services/session-sync-service';
+import { GitService } from '../services/git-service';
 import * as vscode from 'vscode';
 // Live Share is optional; only require if present to avoid activation failure
 let vsls: typeof import('vsls') | undefined;
@@ -9,6 +10,9 @@ try {
     vsls = undefined;
 }
 import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-service';
+import { insertLiveShareActivity, insertLiveShareSessionEnd } from '../services/team-activity-service';
+import { getCurrentUser } from '../auth/supabaseClient';
+import { getCurrentUserId } from '../services/auth-service';
 
 /**
  * Provides Live Share functionality for the Collab Agent extension.
@@ -18,24 +22,37 @@ import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-
 export class LiveShareManager {
     //Live Share API instance (optional)
     private _liveShareApi?: any | null = null;
-    
+
     //Current session invite link for persistence and display
     private _sessionLink: string | undefined;
-    
+
     //Flag to track if initial session check has been completed
     private _initialSessionCheckDone = false;
 
     private _sessionSyncService: SessionSyncService;
+    private _gitService?: GitService;
+
+    //Git diff captured at session start (baseline for comparison)
+    private _sessionStartDiff?: string;
 
     //Key for persisting manual invite links in global state
     private readonly _persistedLinkKey = 'collabAgent.manualInviteLink';
 
+    //Key for current team in global state (matches AgentPanel)
+    private readonly _teamStateKey = 'collabAgent.currentTeam';
+
     //Interval timer for monitoring participant changes
     private participantMonitoringInterval?: NodeJS.Timeout;
-    
+
     //Timestamp when the current session started
     private sessionStartTime?: Date;
-    
+
+    //Current session ID for tracking
+    private currentSessionId?: string;
+
+    //Session baseline snapshot ID (for "View Initial Snapshot" button)
+    private sessionBaselineSnapshotId?: string;
+
     //Interval timer for pushing duration updates to the UI
     private _durationUpdateInterval?: NodeJS.Timeout;
 
@@ -54,7 +71,14 @@ export class LiveShareManager {
      */
     constructor(private readonly _context: vscode.ExtensionContext) {
         this._sessionSyncService = new SessionSyncService();
-        
+
+        // Initialize git service
+        try {
+            this._gitService = new GitService();
+        } catch (error) {
+            console.log('[LiveShareManager] Git service not available:', error);
+        }
+
         // Set up callback for real time participant updates from Supabase
         this._sessionSyncService.setOnParticipantChange((participants) => {
             console.log('[LiveShareManager] Received participant update from Supabase:', participants);
@@ -169,10 +193,10 @@ export class LiveShareManager {
     /**
      * Handles Live Share session state changes (start, join, end).
      * Updates UI, manages participant monitoring, and handles session timing.
-     * 
+     *
      * @param sessionChangeEvent - The session change event from Live Share API
      */
-    private handleSessionChange(sessionChangeEvent: any) {
+    private async handleSessionChange(sessionChangeEvent: any) {
         const session = sessionChangeEvent.session;
         console.log('[DEBUG] handleSessionChange START - session exists:', !!session, 'session.id:', session?.id);
         console.log('handleSessionChange called with session:', session);
@@ -203,12 +227,47 @@ export class LiveShareManager {
 
             if (session.id) {
                 console.log('[DEBUG] About to call announcePresenceViaSupabase');
+
+                // Store current session ID for later use
+                this.currentSessionId = session.id;
+
+                // IMPORTANT: Pause automatic snapshot tracking and save pending local changes
+                const isHost = session.role === (vsls?.Role?.Host);
+                const baselineSnapshotId = await this.pauseAutomaticSnapshotting(isHost, session.id);
+
+                // Store the baseline snapshot ID for later use (linking to session event)
+                if (baselineSnapshotId) {
+                    this.sessionBaselineSnapshotId = baselineSnapshotId;
+                    console.log('[LiveShareManager] Stored baseline snapshot ID:', this.sessionBaselineSnapshotId);
+                }
+
+                // DISABLED: Git stash was causing file deletion issues
+                // We now use SnapshotManager's createSessionBaseline() instead
+                // which captures the workspace state without modifying any files
+                /*
+                if (this._gitService) {
+                    this._gitService.createSessionSnapshot().then(stashName => {
+                        if (stashName) {
+                            console.log('[LiveShareManager] Created git stash session snapshot');
+                        }
+                    }).catch(err => {
+                        console.error('[LiveShareManager] Failed to create git stash session snapshot:', err);
+                    });
+                }
+                */
+
                 // Announce presence via Supabase
                 this.announcePresenceViaSupabase(session);
 
                 console.log('[DEBUG] About to call loadParticipantsFromSupabase');
                 // Load all participants from Supabase
                 this.loadParticipantsFromSupabase(session.id);
+
+                // Track Live Share event in team activity feed
+                const eventType = isHost ? 'live_share_started' : 'live_share_joined';
+                // For hosts, pass the baseline snapshot ID to link the initial workspace snapshot
+                const snapshotIdToPass = (isHost && baselineSnapshotId) ? baselineSnapshotId : undefined;
+                this.insertLiveShareEvent(eventType, session.id, snapshotIdToPass);
             }
 
 
@@ -257,8 +316,18 @@ export class LiveShareManager {
             this.startParticipantMonitoring();
         } else {
             console.log('Session ended - clearing session start time');
-            this._sessionSyncService.leaveSession(); 
+
+            // Track session end in activity feed with participant details
+            // IMPORTANT: Await this before cleanup so backend can query participants
+            await this.insertLiveShareSessionEndEvent();
+
+            // IMPORTANT: Resume automatic snapshot tracking after session ends
+            await this.resumeAutomaticSnapshotting();
+
+            this._sessionSyncService.leaveSession();
             this.sessionStartTime = undefined;
+            this.currentSessionId = undefined;
+            this.sessionBaselineSnapshotId = undefined;
             this.stopDurationUpdater();
             this.clearManualInviteLink();
             if (this._view) {
@@ -274,7 +343,7 @@ export class LiveShareManager {
                     participants: [],
                     count: 0
                 });
-                
+
                 setTimeout(() => {
                     if (this._view) {
                         this._view.webview.postMessage({
@@ -357,6 +426,227 @@ export class LiveShareManager {
             }
         } catch (err) {
             console.error('[SessionSync] Failed to load participants:', err);
+        }
+    }
+
+    /**
+     * Inserts a Live Share event into the team activity feed
+     * @param eventType - Type of event: 'live_share_started' | 'live_share_joined'
+     * @param sessionId - Optional session ID for reference
+     * @param snapshotId - Optional snapshot ID for the initial workspace snapshot (for started events)
+     */
+    private async insertLiveShareEvent(
+        eventType: 'live_share_started' | 'live_share_joined',
+        sessionId?: string,
+        snapshotId?: string
+    ) {
+        try {
+            // Get current team ID
+            const teamId = this._context.globalState.get<string>(this._teamStateKey);
+            if (!teamId) {
+                console.log('[LiveShareManager] No active team, skipping activity insert');
+                return;
+            }
+
+            // Get current user
+            const user = await getCurrentUser();
+            if (!user?.id) {
+                console.log('[LiveShareManager] No authenticated user, skipping activity insert');
+                return;
+            }
+
+            // Get display name
+            let displayName = getCachedDisplayName();
+            if (!displayName) {
+                const result = await getOrInitDisplayName(true);
+                displayName = result.displayName || 'Unknown User';
+            }
+
+            // Insert activity
+            const result = await insertLiveShareActivity(
+                teamId,
+                user.id,
+                eventType,
+                displayName,
+                sessionId,
+                snapshotId  // Pass snapshot ID for linking to initial snapshot
+            );
+
+            if (result.success) {
+                console.log('[LiveShareManager] Live Share activity inserted successfully');
+
+                // Notify webview to refresh activity feed
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'refreshActivityFeed'
+                    });
+                }
+            } else {
+                console.error('[LiveShareManager] Failed to insert activity:', result.error);
+            }
+        } catch (err) {
+            console.error('[LiveShareManager] Exception inserting Live Share event:', err);
+        }
+    }
+
+    /**
+     * Inserts a Live Share session end event with participant details into the team activity feed
+     */
+    private async insertLiveShareSessionEndEvent() {
+        try {
+            // Only insert if we have session tracking data
+            if (!this.sessionStartTime || !this.currentSessionId) {
+                console.log('[LiveShareManager] No session data, skipping session end event');
+                return;
+            }
+
+            // Get current team ID
+            const teamId = this._context.globalState.get<string>(this._teamStateKey);
+            if (!teamId) {
+                console.log('[LiveShareManager] No active team, skipping activity insert');
+                return;
+            }
+
+            // Get current user
+            const user = await getCurrentUser();
+            if (!user?.id) {
+                console.log('[LiveShareManager] No authenticated user, skipping activity insert');
+                return;
+            }
+
+            // Get display name
+            let displayName = getCachedDisplayName();
+            if (!displayName) {
+                const result = await getOrInitDisplayName(true);
+                displayName = result.displayName || 'Unknown User';
+            }
+
+            // Calculate duration in minutes
+            const now = new Date();
+            const durationMs = now.getTime() - this.sessionStartTime.getTime();
+            const durationMinutes = Math.floor(durationMs / 60000);
+
+            // Check if current user is host
+            const session = this._liveShareApi?.session;
+            const isHost = session && session.role === (vsls?.Role?.Host);
+
+            // Get git diff of changes made DURING the session
+            let sessionChanges = '(no changes captured)';
+
+            // IMPORTANT: Use SnapshotManager diff for hosts (workspace-based, no git commands)
+            // Guests don't save session snapshots (only hosts do)
+            if (isHost) {
+                console.log('[LiveShareManager] Host session ending - using SnapshotManager diff');
+                try {
+                    const { snapshotManager } = await import('../extension.js');
+                    sessionChanges = await snapshotManager.captureSessionChanges(user.id, teamId);
+
+                    if (!sessionChanges || sessionChanges.trim().length === 0) {
+                        console.log('[LiveShareManager] No changes detected during session');
+                        sessionChanges = '(no changes during session)';
+                    }
+
+                    console.log('[LiveShareManager] Captured session changes from SnapshotManager, length:', sessionChanges.length);
+                } catch (err) {
+                    console.error('[LiveShareManager] Failed to get session changes from SnapshotManager:', err);
+                    sessionChanges = `Error capturing changes: ${err}`;
+                }
+            } else {
+                console.log('[LiveShareManager] Guest session ending - guests do not save session snapshots');
+                sessionChanges = '(guest - no session snapshot)';
+            }
+
+            // Create the live_share_ended event with baseline snapshot ID (for "View Initial Snapshot" button)
+            console.log('[LiveShareManager] Creating live_share_ended event...');
+            console.log('[LiveShareManager] Baseline snapshot ID:', this.sessionBaselineSnapshotId);
+            const result = await insertLiveShareSessionEnd(
+                teamId,
+                user.id,
+                displayName,
+                this.currentSessionId,
+                durationMinutes,
+                this.sessionBaselineSnapshotId  // Link to session baseline snapshot
+            );
+            console.log('[LiveShareManager] Event creation result:', result);
+
+            // Then create the snapshot which will trigger edge function
+            // Edge function will find the live_share_ended event and update it with AI summary
+            console.log('[LiveShareManager] Checking if should create snapshot - gitService:', !!this._gitService, 'result.success:', result.success);
+
+            // Always create snapshot if we have an event (even if git service failed)
+            if (result.success) {
+                console.log('[LiveShareManager] Creating snapshot with changes...');
+                try {
+                    const snapshotResult = await this.insertLiveShareSummary(
+                        teamId,
+                        user.id,
+                        displayName,
+                        this.currentSessionId,
+                        sessionChanges
+                    );
+
+                    console.log('[LiveShareManager] Snapshot result:', snapshotResult);
+                    if (snapshotResult.snapshotId) {
+                        console.log('[LiveShareManager] Created snapshot with ID:', snapshotResult.snapshotId);
+                        console.log('[LiveShareManager] Edge function will update the live_share_ended event with AI summary');
+                    } else {
+                        console.log('[LiveShareManager] No snapshot ID returned');
+                    }
+                } catch (err) {
+                    console.error('[LiveShareManager] Failed to create snapshot:', err);
+                }
+            } else {
+                console.log('[LiveShareManager] Skipping snapshot creation - event creation failed');
+            }
+
+            if (result.success) {
+                console.log('[LiveShareManager] Live Share session end activity inserted successfully');
+
+                // Notify webview to refresh activity feed
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'refreshActivityFeed'
+                    });
+                }
+            } else {
+                console.error('[LiveShareManager] Failed to insert session end activity:', result.error);
+            }
+        } catch (err) {
+            console.error('[LiveShareManager] Exception inserting Live Share session end event:', err);
+        }
+    }
+
+    /**
+     * Inserts a Live Share summary with git diff into file_snapshots
+     * @returns Object with snapshot ID
+     */
+    private async insertLiveShareSummary(
+        teamId: string,
+        userId: string,
+        displayName: string,
+        sessionId: string,
+        changes: string
+    ): Promise<{ snapshotId?: string }> {
+        try {
+            const { insertLiveShareSummary } = require('../services/team-activity-service');
+            const result = await insertLiveShareSummary(
+                teamId,
+                userId,
+                displayName,
+                sessionId,
+                changes
+            );
+
+            if (result.success) {
+                console.log('[LiveShareManager] Live Share summary inserted successfully');
+                return { snapshotId: result.snapshotId };
+            } else {
+                console.error('[LiveShareManager] Failed to insert summary:', result.error);
+                return {};
+            }
+        } catch (err) {
+            console.error('[LiveShareManager] Exception inserting Live Share summary:', err);
+            return {};
         }
     }
 
@@ -451,8 +741,9 @@ export class LiveShareManager {
                 participants: [],
                 count: 0
             });
-            
+
             this.sessionStartTime = undefined;
+            this.currentSessionId = undefined;
             this.stopParticipantMonitoring();
         }
     }
@@ -620,18 +911,27 @@ export class LiveShareManager {
             }
 
             console.log('Calling end() on Live Share API...');
-            
-            // Cleanup all participants from Supabase before ending
+
+            // IMPORTANT: Generate the session summary BEFORE cleanup
+            // so the backend can query participants from session_participants table
+            await this.insertLiveShareSessionEndEvent();
+
+            // Cleanup all participants from Supabase
             const sessionId = this._liveShareApi.session.id;
             if (sessionId) {
                 await this._sessionSyncService.cleanupSession(sessionId);
             }
-            
+
             // End the session
             await this._liveShareApi.end();
             console.log('Live Share end() completed');
-            
+
+            // Resume automatic snapshot tracking after session ends
+            await this.resumeAutomaticSnapshotting();
+
             this.sessionStartTime = undefined;
+            this.currentSessionId = undefined;
+            this.sessionBaselineSnapshotId = undefined;
             this.stopParticipantMonitoring();
             this.stopDurationUpdater();
             this.clearManualInviteLink();
@@ -700,14 +1000,19 @@ export class LiveShareManager {
             }
 
             console.log('Calling end() on Live Share API to leave session...');
-            
+
             // Remove participant record from Supabase before leaving
             await this._sessionSyncService.leaveSession();
-            
+
             await this._liveShareApi.end();
             console.log('Live Share leave completed');
-            
+
+            // Resume automatic snapshot tracking after leaving session
+            await this.resumeAutomaticSnapshotting();
+
             this.sessionStartTime = undefined;
+            this.currentSessionId = undefined;
+            this.sessionBaselineSnapshotId = undefined;
             this.stopParticipantMonitoring();
             this.stopDurationUpdater();
             this.clearManualInviteLink();
@@ -1070,6 +1375,89 @@ export class LiveShareManager {
             }
         } catch {
             // Non-fatal for tests; ignore
+        }
+    }
+
+    /**
+     * Pauses automatic snapshot tracking when a Live Share session starts.
+     * Saves any pending local changes before pausing.
+     * If host, also creates a session baseline snapshot.
+     * Returns the baseline snapshot ID if host, null otherwise.
+     *
+     * CRITICAL WORKFLOW FOR HOSTS:
+     * 1. Create session baseline FIRST (captures current state with pending changes)
+     * 2. Save pending changes as automatic snapshot (for AI summary in activity feed)
+     * 3. Pause automatic tracking
+     */
+    private async pauseAutomaticSnapshotting(isHost: boolean, sessionId?: string): Promise<string | null> {
+        try {
+            // Import the snapshot manager
+            const { snapshotManager } = await import('../extension.js');
+
+            // Get current user and team
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                console.log('[LiveShareManager] No user ID, skipping snapshot pause');
+                return null;
+            }
+
+            const teamId = this._context.globalState.get<string>(this._teamStateKey);
+            if (!teamId) {
+                console.log('[LiveShareManager] No team ID, skipping snapshot pause');
+                return null;
+            }
+
+            let baselineSnapshotId: string | null = null;
+
+            // STEP 1: If host, create session baseline FIRST (before saving pending changes)
+            // This ensures the baseline includes the pending work
+            if (isHost && sessionId) {
+                console.log('[LiveShareManager] Host: Step 1 - Creating session baseline (with pending changes)');
+                baselineSnapshotId = await snapshotManager.createSessionBaseline(userId, teamId, sessionId);
+                console.log('[LiveShareManager] Session baseline snapshot ID:', baselineSnapshotId);
+            }
+
+            // STEP 2: Save pending changes and pause automatic tracking
+            // For hosts: This saves the pending changes as an automatic snapshot (gets AI summary)
+            // For guests: Same behavior
+            console.log('[LiveShareManager] Step 2 - Saving pending changes and pausing tracking');
+            await snapshotManager.pauseAutomaticTracking(userId, teamId);
+
+            console.log('[LiveShareManager] Automatic tracking paused successfully');
+            return baselineSnapshotId;
+        } catch (err) {
+            console.error('[LiveShareManager] Failed to pause automatic tracking:', err);
+            return null;
+        }
+    }
+
+    /**
+     * Resumes automatic snapshot tracking after a Live Share session ends.
+     * Takes a new initial snapshot to set a fresh baseline.
+     */
+    private async resumeAutomaticSnapshotting() {
+        try {
+            // Import the snapshot manager
+            const { snapshotManager } = await import('../extension.js');
+
+            // Get current user and team
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                console.log('[LiveShareManager] No user ID, skipping snapshot resume');
+                return;
+            }
+
+            const teamId = this._context.globalState.get<string>(this._teamStateKey);
+            const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? 'untitled-workspace';
+
+            console.log('[LiveShareManager] Resuming automatic snapshot tracking');
+
+            // Resume automatic tracking (this also takes a new baseline snapshot)
+            await snapshotManager.resumeAutomaticTracking(userId, projectName, teamId);
+
+            console.log('[LiveShareManager] Automatic tracking resumed successfully');
+        } catch (err) {
+            console.error('[LiveShareManager] Failed to resume automatic tracking:', err);
         }
     }
 }

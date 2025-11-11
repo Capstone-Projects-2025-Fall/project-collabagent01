@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, type TeamWithMembership } from '../services/team-service';
+import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, getTeamMembers, type TeamWithMembership, type TeamMember } from '../services/team-service';
 import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
 
 /**
@@ -41,14 +41,28 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri]
         };
 
+        // Initialize with team info from database FIRST (before setting HTML)
+        await this.refreshTeams();
+
+        // THEN set HTML (so team data is already loaded)
         webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
 
-        // Initialize with team info from database
-        await this.refreshTeams();
+        // Listen for visibility changes - refresh team info when webview becomes visible
+        webviewView.onDidChangeVisibility(() => {
+            if (webviewView.visible) {
+                console.log('[AgentPanel] Webview became visible - refreshing team info');
+                this.postTeamInfo();
+            }
+        });
 
         webviewView.webview.onDidReceiveMessage((message: any) => {
             console.log('AgentPanel received message:', message);
             switch (message.command) {
+                case 'webviewReady':
+                    // Webview finished loading - send current team info
+                    console.log('Webview ready - posting team info');
+                    this.postTeamInfo();
+                    break;
                 case 'createTeam':
                     console.log('Handling createTeam command');
                     this.handleCreateTeam();
@@ -77,6 +91,18 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     console.log('Handling leaveTeam command');
                     this.handleLeaveTeam();
                     break;
+                case 'addFileSnapshot':
+                    console.log('Handling addFileSnapshot command');
+                    this.addFileSnapshot(message.payload);
+                    break;
+                // generateSummary handler removed - edge function now handles automatic summarization
+                case 'loadActivityFeed':
+                    console.log('Handling loadActivityFeed command');
+                    this.loadActivityFeed(message.teamId, message.limit);
+                case 'publishSnapshot':
+                    console.log('Handling publishSnapshot command');
+                    vscode.commands.executeCommand('collabAgent.publishSnapshot');
+                    break;
                 default:
                     console.log('Unknown command received:', message.command);
                     break;
@@ -90,11 +116,26 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
     private async refreshTeams() {
         const result = await getUserTeams();
         if (result.error) {
-            vscode.window.showErrorMessage(`Failed to load teams: ${result.error}`);
+            vscode.window.showWarningMessage(`Could not load teams: ${result.error}`);
             this._userTeams = [];
         } else {
             this._userTeams = result.teams || [];
         }
+
+        // Auto-select the only team when user is only apart of one team and has folder relating to team open
+        try {
+            const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+            const hasWorkspace = !!(vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0);
+            if (!currentTeamId && hasWorkspace && this._userTeams.length === 1) {
+                const onlyTeam = this._userTeams[0];
+                const validation = this.validateTeamProject(onlyTeam);
+                if (validation.isMatch) {
+                    this._context.globalState.update(this._teamStateKey, onlyTeam.id);
+                }
+            }
+        } catch (e) {
+        }
+
         this.postTeamInfo();
     }
 
@@ -102,20 +143,32 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
      * Posts current team info to webview
      */
     private postTeamInfo() {
+        console.log('[AgentPanel] postTeamInfo() called');
+        console.log('[AgentPanel] _userTeams count:', this._userTeams.length);
+
+        const { getAuthContext } = require('../services/auth-service');
+        let userId: string | null = null;
+        try {
+            const ctx = getAuthContext();
+            // getAuthContext returns a Promise in services; but in constructor context we can't await
+            // So we'll handle async separately below
+        } catch {}
+
         // IMPORTANT: If no workspace folder is open, clear current team
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
+            console.log('[AgentPanel] No workspace folders - clearing team');
             // Clear the current team - user must open a project folder first
             this._context.globalState.update(this._teamStateKey, undefined);
-            const teamInfo = { 
-                name: null, 
-                role: null, 
-                joinCode: null, 
+            const teamInfo = {
+                name: null,
+                role: null,
+                joinCode: null,
                 id: null,
                 projectValidation: null
             };
-            
-            this._view?.webview.postMessage({ 
-                command: 'teamInfo', 
+
+            this._view?.webview.postMessage({
+                command: 'teamInfo',
                 teamInfo,
                 teams: this._userTeams.map(t => ({
                     id: t.id,
@@ -129,7 +182,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
         // Get currently selected team from storage
         const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+        console.log('[AgentPanel] currentTeamId from globalState:', currentTeamId);
         let currentTeam = this._userTeams.find(t => t.id === currentTeamId);
+        console.log('[AgentPanel] currentTeam found:', currentTeam ? currentTeam.lobby_name : 'NOT FOUND');
         
         // Don't auto-select a team - user must explicitly switch to a team
         // This prevents confusion when switching between projects
@@ -155,16 +210,45 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
               }
             : { name: null, role: null, joinCode: null, id: null, projectValidation: null };
 
-        this._view?.webview.postMessage({
-            command: 'updateTeamInfo',
-            team: teamInfo,
-            allTeams: this._userTeams.map(t => ({
+        (async () => {
+            try {
+                const { getAuthContext } = require('../services/auth-service');
+                const res = await getAuthContext();
+                userId = res?.context?.id || null;
+            } catch {}
+
+            // Fetch team members if we have an active team
+            let teamMembers: TeamMember[] = [];
+            if (currentTeam) {
+                const membersResult = await getTeamMembers(currentTeam.id);
+                if (!membersResult.error && membersResult.members) {
+                    teamMembers = membersResult.members;
+                } else if (membersResult.error) {
+                    console.warn('[AgentPanel] Failed to fetch team members:', membersResult.error);
+                }
+            }
+
+            console.log('[AgentPanel] Sending updateTeamInfo to webview:', {
+                command: 'updateTeamInfo',
+                team: teamInfo,
+                userId,
+                allTeamsCount: this._userTeams.length,
+                teamMembersCount: teamMembers.length
+            });
+
+            this._view?.webview.postMessage({
+                command: 'updateTeamInfo',
+                team: teamInfo,
+                userId,
+                allTeams: this._userTeams.map(t => ({
                 id: t.id,
                 name: t.lobby_name,
                 role: t.role === 'admin' ? 'Admin' : 'Member',
                 joinCode: t.join_code
-            }))
-        });
+            })),
+                teamMembers: teamMembers
+            });
+        })();
     }
 
     // Public methods for MainPanel delegation
@@ -190,6 +274,47 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     public async processAiQuery(text: string) {
         return this.handleAiQuery(text);
+    }
+
+    /**
+     * Adds a file snapshot row via service and reports back to webview
+     */
+    public async addFileSnapshot(payload: any) {
+        try {
+            const { addFileSnapshot } = require('../services/file-snapshot-service');
+            const result = await addFileSnapshot(payload);
+            if (result.success) {
+                this._view?.webview.postMessage({ command: 'fileSnapshotSaved', id: result.id });
+            } else {
+                this._view?.webview.postMessage({ command: 'fileSnapshotError', error: result.error || 'Failed to save snapshot' });
+            }
+        } catch (err) {
+            this._view?.webview.postMessage({ command: 'fileSnapshotError', error: String(err) });
+        }
+    }
+
+    // generateSummary method removed - edge function now handles automatic summarization
+
+    /**
+     * Loads recent activity for a team and posts back to webview.
+     */
+    public async loadActivityFeed(teamId?: string, limit = 25) {
+        try {
+            const effectiveTeamId = teamId || this._context.globalState.get<string>(this._teamStateKey);
+            if (!effectiveTeamId) {
+                this._view?.webview.postMessage({ command: 'activityError', error: 'No team selected.' });
+                return;
+            }
+            const { fetchTeamActivity } = require('../services/team-activity-service');
+            const res = await fetchTeamActivity(effectiveTeamId, limit);
+            if (res.success) {
+                this._view?.webview.postMessage({ command: 'activityFeed', items: res.items || [] });
+            } else {
+                this._view?.webview.postMessage({ command: 'activityError', error: res.error || 'Failed to load activity' });
+            }
+        } catch (err) {
+            this._view?.webview.postMessage({ command: 'activityError', error: String(err) });
+        }
     }
 
     /**
@@ -312,9 +437,16 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             
             if (result.error) {
                 vscode.window.showErrorMessage(`Failed to join team: ${result.error}`);
+            } else if (result.alreadyMember && result.team) {
+                vscode.window.showInformationMessage(`You're already a member of team "${result.team.lobby_name}"`);
+
+                // Ensures selection is set to that team for convenience
+                await this.refreshTeams();
+                await this._context.globalState.update(this._teamStateKey, result.team.id);
+                this.postTeamInfo();
             } else if (result.team) {
                 vscode.window.showInformationMessage(`Successfully joined team "${result.team.lobby_name}"`);
-                
+
                 // Refresh teams and set new team as current
                 await this.refreshTeams();
                 await this._context.globalState.update(this._teamStateKey, result.team.id);
@@ -397,8 +529,36 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             // Project matches - allow switch
             await this._context.globalState.update(this._teamStateKey, selected.team.id);
             vscode.window.showInformationMessage(`Successfully switched to team "${selected.team.lobby_name}"`);
-            
+
             this.postTeamInfo();
+
+            // Take initial snapshot for this team
+            await this.takeInitialSnapshot(selected.team.id);
+        }
+    }
+
+    /**
+     * Takes initial snapshot when team is selected
+     */
+    private async takeInitialSnapshot(teamId: string) {
+        try {
+            const { getCurrentUserId } = require('../services/auth-service');
+            const userId = await getCurrentUserId();
+
+            if (!userId) {
+                console.warn('[AgentPanel] No user ID - skipping initial snapshot');
+                return;
+            }
+
+            const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? "untitled-workspace";
+            const { snapshotManager } = require('../extension');
+
+            if (snapshotManager) {
+                await snapshotManager.takeSnapshot(userId, projectName, teamId);
+                console.log(`[AgentPanel] Initial snapshot captured for team: ${teamId}`);
+            }
+        } catch (error) {
+            console.error('[AgentPanel] Failed to take initial snapshot:', error);
         }
     }
 
@@ -409,92 +569,51 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     /**
      * Gets the inner HTML content for embedding in the main panel
+     * This loads from the external HTML file and extracts only the body content
      */
     public getInnerHtml(): string {
-        return `
-            <div class="agent-heading">Agent</div>
-            <div class="section">
-                <div class="section-title">Team & Product Management</div>
-                <div id="teamProduct">
-                    <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
-                    <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
-                    <div id="projectStatus" style="display:none; margin-top:4px;">
-                        <div id="projectStatusIndicator" style="font-size:12px;"></div>
-                    </div>
-                    <div id="joinCodeSection" style="display:none;">
-                        <strong>Join Code:</strong> 
-                        <span id="teamJoinCode">—</span>
-                        <button class="button" id="copyJoinCodeBtn" title="Copy join code">Copy</button>
-                    </div>
-                    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                        <button class="button" id="switchTeamBtn">Switch Team</button>
-                        <button class="button" id="createTeamBtn">Create Team</button>
-                        <button class="button" id="joinTeamBtn">Join Team</button>
-                        <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
-                        <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
-                        <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
-                    </div>
-                </div>
-            </div>
+        const fs = require('fs');
+        const path = require('path');
 
-            <div id="ai-agent-box" class="section">
-                <h3>AI Agent</h3>
-                <div id="ai-chat-log" class="chat-log"></div>
-                <div class="chat-input-container">
-                    <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
-                    <button id="ai-chat-send">Send</button>
-                </div>
-            </div>
-        `;
+        try {
+            // Read HTML template from external file
+            const htmlPath = path.join(this._extensionUri.fsPath, 'media', 'agentPanel.html');
+            let htmlContent = fs.readFileSync(htmlPath, 'utf8');
+
+            // Extract just the body content (between <body> and </body>)
+            const bodyMatch = htmlContent.match(/<body>([\s\S]*)<script/);
+            if (bodyMatch && bodyMatch[1]) {
+                return bodyMatch[1].trim();
+            }
+
+            // Fallback if pattern doesn't match
+            console.error('[AgentPanel] Could not extract body content from agentPanel.html');
+            return '<div>Error loading panel content</div>';
+        } catch (error) {
+            console.error('[AgentPanel] Error reading agentPanel.html:', error);
+            return '<div>Error loading panel content</div>';
+        }
     }
 
     private _getHtmlForWebview(webview: vscode.Webview) {
+        const fs = require('fs');
+        const path = require('path');
+
         const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.js'));
         const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'panel.css'));
         const nonce = Date.now().toString();
-        return `<!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-            <title>Agent Panel</title>
-            <link href="${styleUri}" rel="stylesheet" />
-        </head>
-        <body>
-            <div class="agent-heading">Agent</div>
-            <div class="section">
-                <div class="section-title">Team & Product Management</div>
-                <div id="teamProduct">
-                    <div><strong>Current Team:</strong> <span id="teamName">—</span></div>
-                    <div><strong>Your Role:</strong> <span id="teamRole">—</span></div>
-                    <div id="joinCodeSection" style="display:none;">
-                        <strong>Join Code:</strong> 
-                        <span id="teamJoinCode">—</span>
-                        <button class="button" id="copyJoinCodeBtn" title="Copy join code">Copy</button>
-                    </div>
-                    <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">
-                        <button class="button" id="switchTeamBtn">Switch Team</button>
-                        <button class="button" id="createTeamBtn">Create Team</button>
-                        <button class="button" id="joinTeamBtn">Join Team</button>
-                        <button class="button" id="refreshTeamsBtn" title="Refresh teams">Refresh</button>
-                        <button class="button danger" id="deleteTeamBtn" style="display:none;">Delete Team</button>
-                        <button class="button" id="leaveTeamBtn" style="display:none;">Leave Team</button>
-                    </div>
-                </div>
-            </div>
 
-            <div id="ai-agent-box" class="section">
-                <h3>AI Agent</h3>
-                <div id="ai-chat-log" class="chat-log"></div>
-                <div class="chat-input-container">
-                    <input type="text" id="ai-chat-input" placeholder="Ask the agent..." />
-                    <button id="ai-chat-send">Send</button>
-                </div>
-            </div>
+        // Read HTML template from external file
+        const htmlPath = path.join(this._extensionUri.fsPath, 'media', 'agentPanel.html');
+        let htmlContent = fs.readFileSync(htmlPath, 'utf8');
 
-            <script nonce="${nonce}" src="${scriptUri}"></script>
-        </body>
-        </html>`;
+        // Replace placeholders
+        htmlContent = htmlContent
+            .replace(/\{\{STYLE_URI\}\}/g, styleUri.toString())
+            .replace(/\{\{SCRIPT_URI\}\}/g, scriptUri.toString())
+            .replace(/\{\{NONCE\}\}/g, nonce);
+
+        return htmlContent;
     }
 
     /**

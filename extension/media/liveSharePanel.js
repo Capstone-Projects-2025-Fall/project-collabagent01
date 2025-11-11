@@ -1,5 +1,6 @@
 (function () {
-	const vscode = acquireVsCodeApi();
+	// Use global vscode if already initialized (when embedded in mainPanel)
+	const vscode = window.vscode || acquireVsCodeApi();
 
 	let isEndingSession = false;
 	let endingSessionTimer = null;
@@ -135,6 +136,9 @@
 	function setupAllButtons() {
 		setupHomePanelButtons();
 		setupAgentPanelButtons();
+		setupSnapshotForm();
+		setupActivityFeed();
+		setupProfilePanel();
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -197,24 +201,55 @@
 				appendAIMessage(message.text);
 				break;
 			case 'updateTeamInfo':
-				updateTeamInfo(message.team);
+				updateTeamInfo(message.team, message.userId, message.teamMembers);
+				break;
+			case 'teamInfo': // fallback when no workspace is open
+				updateTeamInfo(message.teamInfo, undefined);
+				break;
+			case 'fileSnapshotSaved':
+				showFsFeedback('Snapshot saved.', 'ok');
+				setSaving(false);
+				// Pre-fill the summary input with the saved snapshot id
+				const sumId = document.getElementById('fs-summary-id');
+				if (sumId && message.id) sumId.value = message.id;
+				break;
+			case 'fileSnapshotError':
+				showFsFeedback(message.error || 'Failed to save snapshot.', 'warn');
+				setSaving(false);
+				break;
+			// summaryGenerated and summaryError handlers removed - edge function now handles automatic summarization
+			case 'activityFeed':
+				renderActivityFeed(message.items || []);
+				break;
+			case 'activityError':
+				showActivityFeedback(message.error || 'Failed to load activity.');
+				break;
+			case 'updateAuthState':
+				if (!message.authenticated) {
+					persistFsIds({ userId: '', teamId: getState().teamId || '' });
+					const u = document.getElementById('fs-userId');
+					if (u) u.value = '';
+				}
 				break;
 		}
 	});
 
-	function updateTeamInfo(team) {
+	function updateTeamInfo(team, userId, teamMembers) {
 		console.log('Updating team info:', team);
-		
+		console.log('Team members received:', teamMembers);
+
 		const teamName = document.getElementById('teamName');
 		const teamRole = document.getElementById('teamRole');
 		const teamJoinCode = document.getElementById('teamJoinCode');
 		const joinCodeSection = document.getElementById('joinCodeSection');
 		const deleteTeamBtn = document.getElementById('deleteTeamBtn');
 		const leaveTeamBtn = document.getElementById('leaveTeamBtn');
-		
+		const fsTeamId = document.getElementById('fs-teamId');
+		const fsUserId = document.getElementById('fs-userId');
+
 		if (teamName) teamName.textContent = team?.name ?? '—';
 		if (teamRole) teamRole.textContent = team?.role ?? '—';
-		
+
 		// Show/hide join code section based on whether user has a team
 		if (teamJoinCode && joinCodeSection) {
 			if (team?.joinCode && team.name !== 'No Team') {
@@ -234,10 +269,112 @@
 				leaveTeamBtn.style.display = (team?.name && team?.role === 'Member') ? 'inline-block' : 'none';
 			}
 		}
+
+		// Update Team Members section
+		const teamMembersSection = document.getElementById('teamMembersSection');
+		const memberCount = document.getElementById('memberCount');
+		const membersList = document.getElementById('membersList');
+
+		console.log('[liveSharePanel] Team Members Debug:', {
+			hasSection: !!teamMembersSection,
+			hasCount: !!memberCount,
+			hasList: !!membersList,
+			teamMembers: teamMembers,
+			teamMembersLength: teamMembers?.length,
+			teamName: team?.name
+		});
+
+		if (teamMembersSection && memberCount && membersList) {
+			if (teamMembers && teamMembers.length > 0 && team?.name && team.name !== 'No Team') {
+				console.log('[liveSharePanel] Showing Team Members section with', teamMembers.length, 'members');
+				// Show the team members section
+				teamMembersSection.style.display = 'block';
+				memberCount.textContent = teamMembers.length;
+
+				// Clear existing members
+				membersList.innerHTML = '';
+
+				// Add each member to the list
+				teamMembers.forEach(member => {
+					const memberItem = document.createElement('div');
+					memberItem.className = 'member-item';
+
+					// Format name - Priority: displayName > full_name > email > userId
+					let displayName = member.displayName;
+					if (!displayName && (member.firstName || member.lastName)) {
+						displayName = [member.firstName, member.lastName].filter(Boolean).join(' ');
+					}
+					if (!displayName) {
+						displayName = member.email;
+					}
+					if (!displayName || displayName === 'Unknown') {
+						displayName = member.userId;
+					}
+
+					// Format joined date
+					const joinedDate = new Date(member.joinedAt);
+					const formattedDate = joinedDate.toLocaleDateString('en-US', {
+						month: 'short',
+						day: 'numeric',
+						year: 'numeric'
+					});
+
+					// Format skills
+					let skillsHtml = '';
+					if (member.skills && member.skills.length > 0) {
+						const skillTags = member.skills.map(skill => `<span class="skill-tag">${skill}</span>`).join('');
+						skillsHtml = `<div class="member-skills">${skillTags}</div>`;
+					} else {
+						skillsHtml = '<div class="member-skills"><span class="skill-tag no-skills">Skills: None</span></div>';
+					}
+
+					memberItem.innerHTML = `
+						<span class="member-role-badge ${member.role}">${member.role}</span>
+						<div class="member-info">
+							<div class="member-name">${displayName}</div>
+							<div class="member-email">${member.email}</div>
+							${skillsHtml}
+						</div>
+						<div class="member-joined">Joined ${formattedDate}</div>
+					`;
+
+					membersList.appendChild(memberItem);
+				});
+			} else {
+				console.log('[liveSharePanel] Hiding Team Members section');
+				teamMembersSection.style.display = 'none';
+			}
+		} else {
+			console.error('[liveSharePanel] Team Members elements not found:', {
+				hasSection: !!teamMembersSection,
+				hasCount: !!memberCount,
+				hasList: !!membersList
+			});
+		}
+
+		if (fsTeamId) fsTeamId.value = team?.id || '';
+		if (fsUserId && userId) fsUserId.value = userId;
+		persistFsIds({ userId: (fsUserId && fsUserId.value) || '', teamId: (fsTeamId && fsTeamId.value) || '' });
 	}
+
+	// Toggle team members list
+	window.toggleTeamMembers = function() {
+		const membersList = document.getElementById('membersList');
+		const toggleIcon = document.querySelector('.members-toggle-icon');
+		if (membersList && toggleIcon) {
+			const isHidden = membersList.style.display === 'none';
+			membersList.style.display = isHidden ? 'block' : 'none';
+			if (isHidden) {
+				toggleIcon.classList.add('expanded');
+			} else {
+				toggleIcon.classList.remove('expanded');
+			}
+		}
+	};
 
 	function appendAIMessage(text) {
 		const chatLog = document.getElementById('ai-chat-log');
+		if (!chatLog) return; // Chat UI not present anymore
 		const msgDiv = document.createElement('div');
 		msgDiv.className = 'chat-message ai-message';
 		msgDiv.textContent = `Agent: ${text}`;
@@ -480,6 +617,11 @@
 			case 'manualLinkPasteInvalid':
 				showManualLinkFeedback('Clipboard was empty.', 'warn');
 				break;
+			case 'refreshActivityFeed':
+				// Refresh the activity feed when Live Share events occur
+				console.log('Refreshing activity feed due to Live Share event');
+				requestActivityFeed();
+				break;
 		}
 	});
 
@@ -509,29 +651,779 @@
 	// Ask backend if there is a stored link when webview loads
 	post('requestStoredLink');
 
-	// AI Agent Chat UI
-	const input = document.getElementById('ai-chat-input');
-	const sendBtn = document.getElementById('ai-chat-send');
-	const log = document.getElementById('ai-chat-log');
+	// File Snapshot form helpers
+	function setupSnapshotForm() {
+		const idEl = document.getElementById('fs-id');
+		const atEl = document.getElementById('fs-updatedAt');
+		const regenBtn = document.getElementById('fs-generateIdBtn');
+		const addBtn = document.getElementById('fs-addBtn');
+		const uEl = document.getElementById('fs-userId');
+		const tEl = document.getElementById('fs-teamId');
+		const feedbackAnchor = document.getElementById('fs-feedback');
 
-	function appendMessage(sender, text) {
-		const msg = document.createElement('div');
-		msg.className = 'chat-message';
-		msg.innerHTML = `<strong>${sender}:</strong> ${text}`;
-		log.appendChild(msg);
-		log.scrollTop = log.scrollHeight;
+		// restore from persisted state on refresh
+		const state = getState();
+		if (uEl && !uEl.value && state.userId) uEl.value = state.userId;
+		if (tEl && !tEl.value && state.teamId) tEl.value = state.teamId;
+		if (idEl && !idEl.value) idEl.value = generateUUID();
+		if (atEl && !atEl.value) atEl.value = new Date().toISOString();
+		if (regenBtn && !regenBtn.hasAttribute('data-listener-added')) {
+			regenBtn.addEventListener('click', function(){
+				regenerateSnapshotId();
+			});
+			regenBtn.setAttribute('data-listener-added','true');
+		}
+		if (addBtn && !addBtn.hasAttribute('data-listener-added')) {
+			addBtn.addEventListener('click', function(){
+				const payload = collectSnapshotPayload();
+				if (!payload) return;
+				setSaving(true);
+				post('addFileSnapshot', { payload });
+				setTimeout(() => { if (isSaving()) showFsFeedback('Saving…', 'info'); }, 1500);
+			});
+			addBtn.setAttribute('data-listener-added','true');
+		}
+
+		// Generate Summary section removed - edge function now handles automatic summarization
 	}
 
-	function sendMessage() {
-		const text = input.value.trim();
-		if (!text) return;
-		appendMessage('You', text);
-		vscode.postMessage({ command: 'aiQuery', text });
-		input.value = '';
+	// Activity Feed UI and behavior
+	function setupActivityFeed(){
+		const anchor = document.getElementById('fs-summary-feedback');
+		if (!anchor || document.getElementById('activityFeedSection')) return;
+		const section = document.createElement('div');
+		section.id = 'activityFeedSection';
+		section.className = 'section';
+		section.innerHTML = `
+			<div class="section-header" style="margin-top:12px;">
+				<div class="section-title">Team Activity Timeline</div>
+				<div class="info-icon-wrapper">
+					<svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
+						<circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+						<text x="8" y="11.5" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">i</text>
+					</svg>
+					<div class="tooltip">
+						View your team's recent activity and changes. Track file snapshots, code changes, and collaboration events in real-time. Activities are automatically summarized using AI.
+					</div>
+				</div>
+			</div>
+			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
+				<select id="activityFilterDropdown" class="dropdown" title="Filter events by type" style="padding:4px 8px; font-size:12px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); border-radius:4px; cursor:pointer;">
+					<option value="all">All</option>
+					<option value="ai_task_recommendation">Task Delegation</option>
+					<option value="initial_snapshot">Initial Snapshot</option>
+					<option value="changes">Changes</option>
+					<option value="live_share_started">Started Live Share</option>
+					<option value="live_share_ended">Ended Live Share</option>
+				</select>
+				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
+			</div>
+			<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+		`;
+		anchor.insertAdjacentElement('afterend', section);
+
+		const refresh = document.getElementById('activityRefreshBtn');
+		if (refresh && !refresh.hasAttribute('data-listener-added')){
+			refresh.addEventListener('click', requestActivityFeed);
+			refresh.setAttribute('data-listener-added','true');
+		}
+
+		const filterDropdown = document.getElementById('activityFilterDropdown');
+		if (filterDropdown && !filterDropdown.hasAttribute('data-listener-added')){
+			filterDropdown.addEventListener('change', filterActivityFeed);
+			filterDropdown.setAttribute('data-listener-added','true');
+		}
+
+		// initial load if a team is present
+		requestActivityFeed();
 	}
 
-	sendBtn.addEventListener('click', sendMessage);
-	input.addEventListener('keypress', (e) => {
-		if (e.key === 'Enter') sendMessage();
+	function requestActivityFeed(){
+		const teamId = document.getElementById('fs-teamId')?.value?.trim();
+		if (!teamId){
+			showActivityFeedback('No active team.');
+			return;
+		}
+		showActivityFeedback('Loading…');
+		post('loadActivityFeed', { teamId, limit: 25 });
+	}
+
+	function filterActivityFeed(){
+		// Re-render the activity feed with the current filter applied
+		if (currentActivityItems && currentActivityItems.length > 0) {
+			renderActivityFeed(currentActivityItems);
+		}
+	}
+
+	function renderActivityFeed(items){
+		const list = document.getElementById('activityList');
+		if (!list) return;
+
+		// Store items for viewChanges function
+		currentActivityItems = items;
+
+		if (!items.length){
+			list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No recent activity.</div>';
+			showActivityFeedback('');
+			return;
+		}
+
+		// Apply filter based on dropdown selection
+		const filterDropdown = document.getElementById('activityFilterDropdown');
+		const filterValue = filterDropdown ? filterDropdown.value : 'all';
+
+		let filteredItems = items;
+		if (filterValue !== 'all') {
+			filteredItems = items.filter(it => {
+				const activityType = it.activity_type || 'file_snapshot';
+				const hasSnapshot = it.snapshot && Object.keys(it.snapshot || {}).length > 0;
+				const hasChanges = it.changes && it.changes.trim().length > 0 && it.changes !== '{}';
+
+				// Map filter value to activity type or condition
+				if (filterValue === 'ai_task_recommendation') {
+					return activityType === 'ai_task_recommendation';
+				} else if (filterValue === 'initial_snapshot') {
+					return activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges);
+				} else if (filterValue === 'changes') {
+					return hasChanges && activityType !== 'live_share_ended';
+				} else if (filterValue === 'live_share_started') {
+					return activityType === 'live_share_started';
+				} else if (filterValue === 'live_share_ended') {
+					return activityType === 'live_share_ended';
+				}
+				return true;
+			});
+		}
+
+		if (!filteredItems.length){
+			list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No activities match the selected filter.</div>';
+			showActivityFeedback('');
+			return;
+		}
+
+		const html = filteredItems.map((it, index)=>{
+			const when = it.created_at ? new Date(it.created_at).toLocaleString() : '';
+			// Use display_name from backend with fallback priority: display_name -> email -> user_id
+		const who = it.display_name || it.user_email || (it.user_id ? it.user_id.substring(0,8)+'…' : '');
+			const eventHeader = it.event_header || it.summary || '';  // Use event_header as display text
+			const summary = it.summary || '';  // AI-generated summary
+			const activityType = it.activity_type || 'file_snapshot';
+			const itemId = `activity-item-${index}`;
+			const detailsId = `activity-details-${index}`;
+
+			// Determine icon/tag and buttons based on activity type and whether it has changes or snapshot
+			let icon = '';
+			let buttons = '';
+
+			// Helper to determine if this is an initial snapshot vs automatic snapshot (changes)
+			const hasSnapshot = it.snapshot && Object.keys(it.snapshot || {}).length > 0;
+			const hasChanges = it.changes && it.changes.trim().length > 0 && it.changes !== '{}';
+
+			if (activityType === 'live_share_started') {
+				// Bright green tag for session start
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; background-color:#4caf50; color:#ffffff; border-radius:4px; margin-right:6px;">Started Live Share</span>';
+				// Show View Initial Snapshot button for started events
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
+				`;
+			} else if (activityType === 'live_share_ended') {
+				// Red tag for session end
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; background-color:#f44336; color:#ffffff; border-radius:4px; margin-right:6px;">Ended Live Share</span>';
+				// Show View Changes and View Summary (removed View Initial Snapshot)
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
+					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
+				`;
+			} else if (activityType === 'ai_task_recommendation') {
+				// Purple badge for AI task recommendations
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';
+				// Show View Reason button
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewTaskReason('${it.id}')" title="View AI's reasoning for this recommendation">View Reason</button>
+				`;
+			} else if (activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges)) {
+				// INITIAL SNAPSHOT: Has full snapshot, no changes
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #4caf50; color:#4caf50; border-radius:4px; margin-right:6px;">Initial Snapshot</span>';
+				// Only show "View Initial Snapshot" button
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the full workspace snapshot">View Initial Snapshot</button>
+				`;
+			} else if (hasChanges) {
+				// AUTOMATIC SNAPSHOT (Changes): Has changes/diff
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #ffc107; color:#ffc107; border-radius:4px; margin-right:6px;">Changes</span>';
+				// Only show "View Changes" and "View Summary" buttons
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
+					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
+				`;
+			} else {
+				// Fallback for other types (shouldn't normally happen)
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #888; color:#888; border-radius:4px; margin-right:6px;">Snapshot</span>';
+				buttons = `
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View snapshot">View Snapshot</button>
+				`;
+			}
+
+			// Only show details section if there are buttons
+			const detailsSection = buttons ? `
+				<div id="${detailsId}" style="display:none; margin-top:8px; padding-top:8px; border-top:1px solid var(--vscode-editorWidget-border);">
+					<div style="display:flex; gap:6px; flex-wrap:wrap;">
+						${buttons}
+					</div>
+				</div>
+			` : '';
+
+			return `
+				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); padding:12px; border-radius:6px; background: var(--vscode-editor-background);">
+					<div id="${itemId}" style="cursor:${buttons ? 'pointer' : 'default'}; user-select:none;" ${buttons ? `onclick="toggleActivityDetails('${detailsId}')"` : ''}>
+						<div style="font-size:11px; color: var(--vscode-descriptionForeground); opacity:0.8;">
+							${icon} ${when} • ${who}
+						</div>
+						<div style="margin-top:6px; font-size:13px; font-weight:500; line-height:1.4;">${escapeHtml(eventHeader)}</div>
+					</div>
+					${detailsSection}
+				</div>
+			`;
+		}).join('');
+		list.innerHTML = html;
+		showActivityFeedback('');
+	}
+
+	// Toggle details visibility for activity items
+	window.toggleActivityDetails = function(detailsId) {
+		const details = document.getElementById(detailsId);
+		if (details) {
+			details.style.display = details.style.display === 'none' ? 'block' : 'none';
+		}
+	};
+
+	// Store activity items for later reference
+	let currentActivityItems = [];
+
+	// View initial snapshot function
+	window.viewSnapshot = function(activityId) {
+		console.log('View snapshot for activity:', activityId);
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Check if this activity has a snapshot
+		if (activity.snapshot) {
+			// Show snapshot in a modal
+			showSnapshotModal(activity.snapshot, activity.event_header || 'Initial Snapshot');
+		} else {
+			console.log('No snapshot available for this activity');
+			console.log('Activity data:', activity);
+		}
+	};
+
+	window.viewChanges = function(activityId) {
+		console.log('View changes for activity:', activityId);
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Check if this activity has changes (from file_snapshots via source_snapshot_id)
+		if (activity.changes) {
+			// Show diff in a modal or panel
+			showDiffModal(activity.changes, 'Git Diff - ' + (activity.summary || 'Changes'));
+		} else {
+			console.log('No changes available for this activity');
+			console.log('Activity data:', activity);
+		}
+	};
+
+	window.viewSummary = function(activityId) {
+		console.log('View summary for activity:', activityId);
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Check if this activity has an AI summary
+		if (activity.summary) {
+			// Show AI summary in a modal (event_header is the event description)
+			showSummaryModal(activity.summary, activity.event_header || 'Activity');
+		} else {
+			console.log('No AI summary available for this activity');
+			console.log('Activity data:', activity);
+		}
+	};
+
+	window.viewTaskReason = function(activityId) {
+		console.log('View task recommendation reason for activity:', activityId);
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Check if this activity has a summary (reason)
+		if (activity.summary) {
+			// Show the AI's reasoning in a modal
+			showSummaryModal(activity.summary, activity.event_header || 'Task Recommendation');
+		} else {
+			console.log('No reason available for this task recommendation');
+			console.log('Activity data:', activity);
+		}
+	};
+
+	function showDiffModal(diffContent, title) {
+		// Create modal overlay
+		const existingModal = document.getElementById('diffModal');
+		if (existingModal) {
+			existingModal.remove();
+		}
+
+		const modal = document.createElement('div');
+		modal.id = 'diffModal';
+		modal.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(0,0,0,0.7);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 10000;
+			padding: 20px;
+		`;
+
+		modal.innerHTML = `
+			<div style="
+				background: var(--vscode-editor-background);
+				border: 1px solid var(--vscode-editorWidget-border);
+				border-radius: 6px;
+				width: 90%;
+				max-width: 900px;
+				max-height: 80vh;
+				display: flex;
+				flex-direction: column;
+			">
+				<div style="
+					padding: 16px;
+					border-bottom: 1px solid var(--vscode-editorWidget-border);
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+				">
+					<h3 style="margin: 0;">${escapeHtml(title || 'Git Diff')}</h3>
+					<button class="button" onclick="document.getElementById('diffModal').remove()">Close</button>
+				</div>
+				<div style="
+					padding: 16px;
+					overflow: auto;
+					flex: 1;
+					font-family: monospace;
+					font-size: 12px;
+					white-space: pre-wrap;
+					word-break: break-all;
+				">${escapeHtml(diffContent)}</div>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		// Close on background click
+		modal.addEventListener('click', (e) => {
+			if (e.target === modal) {
+				modal.remove();
+			}
+		});
+	}
+
+	function showSummaryModal(aiSummary, eventTitle) {
+		// Create modal overlay
+		const existingModal = document.getElementById('summaryModal');
+		if (existingModal) {
+			existingModal.remove();
+		}
+
+		const modal = document.createElement('div');
+		modal.id = 'summaryModal';
+		modal.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(0,0,0,0.7);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 10000;
+			padding: 20px;
+		`;
+
+		modal.innerHTML = `
+			<div style="
+				background: var(--vscode-editor-background);
+				border: 1px solid var(--vscode-editorWidget-border);
+				border-radius: 6px;
+				width: 90%;
+				max-width: 700px;
+				max-height: 80vh;
+				display: flex;
+				flex-direction: column;
+			">
+				<div style="
+					padding: 16px;
+					border-bottom: 1px solid var(--vscode-editorWidget-border);
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+				">
+					<h3 style="margin: 0;">AI Summary</h3>
+					<button class="button" onclick="document.getElementById('summaryModal').remove()">Close</button>
+				</div>
+				<div style="padding: 20px;">
+					<div style="
+						font-size: 11px;
+						color: var(--vscode-descriptionForeground);
+						opacity: 0.8;
+						margin-bottom: 12px;
+					">Event</div>
+					<div style="
+						font-size: 13px;
+						font-weight: 500;
+						margin-bottom: 20px;
+						padding: 12px;
+						background: var(--vscode-editorWidget-background);
+						border-radius: 4px;
+					">${escapeHtml(eventTitle)}</div>
+
+					<div style="
+						font-size: 11px;
+						color: var(--vscode-descriptionForeground);
+						opacity: 0.8;
+						margin-bottom: 12px;
+					">What was accomplished</div>
+					<div style="
+						font-size: 14px;
+						line-height: 1.6;
+						padding: 16px;
+						background: var(--vscode-textBlockQuote-background);
+						border-left: 3px solid var(--vscode-textBlockQuote-border);
+						border-radius: 4px;
+					">${escapeHtml(aiSummary)}</div>
+				</div>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		// Close on background click
+		modal.addEventListener('click', (e) => {
+			if (e.target === modal) {
+				modal.remove();
+			}
+		});
+	}
+
+	function showSnapshotModal(snapshotContent, title) {
+		// Create modal overlay
+		const existingModal = document.getElementById('snapshotModal');
+		if (existingModal) {
+			existingModal.remove();
+		}
+
+		const modal = document.createElement('div');
+		modal.id = 'snapshotModal';
+		modal.style.cssText = `
+			position: fixed;
+			top: 0;
+			left: 0;
+			right: 0;
+			bottom: 0;
+			background: rgba(0,0,0,0.7);
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			z-index: 10000;
+			padding: 20px;
+		`;
+
+		modal.innerHTML = `
+			<div style="
+				background: var(--vscode-editor-background);
+				border: 1px solid var(--vscode-editorWidget-border);
+				border-radius: 6px;
+				width: 90%;
+				max-width: 900px;
+				max-height: 80vh;
+				display: flex;
+				flex-direction: column;
+			">
+				<div style="
+					padding: 16px;
+					border-bottom: 1px solid var(--vscode-editorWidget-border);
+					display: flex;
+					justify-content: space-between;
+					align-items: center;
+				">
+					<h3 style="margin: 0;">${escapeHtml(title)}</h3>
+					<button class="button" onclick="document.getElementById('snapshotModal').remove()">Close</button>
+				</div>
+				<div style="
+					padding: 16px;
+					overflow: auto;
+					flex: 1;
+					font-family: monospace;
+					font-size: 12px;
+					white-space: pre-wrap;
+					word-break: break-all;
+				">${escapeHtml(snapshotContent)}</div>
+			</div>
+		`;
+
+		document.body.appendChild(modal);
+
+		// Close on background click
+		modal.addEventListener('click', (e) => {
+			if (e.target === modal) {
+				modal.remove();
+			}
+		});
+	}
+
+	function showActivityFeedback(msg){
+		const el = document.getElementById('activityFeedback');
+		if (el) el.textContent = msg || '';
+	}
+
+	function escapeHtml(str){
+		return (str||'').replace(/[&<>\"]+/g, function(s){
+			return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[s]);
+		});
+	}
+
+	function collectSnapshotPayload(){
+		const id = document.getElementById('fs-id')?.value?.trim();
+		const userId = document.getElementById('fs-userId')?.value?.trim();
+		const teamId = document.getElementById('fs-teamId')?.value?.trim();
+		const updatedAt = document.getElementById('fs-updatedAt')?.value?.trim();
+		const filePath = document.getElementById('fs-filePath')?.value?.trim();
+		const snapshot = document.getElementById('fs-snapshot')?.value?.trim();
+		const changes = document.getElementById('fs-changes')?.value?.trim();
+		if (!filePath || !snapshot || !changes){
+			showFsFeedback('Please fill file path, snapshot and changes.', 'warn');
+			return null;
+		}
+		return {
+			id,
+			user_id: userId || undefined,
+			team_id: teamId || undefined,
+			file_path: filePath,
+			snapshot,
+			changes,
+			updated_at: updatedAt || undefined
+		};
+	}
+
+	function regenerateSnapshotId(){
+		const idEl = document.getElementById('fs-id');
+		const atEl = document.getElementById('fs-updatedAt');
+		if (idEl) idEl.value = generateUUID();
+		if (atEl) atEl.value = new Date().toISOString();
+		showFsFeedback('New ID generated.', 'info');
+	}
+
+	function showFsFeedback(msg, kind){
+		const el = document.getElementById('fs-feedback');
+		if (!el) return;
+		let color = 'var(--vscode-descriptionForeground)';
+		if (kind === 'ok') color = 'var(--vscode-testing-iconPassed)';
+		if (kind === 'warn') color = 'var(--vscode-editorWarning-foreground, orange)';
+		if (kind === 'info') color = 'var(--vscode-descriptionForeground)';
+		el.style.color = color;
+		el.textContent = msg;
+	}
+
+	// showSummaryFeedback function removed - no longer needed since edge function handles automatic summarization
+
+	function getState(){
+		return (vscode.getState && vscode.getState()) || {};
+	}
+
+	function persistFsIds({ userId, teamId }){
+		const prev = getState();
+		vscode.setState({ ...prev, userId, teamId });
+	}
+
+	let __saving = false;
+	function setSaving(v){
+		__saving = v;
+		const btn = document.getElementById('fs-addBtn');
+		if (btn){
+			btn.disabled = !!v;
+			btn.textContent = v ? 'Saving…' : 'Add Snapshot';
+		}
+	}
+	function isSaving(){ return __saving; }
+
+	function generateUUID(){
+		if (window.crypto && window.crypto.randomUUID) {
+			return window.crypto.randomUUID();
+		}
+		return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+			const r = Math.random()*16|0, v = c === 'x' ? r : (r&0x3|0x8);
+			return v.toString(16);
+		});
+	}
+
+	function setupProfilePanel() {
+		const saveBtn = document.getElementById('save-profile-btn');
+		if (saveBtn && !saveBtn.hasAttribute('data-listener-added')) {
+			saveBtn.addEventListener('click', handleSaveProfile);
+			saveBtn.setAttribute('data-listener-added', 'true');
+			console.log('Profile save button listener added');
+		}
+	}
+
+	function handleSaveProfile() {
+		const name = document.getElementById('profile-name')?.value || '';
+		
+		const interestsCheckboxes = document.querySelectorAll('input[name="interests"]:checked');
+		const interests = Array.from(interestsCheckboxes).map(cb => cb.value);
+		
+		const customInterests = document.getElementById('custom-interests')?.value || '';
+		if (customInterests) {
+			const customArray = customInterests.split(',').map(s => s.trim()).filter(s => s);
+			interests.push(...customArray);
+		}
+		
+		const weaknessesCheckboxes = document.querySelectorAll('input[name="weaknesses"]:checked');
+		const weaknesses = Array.from(weaknessesCheckboxes).map(cb => cb.value);
+		
+		const customWeaknesses = document.getElementById('custom-weaknesses')?.value || '';
+		if (customWeaknesses) {
+			const customArray = customWeaknesses.split(',').map(s => s.trim()).filter(s => s);
+			weaknesses.push(...customArray);
+		}
+
+		const profileData = {
+			name,
+			interests,
+			strengths: interests,
+			weaknesses,
+			custom_skills: []
+		};
+
+		const statusEl = document.getElementById('profile-status');
+		if (statusEl) {
+			statusEl.textContent = 'Saving...';
+			statusEl.className = 'status-message';
+		}
+
+		post('saveProfile', { profileData });
+	}
+
+	function loadProfileData() {
+		post('loadProfile');
+	}
+
+	window.addEventListener('message', event => {
+		const message = event.data;
+
+		switch (message.command) {
+			case 'profileSaved':
+				handleProfileSaved(message);
+				break;
+			case 'profileLoaded':
+				handleProfileLoaded(message);
+				break;
+			case 'profileLoadError':
+				handleProfileLoadError(message);
+				break;
+		}
 	});
+
+	function handleProfileSaved(message) {
+		const statusEl = document.getElementById('profile-status');
+		if (statusEl) {
+			if (message.success) {
+				statusEl.textContent = 'Profile saved successfully!';
+				statusEl.className = 'status-message success';
+			} else {
+				statusEl.textContent = 'Error saving profile';
+				statusEl.className = 'status-message error';
+			}
+			
+			setTimeout(() => {
+				statusEl.textContent = '';
+				statusEl.className = 'status-message';
+			}, 3000);
+		}
+	}
+
+	function handleProfileLoaded(message) {
+		if (!message.profile) return;
+		
+		const profile = message.profile;
+		
+		const nameInput = document.getElementById('profile-name');
+		if (nameInput && profile.name) {
+			nameInput.value = profile.name;
+		}
+		
+		if (profile.interests && Array.isArray(profile.interests)) {
+			profile.interests.forEach(interest => {
+				const checkbox = document.querySelector(`input[name="interests"][value="${interest}"]`);
+				if (checkbox) {
+					checkbox.checked = true;
+				}
+			});
+	
+			const predefinedInterests = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 'Swift',
+				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Cloud', 'Security', 'Testing',
+				'API', 'Documentation', 'Debugging'];
+			const customInterests = profile.interests.filter(i => !predefinedInterests.includes(i));
+			if (customInterests.length > 0) {
+				const customInput = document.getElementById('custom-interests');
+				if (customInput) {
+					customInput.value = customInterests.join(', ');
+				}
+			}
+		}
+		
+		if (profile.weaknesses && Array.isArray(profile.weaknesses)) {
+			profile.weaknesses.forEach(weakness => {
+				const checkbox = document.querySelector(`input[name="weaknesses"][value="${weakness}"]`);
+				if (checkbox) {
+					checkbox.checked = true;
+				}
+			});
+	
+			const predefinedWeaknesses = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 'Swift',
+				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Cloud', 'Security', 'Testing',
+				'API', 'Documentation', 'Debugging'];
+			const customWeaknesses = profile.weaknesses.filter(w => !predefinedWeaknesses.includes(w));
+			if (customWeaknesses.length > 0) {
+				const customInput = document.getElementById('custom-weaknesses');
+				if (customInput) {
+					customInput.value = customWeaknesses.join(', ');
+				}
+			}
+		}
+	}
+
+	function handleProfileLoadError(message) {
+		console.error('Failed to load profile:', message.error);
+	}
 })();

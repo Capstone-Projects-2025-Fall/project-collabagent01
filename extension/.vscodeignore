@@ -17,3 +17,16 @@ src/
 tsconfig.json
 webpack.config.js
 esbuild.js
+coverage/**
+__mocks__/**
+test/**
+docs/**
+_docs/**
+scripts/**
+**/.env*
+.env
+.env.*
+
+# Do not include built VSIX artifacts or release archives
+*.vsix
+releases/**

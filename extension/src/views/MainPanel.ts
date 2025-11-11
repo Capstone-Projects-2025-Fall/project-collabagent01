@@ -2,12 +2,16 @@ import * as vscode from 'vscode';
 import { LiveShareManager } from './LiveSharePanel';
 import { AgentPanelProvider } from './AgentPanel';
 import { HomeScreenPanel } from './HomeScreenPanel';
+import { TasksPanel } from './TasksPanel';
+import { ProfilePanel } from './ProfilePanel';
 
 /**
- * Main orchestrator panel that manages and displays three sub-panels:
+ * Main orchestrator panel that manages and displays five sub-panels:
  * - Home Screen (authentication, welcome, user info)
  * - Live Share (collaboration sessions, team messaging)
  * - Agent Panel (team management, AI chat bot)
+ * - Tasks Panel (Jira task integration)
+ * - Profile (user profile and preferences)
  */
 export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** The unique identifier for this webview view type */
@@ -24,7 +28,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     
     /** Home screen panel instance for home functionality */
     private _homeScreen: HomeScreenPanel;
-    
+
+    /** Tasks panel instance for Jira task integration */
+    private _tasksPanel: TasksPanel;
+
+    /** Profile panel instance for user profile management */
+    private _profilePanel: ProfilePanel;
+
     /** Interval to monitor auth state changes */
     private _authMonitorInterval: any | undefined;
     /** Cached last known auth state */
@@ -40,6 +50,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         this._liveShareManager = new LiveShareManager(this._context);
         this._agentPanel = new AgentPanelProvider(this._extensionUri, this._context);
         this._homeScreen = new HomeScreenPanel(this._extensionUri, this._context);
+        this._tasksPanel = new TasksPanel(this._context);
+        this._profilePanel = new ProfilePanel(this._extensionUri, this._context);
     }
 
     /**
@@ -69,9 +81,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         // Set up sub-panels with the webview for delegation
         this._liveShareManager.setView(webviewView);
         this._agentPanel.setWebviewForDelegation(webviewView);
-        
+        this._tasksPanel.setWebview(webviewView);
+
         await this._liveShareManager.initializeLiveShare();
         await this._agentPanel.refreshTeamsList(); // Initialize agent teams
+        await this._tasksPanel.initializePanel(); // Initialize tasks panel
         this.startAuthMonitor();
 
         webviewView.webview.onDidReceiveMessage(
@@ -89,7 +103,19 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     await this.handleAgentMessage(message);
                     return;
                 }
-                
+
+                // Delegate Tasks commands to TasksPanel
+                if (this.isTasksCommand(message.command)) {
+                    await this.handleTasksMessage(message);
+                    return;
+                }
+
+                // Delegate Profile commands to Profile handlers
+                if (this.isProfileCommand(message.command)) {
+                    await this.handleProfileMessage(message);
+                    return;
+                }
+
                 // Handle Home/Auth commands directly in MainPanel
                 switch (message.command) {
                     case 'loginOrSignup':
@@ -127,11 +153,38 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         return [
             'createTeam',
             'joinTeam',
-            'switchTeam', 
+            'switchTeam',
             'refreshTeams',
             'deleteTeam',
             'leaveTeam',
-            'aiQuery'
+            'aiQuery',
+            'addFileSnapshot',
+            // 'generateSummary' removed - edge function now handles automatic summarization
+            'loadActivityFeed'
+        ].includes(command);
+    }
+
+    /** Check if a command is related to Tasks functionality */
+    private isTasksCommand(command: string): boolean {
+        return [
+            'tasksWebviewReady',
+            'connectJira',
+            'refreshTasks',
+            'retryTasks',
+            'loadSprint',
+            'loadBacklog',
+            'transitionIssue',
+            'createTask',
+            'getAISuggestions'
+        ].includes(command);
+    }
+
+    /** Check if a command is related to Profile functionality */
+    private isProfileCommand(command: string): boolean {
+        return [
+            'saveProfile',
+            'loadProfile',
+            'deleteAccount'
         ].includes(command);
     }
 
@@ -171,7 +224,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** Delegate Agent message to AgentPanel */
     private async handleAgentMessage(message: any) {
         console.log('Agent command delegated:', message.command);
-        
+
         switch (message.command) {
             case 'createTeam':
                 await this._agentPanel.createTeam();
@@ -202,8 +255,266 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             case 'aiQuery':
                 await this._agentPanel.processAiQuery(message.text);
                 break;
+            case 'addFileSnapshot':
+                await (this._agentPanel as any).addFileSnapshot?.(message.payload);
+                break;
+            // generateSummary case removed - edge function now handles automatic summarization
+            case 'loadActivityFeed':
+                await (this._agentPanel as any).loadActivityFeed?.(message.teamId, message.limit);
+                break;
             default:
                 console.log('Unknown agent command:', message.command);
+        }
+    }
+
+    /** Delegate Tasks message to TasksPanel */
+    private async handleTasksMessage(message: any) {
+        console.log('Tasks command delegated:', message.command);
+
+        switch (message.command) {
+            case 'tasksWebviewReady':
+                // Webview is ready, refresh panel state
+                await this._tasksPanel.updatePanelState();
+                break;
+            case 'connectJira':
+                await this._tasksPanel.handleConnectJira();
+                break;
+            case 'refreshTasks':
+                await this._tasksPanel.handleRefreshTasks();
+                break;
+            case 'retryTasks':
+                await this._tasksPanel.handleRefreshTasks();
+                break;
+            case 'loadSprint':
+                await this._tasksPanel.handleLoadSprint(message.sprintId);
+                break;
+            case 'loadBacklog':
+                await this._tasksPanel.handleLoadBacklog();
+                break;
+            case 'transitionIssue':
+                await this._tasksPanel.handleTransitionIssue(message.issueKey, message.targetStatus);
+                break;
+            case 'createTask':
+                await this._tasksPanel.handleCreateTask(message.taskData);
+                break;
+            case 'getAISuggestions':
+                await this._tasksPanel.handleGetAISuggestions();
+                break;
+            default:
+                console.log('Unknown tasks command:', message.command);
+        }
+    }
+
+    /** Delegate Profile message to Profile handlers */
+    private async handleProfileMessage(message: any) {
+        console.log('Profile command received:', message.command);
+
+        switch (message.command) {
+            case 'saveProfile':
+                await this.handleSaveProfile(message.profileData);
+                break;
+            case 'loadProfile':
+                await this.handleLoadProfile();
+                break;
+            case 'deleteAccount':
+                await this.handleDeleteAccount();
+                break;
+            default:
+                console.log('Unknown profile command:', message.command);
+        }
+    }
+
+    private async handleSaveProfile(profileData: any) {
+        try {
+            const { getAuthContext } = require('../services/auth-service');
+            const authResult = await getAuthContext();
+
+            if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
+                vscode.window.showErrorMessage('You must be logged in to save your profile.');
+                return;
+            }
+
+            const user = authResult.context;
+            const { BASE_URL } = require('../api/types/endpoints');
+
+            const payload = {
+                user_id: user.id,
+                name: profileData.name || '',
+                interests: profileData.interests || [],
+                strengths: profileData.strengths || [],
+                weaknesses: profileData.weaknesses || [],
+                custom_skills: profileData.custom_skills || []
+            };
+
+            const token = user.auth_token || user.id || 'no-token-available';
+
+            const response = await fetch(`${BASE_URL}/api/profile`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                vscode.window.showInformationMessage('Profile saved successfully!');
+                this._view?.webview.postMessage({
+                    command: 'profileSaved',
+                    success: true,
+                    profile: result.profile
+                });
+            } else {
+                const error = await response.text();
+                vscode.window.showErrorMessage(`Failed to save profile: ${error}`);
+                this._view?.webview.postMessage({
+                    command: 'profileSaved',
+                    success: false,
+                    error: error
+                });
+            }
+        } catch (err) {
+            console.error('Error saving profile:', err);
+            vscode.window.showErrorMessage('Error saving profile. Please try again.');
+            this._view?.webview.postMessage({
+                command: 'profileSaved',
+                success: false,
+                error: String(err)
+            });
+        }
+    }
+
+    private async handleLoadProfile() {
+        try {
+            const { getAuthContext, setAuthContext } = require('../services/auth-service');
+            const authResult = await getAuthContext();
+
+            if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
+                console.log('User not authenticated, cannot load profile');
+                this._view?.webview.postMessage({
+                    command: 'profileLoadError',
+                    error: 'Not authenticated'
+                });
+                return;
+            }
+
+            let user = authResult.context;
+
+            // Migration fix: If auth_token is missing, try to get it from Supabase session
+            if (!user.auth_token) {
+                console.log('Auth token missing, attempting to refresh from Supabase session...');
+                const { getSupabase } = require('../auth/supabaseClient');
+                const supabase = getSupabase();
+                const { data: sessionData } = await supabase.auth.getSession();
+                const token = sessionData?.session?.access_token;
+
+                if (token) {
+                    console.log('Found token in Supabase session, refreshing user data...');
+                    const { getUserByID } = require('../api/user-api');
+                    const { user: refreshedUser, error: refreshError } = await getUserByID(token);
+
+                    if (!refreshError && refreshedUser) {
+                        await setAuthContext(refreshedUser);
+                        user = refreshedUser;
+                        console.log('User context refreshed with auth_token');
+                    } else {
+                        console.error('Failed to refresh user data:', refreshError);
+                        this._view?.webview.postMessage({
+                            command: 'profileLoadError',
+                            error: 'Failed to refresh authentication'
+                        });
+                        return;
+                    }
+                } else {
+                    console.error('No token found in Supabase session');
+                    this._view?.webview.postMessage({
+                        command: 'profileLoadError',
+                        error: 'Auth token missing - please sign out and sign in again'
+                    });
+                    return;
+                }
+            }
+
+            const { BASE_URL } = require('../api/types/endpoints');
+
+            const response = await fetch(`${BASE_URL}/api/profile?user_id=${user.id}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${user.auth_token}`
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('Profile loaded successfully');
+                this._view?.webview.postMessage({
+                    command: 'profileLoaded',
+                    profile: result.profile
+                });
+            } else {
+                const errorText = await response.text();
+                console.error('Failed to load profile:', errorText);
+                this._view?.webview.postMessage({
+                    command: 'profileLoadError',
+                    error: errorText
+                });
+            }
+        } catch (err) {
+            console.error('Error loading profile:', err);
+            this._view?.webview.postMessage({
+                command: 'profileLoadError',
+                error: err instanceof Error ? err.message : 'Unknown error'
+            });
+        }
+    }
+
+    private async handleDeleteAccount() {
+        try {
+            const { getAuthContext } = require('../services/auth-service');
+            const authResult = await getAuthContext();
+
+            if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
+                vscode.window.showErrorMessage('You must be logged in to delete your account.');
+                return;
+            }
+
+            const user = authResult.context;
+            const { getSupabase } = require('../auth/supabaseClient');
+            const supabase = getSupabase();
+
+            // Delete the user from auth.users table (Supabase Admin API)
+            const { error } = await supabase.auth.admin.deleteUser(user.id);
+
+            if (error) {
+                console.error('Error deleting account:', error);
+                vscode.window.showErrorMessage(`Failed to delete account: ${error.message}`);
+                this._view?.webview.postMessage({
+                    command: 'accountDeleted',
+                    success: false,
+                    error: error.message
+                });
+            } else {
+                // Sign out the user locally
+                await supabase.auth.signOut();
+
+                vscode.window.showInformationMessage('Your account has been successfully deleted.');
+                this._view?.webview.postMessage({
+                    command: 'accountDeleted',
+                    success: true
+                });
+
+                // Refresh the panel to show logged-out state
+                await vscode.commands.executeCommand('collabAgent.refreshPanel');
+            }
+        } catch (err) {
+            console.error('Error deleting account:', err);
+            vscode.window.showErrorMessage('Error deleting account. Please try again.');
+            this._view?.webview.postMessage({
+                command: 'accountDeleted',
+                success: false,
+                error: String(err)
+            });
         }
     }
 
@@ -332,6 +643,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             // Get HTML content from sub-panels
             const homeHtml = await this._homeScreen.getHtml(webview, liveShareInstalled, loggedIn, userInfo);
             const agentHtml = this._agentPanel.getInnerHtml();
+            const tasksHtml = this._tasksPanel.getHtml();
+            const profileHtml = await this._profilePanel.getHtml(webview);
             
             // Get Live Share panel content
             const fs = require('fs');
@@ -348,6 +661,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const mainStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'mainPanel.css'));
             const liveShareStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.css'));
             const agentStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.css'));
+            const tasksStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'tasksPanel.css'));
+            const profileStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'profilePanel.css'));
             const nonce = Date.now().toString();
 
             // Load main panel template
@@ -364,13 +679,17 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{MAIN_STYLE_URI}}', mainStyleUri.toString())
                 .replace('{{LIVESHARE_STYLE_URI}}', liveShareStyleUri.toString())
                 .replace('{{AGENT_STYLE_URI}}', agentStyleUri.toString())
+                .replace('{{TASKS_STYLE_URI}}', tasksStyleUri.toString())
+                .replace('{{PROFILE_STYLE_URI}}', profileStyleUri.toString())
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)
                 .replace('{{IS_AUTHENTICATED}}', loggedIn.toString())
                 .replace('{{LIVESHARE_INSTALLED}}', liveShareInstalled.toString())
                 .replace('{{HOME_HTML}}', homeHtml)
                 .replace('{{LIVESHARE_HTML}}', liveShareHtml)
-                .replace('{{AGENT_HTML}}', agentHtml);
+                .replace('{{AGENT_HTML}}', agentHtml)
+                .replace('{{TASKS_HTML}}', tasksHtml)
+                .replace('{{PROFILE_HTML}}', profileHtml);
 
             return html;
         })();

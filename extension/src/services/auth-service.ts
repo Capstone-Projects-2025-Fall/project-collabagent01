@@ -12,6 +12,8 @@ import {
   showAuthNotification,
 } from "../views/notifications";
 import { BASE_URL } from "../api/types/endpoints";
+import { getSupabase } from "../auth/supabaseClient";
+
 
 /**
  * Sets the authentication context for the user in the VS Code global state.
@@ -74,14 +76,17 @@ export async function checkUserSignIn() {
     return;
   }
 
-  await getUserByID(user.id).then(async ({ user, error }) => {
+  // Get the current session token from Supabase
+  const supabase = getSupabase();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token || user.auth_token || user.id;
+
+  await getUserByID(token).then(async ({ user: refreshedUser, error }) => {
     if (error) {
       console.warn(`Failed to get user data during startup: ${error}`);
-      // Don't show intrusive error popup during extension activation
-      // Just log the issue and continue
       return;
     }
-    setAuthContext(user);
+    setAuthContext(refreshedUser);
   });
 
   if (user.isAuthenticated) {
@@ -197,6 +202,19 @@ export async function handleSignIn() {
     return;
   }
 
+  // Store the Supabase session manually so it's restored later
+  const supabase = getSupabase();
+  const { error: sessionError } = await supabase.auth.setSession({
+    access_token: token,
+    refresh_token: token,
+  });
+  if (sessionError) {
+    console.error("[Auth] Failed to set Supabase session:", sessionError.message);
+  } else {
+    console.log("[Auth] Supabase session persisted successfully.");
+  }
+
+  // Now fetch user data as usual
   const { user, error: getUserError } = await getUserByID(token);
   if (getUserError || !user) {
     vscode.window.showErrorMessage(`Failed to get user data: ${getUserError}`);
@@ -272,6 +290,15 @@ export async function handleSignOut() {
     await errorNotification(`Failed to set user context: ${setAuthError}`);
     return;
   }
+
+  // Clear the stored GitHub access token
+  try {
+    const { clearGitHubAccessToken } = require('./github-verification-service');
+    await clearGitHubAccessToken();
+  } catch (err) {
+    console.warn('Failed to clear GitHub token:', err);
+  }
+
   await showAuthNotification(`Sign Out Successfully! 👋`);
 
   vscode.commands.executeCommand("collabAgent.authStateChanged");
@@ -347,8 +374,18 @@ export async function signInWithGithub() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const { getSupabase } = require("../auth/supabaseClient");
     const supabase = getSupabase();
-    // Deep link registered in package.json: vscode://capstone-team-2.collab-agent01/auth/callback
-    const redirectTo = "vscode://capstone-team-2.collab-agent01/auth/callback";
+    // Build deep link dynamically from the actual extension id so it keeps working if the publisher changes
+    // Expected format: vscode://{publisher}.{extensionName}/auth/callback
+    let redirectTo = "vscode://unknown.publisher/auth/callback";
+    try {
+      const thisExt = vscode.extensions.all.find(
+        (e) => e.extensionUri.toString() === (globalContext?.extensionUri.toString() || "")
+      );
+      const extId = thisExt?.id; // e.g., "publisher.collab-agent01"
+      if (extId) {
+        redirectTo = `vscode://${extId}/auth/callback`;
+      }
+    } catch {}
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "github",
       options: { redirectTo }
@@ -363,4 +400,31 @@ export async function signInWithGithub() {
     await errorNotification(`GitHub Sign In failed: ${error.message}`);
     await authNotification();
   }
+}
+
+export async function getCurrentUserId(): Promise<string | null> {
+  const supabase = getSupabase();
+
+  // Try to refresh and persist the session
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    console.warn("[Auth] getSession error:", sessionError.message);
+  }
+
+  if (sessionData?.session?.user?.id) {
+    console.log("[Auth] Found session user ID:", sessionData.session.user.id);
+    return sessionData.session.user.id;
+  }
+
+  // Try fallback - explicitly fetch user
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) {
+    console.warn("[Auth] getUser fallback failed:", userError.message);
+  } else if (userData?.user) {
+    console.log("[Auth] Found user via getUser fallback:", userData.user.id);
+    return userData.user.id;
+  }
+
+  console.warn("[Auth] No session found in Supabase client.");
+  return null;
 }

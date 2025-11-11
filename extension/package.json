@@ -1,9 +1,18 @@
 {
   "name": "collab-agent01",
-  "publisher": "capstone-team-2",
+  "publisher": "capstone-team-02",
   "displayName": "Collab Agent 01",
   "description": "AI-powered collaboration assistant that integrates with Live Share to analyze team activity, provide real-time notifications about what teammates are working on, and enable intelligent team communication through a side panel interface",
-  "version": "0.4.0",
+  "version": "0.4.1",
+  "license": "MIT",
+  "keywords": [
+    "collaboration",
+    "team",
+    "supabase",
+    "github",
+    "live share",
+    "auth"
+  ],
   "engines": {
     "vscode": "^1.97.0"
   },
@@ -12,7 +21,7 @@
   ],
   "activationEvents": [
     "onStartupFinished",
-    "*"
+    "onUri"
   ],
   "repository": {
     "type": "git",
@@ -27,13 +36,13 @@
         "properties": {
           "collabAgent.supabase.url": {
             "type": "string",
-            "default": "",
+            "default": "https://mpldhvkywihmfjdwzakd.supabase.co",
             "description": "Supabase project URL (https://xxxxx.supabase.co). Required for authentication."
           },
           "collabAgent.supabase.anonKey": {
             "type": "string",
-            "default": "",
-            "description": "Supabase anon/public API key (NEVER the service role key). Required for authentication."
+            "default": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1wbGRodmt5d2lobWZqZHd6YWtkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NDQzOTQsImV4cCI6MjA3NTAyMDM5NH0.qaxjv1mjNdRrVbpG6dspzw37vNxxug_LHSBUZpwoBrM",
+            "description": "Supabase anon/public API key required for authentication."
           },
           "collabAgent.general.vendor": {
             "type": "string",
@@ -117,6 +126,10 @@
       {
         "command": "collabAgent.openTeamProject",
         "title": "Collab Agent: Open Team Project"
+      },
+      {
+        "command": "collabAgent.userSnapshot",
+        "title": "Collab Agent: Take Manual Snapshot"
       }
     ],
     "views": {
@@ -144,7 +157,7 @@
     "lint": "eslint src",
     "test": "jest",
     "test:coverage": "jest --coverage",
-  "test:coverage:docs": "npm run test:coverage && node copy-coverage.js && node generate-coverage-summary.js",
+    "test:coverage:docs": "npm run test:coverage && node copy-coverage.js && node generate-coverage-summary.js",
     "compile": "npm run check-types && node esbuild.js",
     "check-types": "tsc --noEmit",
     "watch": "npm-run-all -p watch:*",
@@ -152,12 +165,17 @@
     "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
     "vscode:prepublish": "npm run package",
     "package": "npm run check-types && node esbuild.js --production",
+    "vsce:login": "vsce login capstone-team-02",
+    "vsce:package": "vsce package",
+    "vsce:publish": "vsce publish",
     "docs:generate": "typedoc",
     "docs:serve": "npx http-server docs -p 8080 -o",
     "docs:clean": "rimraf docs"
   },
   "devDependencies": {
+    "@types/diff": "^7.0.2",
     "@types/jest": "^29.5.14",
+    "@types/jira-client": "^7.1.9",
     "@types/node": "22.x",
     "@types/vscode": "^1.97.0",
     "@typescript-eslint/eslint-plugin": "^8.22.0",
@@ -174,12 +192,14 @@
     "ts-jest": "^29.2.6",
     "ts-node": "^10.9.2",
     "typedoc": "^0.27.9",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vsce": "2.15.0"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
     "axios": "^1.7.9",
     "dotenv": "^17.2.3",
+    "jira-client": "^8.2.2",
     "typedoc-theme-hierarchy": "^5.0.4",
     "vsls": "^1.0.4753"
   }

@@ -166,6 +166,7 @@ export async function getUserByID(
       last_name: userData.last_name,
       isLocked: userData.is_locked,
       code_context_id: userData.code_context_id,
+      auth_token: userID,
       isAuthenticated: true,
       userStatus: userData.status,
       role: userData.role,
