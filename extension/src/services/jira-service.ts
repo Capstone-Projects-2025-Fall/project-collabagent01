@@ -70,8 +70,10 @@ export class JiraService {
     private readonly baseUrl: string;
 
     private constructor() {
-        // Use Flask server URL - default to localhost:5000 (Flask default port)
-        this.baseUrl = process.env.FLASK_SERVER_URL || 'http://localhost:5000';
+        // Use centralized backend configuration
+        // Note: Update BACKEND_URL in src/config/backend-config.ts after deploying to Render
+        const { BACKEND_URL } = require('../config/backend-config');
+        this.baseUrl = BACKEND_URL;
     }
 
     public static getInstance(): JiraService {
