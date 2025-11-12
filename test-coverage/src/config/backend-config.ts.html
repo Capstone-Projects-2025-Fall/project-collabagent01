@@ -3,7 +3,7 @@
 <html lang="en">
 
 <head>
-    <title>Code coverage report for src/commands/test-commands.ts</title>
+    <title>Code coverage report for src/config/backend-config.ts</title>
     <meta charset="utf-8" />
     <link rel="stylesheet" href="../../prettify.css" />
     <link rel="stylesheet" href="../../base.css" />
@@ -19,13 +19,13 @@
 <body>
 <div class='wrapper'>
     <div class='pad1'>
-        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/commands</a> test-commands.ts</h1>
+        <h1><a href="../../index.html">All files</a> / <a href="index.html">src/config</a> backend-config.ts</h1>
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>0/25</span>
+                <span class='fraction'>0/24</span>
             </div>
         
             
@@ -46,7 +46,7 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">0% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>0/25</span>
+                <span class='fraction'>0/24</span>
             </div>
         
             
@@ -87,8 +87,7 @@
 <a name='L22'></a><a href='#L22'>22</a>
 <a name='L23'></a><a href='#L23'>23</a>
 <a name='L24'></a><a href='#L24'>24</a>
-<a name='L25'></a><a href='#L25'>25</a>
-<a name='L26'></a><a href='#L26'>26</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
+<a name='L25'></a><a href='#L25'>25</a></td><td class="line-coverage quiet"><span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -112,32 +111,30 @@
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >import * as vscode from "vscode";</span></span></span>
-<span class="cstat-no" title="statement not covered" >import { checkUserSignIn } from "../services/auth-service";</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js"><span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" ><span class="branch-0 cbranch-no" title="branch not covered" >/**</span></span></span>
+<span class="cstat-no" title="statement not covered" > * Backend Configuration</span>
+<span class="cstat-no" title="statement not covered" > * Centralized configuration for backend API URL</span>
+<span class="cstat-no" title="statement not covered" > */</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >const LOCAL_BACKEND_URL = "http://localhost:5000";</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >// TODO: After deploying to Render, replace this with your actual Render URL</span>
+<span class="cstat-no" title="statement not covered" >// Example: "https://collab-agent-backend.onrender.com"</span>
+<span class="cstat-no" title="statement not covered" >const PRODUCTION_BACKEND_URL = process.env.BACKEND_URL || "https://project-collabagent01.onrender.com";</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >// Set to true for local development, false for production</span>
+<span class="cstat-no" title="statement not covered" >const USE_LOCAL_BACKEND = false;</span>
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >export const BACKEND_URL = USE_LOCAL_BACKEND ? LOCAL_BACKEND_URL : PRODUCTION_BACKEND_URL;</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >/**</span>
-<span class="cstat-no" title="statement not covered" > * Registers a debug command to manually test suggestion generation.</span>
-<span class="cstat-no" title="statement not covered" > *</span>
-<span class="cstat-no" title="statement not covered" > * Prompts the user for a custom input prompt, fetches AI suggestions,</span>
-<span class="cstat-no" title="statement not covered" > * and displays the results in an information message.</span>
+<span class="cstat-no" title="statement not covered" > * Helper function to get full API endpoint URL</span>
+<span class="cstat-no" title="statement not covered" > * @param endpoint - API endpoint path (e.g., "/api/ai/feed")</span>
+<span class="cstat-no" title="statement not covered" > * @returns Full URL with backend URL prepended</span>
 <span class="cstat-no" title="statement not covered" > */</span>
-<span class="cstat-no" title="statement not covered" >export const testFetchCommand = { dispose() {} } as any;</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >/**</span>
-<span class="cstat-no" title="statement not covered" > * Registers a debug command to view the incorrect suggestions selected by a user.</span>
-<span class="cstat-no" title="statement not covered" > *</span>
-<span class="cstat-no" title="statement not covered" > * Retrieves stored incorrect choices and displays them in an information message.</span>
-<span class="cstat-no" title="statement not covered" > * (Currently uses a hardcoded test user ID.)</span>
-<span class="cstat-no" title="statement not covered" > */</span>
-<span class="cstat-no" title="statement not covered" >export const incorrectChoicesCommand = { dispose() {} } as any;</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >/**</span>
-<span class="cstat-no" title="statement not covered" > * Registers a debug command to force a check of the user's authentication status.</span>
-<span class="cstat-no" title="statement not covered" > *</span>
-<span class="cstat-no" title="statement not covered" > * Useful for verifying if a user session is active or prompting reauthentication.</span>
-<span class="cstat-no" title="statement not covered" > */</span>
-<span class="cstat-no" title="statement not covered" >export const fetchSettingsCommand = { dispose() {} } as any;</span>
+<span class="cstat-no" title="statement not covered" >export function getApiUrl(endpoint: string): string {</span>
+<span class="cstat-no" title="statement not covered" >    return `${BACKEND_URL}${endpoint}`;</span>
+<span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
