@@ -158,6 +158,53 @@ export class JiraService {
         vscode.window.showInformationMessage('Jira integration configured successfully! Tasks will be available for all team members.');
     }
 
+    
+    public async connectWithCredentials(teamId: string, adminUserId: string, jiraUrl: string, email: string, apiToken: string): Promise<void> {
+        // Validate URL format
+        try {
+            const url = new URL(jiraUrl);
+            if (!url.hostname.includes('atlassian.net') && !url.hostname.includes('jira.com')) {
+                throw new Error('Please enter a valid Jira Cloud URL (atlassian.net) or Jira Server URL');
+            }
+        } catch {
+            throw new Error('Invalid Jira URL format');
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+            throw new Error('Invalid email address format');
+        }
+
+        // Validate API token
+        if (!apiToken || apiToken.length < 20) {
+            throw new Error('API token appears to be invalid or too short');
+        }
+
+        // Test the connection
+        const isValid = await this.testJiraConnection(jiraUrl, email, apiToken);
+        if (!isValid) {
+            throw new Error('Failed to connect to Jira. Please check your credentials and try again.');
+        }
+
+        // Get project key
+        const projectKey = await this.getProjectKey(jiraUrl, email, apiToken);
+        if (!projectKey) {
+            throw new Error('No project selected or unable to fetch projects');
+        }
+
+        // Save configuration
+        await this.saveJiraConfig({
+            team_id: teamId,
+            jira_url: jiraUrl,
+            jira_project_key: projectKey,
+            access_token: Buffer.from(`${email}:${apiToken}`).toString('base64'), // Basic auth encoded
+            admin_user_id: adminUserId
+        });
+
+        vscode.window.showInformationMessage('Jira integration configured successfully! Tasks will be available for all team members.');
+    }
+
     /**
      * Tests Jira connection with provided credentials.
      */
@@ -254,6 +301,27 @@ export class JiraService {
             }
         } catch (error) {
             console.error('Failed to save Jira config:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Disconnects from Jira by deleting the team's Jira configuration.
+     */
+    public async disconnectJira(teamId: string): Promise<void> {
+        try {
+            // Call server endpoint to delete Jira config
+            const response = await axios.delete(`${this.baseUrl}/api/jira/config/${teamId}`, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.status !== 200) {
+                throw new Error('Failed to disconnect from Jira');
+            }
+        } catch (error) {
+            console.error('Failed to disconnect from Jira:', error);
             throw error;
         }
     }

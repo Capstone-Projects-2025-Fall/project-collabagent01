@@ -5,7 +5,12 @@
     let allTasks = [];
 
     // Set up event listeners for Tasks panel
+    const jiraSetupForm = document.getElementById('jira-setup-form');
+    const tokenHelpLink = document.getElementById('token-help-link');
+    const tokenHelpTooltip = document.getElementById('token-help-tooltip');
+    const closeHelpTooltip = document.getElementById('close-help-tooltip');
     const connectBtn = document.getElementById('connect-jira-btn');
+    const disconnectBtn = document.getElementById('disconnect-jira-btn');
     const refreshBtn = document.getElementById('refresh-tasks-btn');
     const retryBtn = document.getElementById('retry-tasks-btn');
     const createTaskBtn = document.getElementById('create-task-btn');
@@ -16,10 +21,72 @@
     const cancelTaskBtn = document.getElementById('cancel-task-btn');
     const createTaskForm = document.getElementById('create-task-form');
 
-    if (connectBtn) {
+    // Jira setup form submission
+    if (jiraSetupForm) {
+        jiraSetupForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const jiraUrl = document.getElementById('jira-url').value.trim();
+            const jiraEmail = document.getElementById('jira-email').value.trim();
+            const jiraToken = document.getElementById('jira-token').value.trim();
+            const statusEl = document.getElementById('jira-setup-status');
+
+            // Show loading state
+            if (connectBtn) {
+                connectBtn.disabled = true;
+                connectBtn.innerHTML = '<span class="button-icon">⏳</span>Connecting...';
+            }
+
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.className = 'setup-status info';
+                statusEl.textContent = 'Connecting to Jira...';
+            }
+
+            // Send to extension
+            window.vscode.postMessage({
+                command: 'connectJiraWithCredentials',
+                jiraUrl,
+                jiraEmail,
+                jiraToken
+            });
+        });
+    }
+
+    // Token help link toggle
+    if (tokenHelpLink) {
+        tokenHelpLink.addEventListener('click', (e) => {
+            e.preventDefault();
+            if (tokenHelpTooltip) {
+                tokenHelpTooltip.style.display = 'block';
+            }
+        });
+    }
+
+    if (closeHelpTooltip) {
+        closeHelpTooltip.addEventListener('click', () => {
+            if (tokenHelpTooltip) {
+                tokenHelpTooltip.style.display = 'none';
+            }
+        });
+    }
+
+    // Legacy connect button (kept for backwards compatibility, but form is preferred)
+    if (connectBtn && !jiraSetupForm) {
         connectBtn.addEventListener('click', () => {
             window.vscode.postMessage({ command: 'connectJira' });
         });
+    }
+
+    if (disconnectBtn) {
+        console.log('[Tasks] Disconnect button found, adding click listener');
+        disconnectBtn.addEventListener('click', () => {
+            console.log('[Tasks] Disconnect button clicked - sending disconnect request');
+            // Send disconnect request to extension (extension will show confirmation dialog)
+            window.vscode.postMessage({ command: 'disconnectJira' });
+        });
+    } else {
+        console.log('[Tasks] Disconnect button NOT found in DOM');
     }
 
     if (refreshBtn) {
@@ -130,7 +197,7 @@
         });
     }
 
-    // Listen for task creation success/failure and AI suggestions completion
+    // Listen for task creation success/failure, AI suggestions completion, and Jira connection
     const originalMessageHandler = window.addEventListener;
     window.addEventListener('message', function(event) {
         const message = event.data;
@@ -156,6 +223,38 @@
                 aiBtn.disabled = false;
                 aiBtn.classList.remove('loading');
                 aiBtn.innerHTML = '<span class="button-icon"></span>Get AI Suggestions';
+            }
+        } else if (message.command === 'jiraConnected') {
+            // Jira connection successful
+            const statusEl = document.getElementById('jira-setup-status');
+            const connectBtn = document.getElementById('connect-jira-btn');
+
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.className = 'setup-status success';
+                statusEl.textContent = '✓ Successfully connected to Jira!';
+            }
+
+            if (connectBtn) {
+                connectBtn.disabled = false;
+                connectBtn.innerHTML = '<span class="button-icon">✓</span>Connected!';
+            }
+
+            // Form will be hidden automatically by the extension via updateTasksUI
+        } else if (message.command === 'jiraConnectionFailed') {
+            // Jira connection failed
+            const statusEl = document.getElementById('jira-setup-status');
+            const connectBtn = document.getElementById('connect-jira-btn');
+
+            if (statusEl) {
+                statusEl.style.display = 'block';
+                statusEl.className = 'setup-status error';
+                statusEl.textContent = '✗ ' + (message.error || 'Failed to connect to Jira');
+            }
+
+            if (connectBtn) {
+                connectBtn.disabled = false;
+                connectBtn.innerHTML = '<span class="button-icon">🔗</span>Connect to Jira';
             }
         }
     });
@@ -238,11 +337,21 @@
         const contentEl = document.getElementById('tasks-content');
         const errorEl = document.getElementById('tasks-error');
         const statusEl = document.getElementById('status-text');
+        const disconnectBtn = document.getElementById('disconnect-jira-btn');
 
         if (setupEl) setupEl.style.display = data.showSetup ? 'block' : 'none';
         if (waitingEl) waitingEl.style.display = data.showWaiting ? 'block' : 'none';
         if (contentEl) contentEl.style.display = data.showTasks ? 'block' : 'none';
         if (errorEl) errorEl.style.display = data.showError ? 'block' : 'none';
+
+        // Show/hide disconnect button for admins only when tasks are visible
+        if (disconnectBtn) {
+            const shouldShow = data.showTasks && data.isAdmin;
+            console.log('[Tasks] Disconnect button visibility - showTasks:', data.showTasks, 'isAdmin:', data.isAdmin, 'shouldShow:', shouldShow);
+            disconnectBtn.style.display = shouldShow ? 'inline-block' : 'none';
+        } else {
+            console.log('[Tasks] Disconnect button element not found in updateTasksUI');
+        }
 
         // Update status text
         if (statusEl) statusEl.textContent = data.statusText || '';
