@@ -2,7 +2,7 @@
 
 
 
-# Project Name
+# Collab Agent 01
 [![Report Issue on Jira](https://img.shields.io/badge/Report%20Issues-Jira-0052CC?style=flat&logo=jira-software)](https://temple-cis-projects-in-cs.atlassian.net/jira/software/c/projects/DT/issues)
 [![Deploy Docs](https://github.com/ApplebaumIan/tu-cis-4398-docs-template/actions/workflows/deploy.yml/badge.svg)](https://github.com/ApplebaumIan/tu-cis-4398-docs-template/actions/workflows/deploy.yml)
 [![Documentation Website Link](https://img.shields.io/badge/-Documentation%20Website-brightgreen)](https://capstone-projects-2025-fall.github.io/project-collabagent01/)
@@ -11,126 +11,156 @@
 
 ## Keywords
 
-Section #, as well as any words that quickly give your peers insights into the application like programming language, development platform, type of application, etc.
+`VS Code Extension` • `Team Collaboration` • `AI Suggestions` • `GitHub Integration` • `Jira Integration` • `Real-time Collaboration`
 
 ## Project Abstract
 
-This document proposes a novel application of a text message (SMS or Email) read-out and hands-free call interacted between an Android Smartphone and an infotainment platform (headunit) in a car environment. When a phone receives an SMS or Email, the text message is transferred from the phone to the headunit through a Bluetooth connection. On the headunit, user can control which and when the received SMS or E-mail to be read out through the in-vehicle audio system. The user may press one button on the headunit to activate the hands-free feature to call back the SMS sender.
+**CollabAgent** is a VS Code extension built to make team collaboration easier. Whether you're a beginner working on your first group project or a professional developer on a team assignment, CollabAgent uses AI to help you coordinate better with your teammates. The extension automatically tracks what everyone is working on by taking snapshots of local changes and displaying them in a shared timeline with AI-generated summaries. It can suggest which team member should work on which Jira tasks based on their user profile, and it lets you manage Jira tasks without leaving your editor. If you've ever struggled to keep track of what your team is doing or felt out of sync with your project, CollabAgent helps solve that problem.
 
 ## High Level Requirement
 
-Describe the requirements – i.e., what the product does and how it does it from a user point of view – at a high level.
+CollabAgent helps teams work together more effectively by providing:
+
+- **Real-Time Collaboration** - Work together on the same code simultaneously using VS Code Live Share integration
+- **Automatic Activity Tracking** - Captures snapshots of what each team member is working on locally without manual updates
+- **AI-Generated Summaries** - Converts code changes into readable summaries so everyone understands what's happening
+- **Shared Team Timeline** - Shows all team activity in one place so you know who's working on what
+- **Smart Task Suggestions** - Uses AI to recommend which team member should handle specific tasks based on their profile
+- **Integrated Task Management** - View and manage Jira tasks directly in VS Code without switching tools
+- **Simple GitHub Authentication** - Quick sign-in with your GitHub account to get started
 
 ## Conceptual Design
 
-Describe the initial design concept: Hardware/software architecture, programming language, operating system, etc.
+### Technology Stack
+
+| Component | Technology |
+|-----------|-----------|
+| **Extension Framework** | VS Code Extension API |
+| **Frontend (Extension)** | TypeScript |
+| **UI (Webviews)** | HTML/CSS/JavaScript |
+| **Backend Framework** | Flask |
+| **Language (Server)** | Python |
+| **Database** | Supabase (PostgreSQL) |
+| **Authentication** | GitHub OAuth |
+| **AI Service** | Google Gemini API |
 
 ## Background
 
-The background will contain a more detailed description of the product and a comparison to existing similar projects/products. A literature search should be conducted and the results listed. Proper citation of sources is required. If there are similar open-source products, you should state whether existing source will be used and to what extent. If there are similar closed-source/proprietary products, you should state how the proposed product will be similar and different.
+Most collaboration tools focus on real-time editing but overlook team awareness outside of active sessions. Live Share enables developers to co-edit code in real time, but it doesn't summarize activity or provide context once the session ends. CollabAgent fills this gap by automatically capturing snapshots of local work and using AI to generate summaries, keeping teammates aligned whether they're coding live or working asynchronously.
+
+### Comparison to Existing Solutions
+
+**Similar Projects:**
+- **VS Code Live Share** - Great for real-time collaboration, but doesn't track what happens after the session ends or provide AI summaries of changes
+- **CodeTogether** - Focuses on pair programming sessions without broader team activity tracking or task management
+
+**What Makes CollabAgent Different:**
+- **Persistent Team Awareness** - Automatically tracks and summarizes all team member activity, not just during live sessions
+- **AI-Generated Context** - Converts code changes into readable summaries, eliminating the need to dig through diffs to understand teammates' code
+- **Built-in Task Management** - Manage Jira tasks without leaving your editor
+- **Smart Suggestions** - AI recommends Jira task assignments based on strengths listed in user profiles.
+- **Timeline View** - See what everyone's working on in one shared timeline and get AI suggestions in the timline to improve team collaboration
 
 ## Required Resources
 
-Visual Studio Code
+To develop or deploy CollabAgent, you'll need the following:
 
-GitHub Account for OAuth 
+### Development Tools
 
-VsCode Live Share extension for real-time collaboration
+- **Visual Studio Code** - Latest version recommended for extension development
+- **Git** - For version control and cloning the repository
+- **Node.js** - v16 or higher (required for compiling the TypeScript extension, NOT for the backend)
+- **Python 3.8+** - For running the Flask backend server
 
-Gemini API Key
+### External Services & API Keys
 
-Supabase for data management
+- **GitHub Account** - Required for OAuth authentication and repository access
+- **Google Gemini API Key** - For AI-powered features (code summaries, task suggestions)
+- **Supabase Account** - Free tier works; provides PostgreSQL database and authentication services
+- **Jira Account** - Optional, for Jira task integration features
 
+### Additional Requirements
 
-## Getting Started with Collab Agent 01 for Peer Review
+- **VS Code Live Share** - For testing real-time collaboration features
+- **Internet Connection** - Required for OAuth, database access, and AI features
+
+## Getting Started with Collab Agent 01
 
 This guide will walk you through installing the extension from the VS Code Marketplace and logging in with your GitHub account.
 
+---
+
 ### Step 1: Install the Extension
-1. Launch Visual Studio Code.
 
-2. Click the Extensions icon in the Activity Bar (the vertical toolbar on the far-left side of your window).
+1. **Launch Visual Studio Code**
 
-3. In the search bar that appears, type: Collab Agent 01.
+2. **Open Extensions Panel**
+   - Click the Extensions icon in the Activity Bar (left sidebar)
+   - Or press `Ctrl+Shift+X` (Windows/Linux) or `Cmd+Shift+X` (Mac)
 
-4. Find the extension in the search results. Verify that you are installing the correct version (e.g., version 0.4.1).
+3. **Search for Extension**
+   - Type `Collab Agent 01` in the search bar
 
-5. Click the blue Install button.
+4. **Install**
+   - Find the extension in the search results
+   - Verify you're installing the correct version (e.g., version 0.5.0 or later)
+   - Click the blue **Install** button
 
-6. Once installed, a new Collab Agent 01 icon (it looks like three people) will appear in your Activity Bar.
+5. **Access Extension**
+   - Look for the Collab Agent 01 icon (three people) in the Activity Bar
+   - Click to open the extension panel
 
-7. Click this new icon to open the extension's main panel.
+---
 
 ### Step 2: Sign In with GitHub
-Important: The email login option is not currently working. Please follow these steps to log in using GitHub.
 
-1. In the Collab Agent 01 panel you just opened, find the "Sign Up/Login" button.
+> **Note:** Email login is currently not working. Please use GitHub authentication.
 
-2. Click the button and choose Sign In (do not select "Sign Up").
+1. **Open Extension Panel**
+   - Click the Collab Agent 01 icon in the Activity Bar
 
-3. On the next screen, click the "Sign In with GitHub" button.
+2. **Start Sign In**
+   - Find and click the **"Sign Up/Login"** button
+   - Choose **"Sign In"** (not "Sign Up")
 
-4. VS Code will ask for permission to open an external website. Click Open.
+3. **Authenticate with GitHub**
+   - Click **"Sign In with GitHub"**
+   - VS Code will ask permission to open an external website → Click **Open**
 
-5. Your web browser will open to a GitHub authorization page. Click the green Authorize button.
+4. **Authorize on GitHub**
+   - Your browser will open to GitHub's authorization page
+   - Click the green **Authorize** button
 
-6. After authorizing, your browser will likely show a pop-up: "This site is trying to open Visual Studio Code." Click Open.
+5. **Complete Authorization**
+   - Browser popup: "This site is trying to open Visual Studio Code" → Click **Open**
+   - VS Code prompt: "Allow 'Collab Agent 01' extension to open this URI?" → Click **Open**
 
-7. Finally, VS Code will show one last confirmation: "Allow 'Collab Agent 01' extension to open this URI?". Click Open.
+You are now successfully logged in to the extension.
 
-You should now be successfully logged in to the extension. 
+--- 
 
+### Step 3: Learn How to Use the Extension
 
-### How to Create and Join a Team
-Before you can create or join a team, everyone must complete one critical prerequisite.
+**For peer reviewers and users who want to learn more about using the extension:**
 
-Important Prerequisite (For ALL Team Members)
+To understand what to expect when using the extension and learn about all available features, please follow the steps below
 
-This extension links a team to a specific code repository. Therefore, every member (both the creator and the joiners) must follow these steps first:
+1. Visit the [Documentation Website](https://capstone-projects-2025-fall.github.io/project-collabagent01/)
 
-Choose any Repository that is linked to GitHub: For example, you can create a new, empty repository on GitHub just for this purpose.
+2. Click **"Documentation"** in the top-left navigation menu
 
-Clone the Repository: Every team member must git clone that exact same repository to their local computer.
+3. Navigate to **"Test Procedure"**
 
-Open the Folder in VS Code: Launch VS Code and open the folder you just cloned (using File > Open Folder...).
+4. Select **"Acceptance Test"**
 
-Ensure It's the Only Folder: This is critical. Your cloned repository folder must be the only folder open in your VS Code window. The extension will not work correctly if you have multiple folders open in a "Workspace."
+This section provides detailed instructions on how to use each feature, what to expect when clicking different buttons, and step-by-step guidance for testing the extension.
 
-Log In: Make sure you are logged into the Collab Agent 01 extension with your GitHub account.
-
-### Section 1: How to Create a Team (For the Team Leader)
-Only one person needs to create the team.
-
-Click the Collab Agent 01 icon in the Activity Bar (the three-person logo).
-
-In the panel that opens, find and click on the "AgentBot" tab.
-
-Click the "Create Team" button.
-
-A 6-digit team code will be generated.
-
-Share this 6-digit code with the team members who will be joining.
-
-### Section 2: How to Join a Team (For Team Members)
-Everyone else who wants to join the team should follow these steps.
-
-Confirm you have completed the "Important Prerequisite" steps listed above.
-
-Click the Collab Agent 01 icon in the Activity Bar.
-
-In the panel that opens, click on the "AgentBot" tab.
-
-Click the "Join Team" button.
-
-A box will appear. Enter the 6-digit code provided by your team leader.
-
-You should now be successfully connected to the team!
+---
 
 ## Collaborators
-Benjamin O'Neill, Andrew Rush, Jaryn Hernandez, Nicholas Phillips, Alphin Shajan
 <div align="center">
 
 [//]: # (Replace with your collaborators)
-[Ian Tyler Applebaum](https://github.com/ApplebaumIan) • [Kyle Dragon Lee](https://github.com/leekd99)
+[Alphin Shajan](https://github.com/alphin-08) • [Andrew Rush](https://github.com/tuj55961) • [Nicholas Phillips](https://github.com/vidderr) • [Jaryn Hernandez](https://github.com/JaHe03) • [Benjamin Shawn O'Neill](https://github.com/Ben-O1) • [Ian Tyler Applebaum](https://github.com/ApplebaumIan) • [Kyle Dragon Lee](https://github.com/leekd99)
 
 </div>
