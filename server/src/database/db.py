@@ -2,7 +2,7 @@
 import os, requests
 
 SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
-SERVICE_KEY  = os.getenv("SUPABASE_SERVICE_KEY") or ""  # dev-only
+SERVICE_KEY  = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""  # Fixed: use correct env var name
 REST = f"{SUPABASE_URL}/rest/v1"
 
 HEADERS = {
