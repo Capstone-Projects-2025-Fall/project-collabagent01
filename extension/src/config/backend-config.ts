@@ -10,7 +10,7 @@ const LOCAL_BACKEND_URL = "http://localhost:5000";
 const PRODUCTION_BACKEND_URL = process.env.BACKEND_URL || "https://project-collabagent01.onrender.com";
 
 // Set to true for local development, false for production
-const USE_LOCAL_BACKEND = true;
+const USE_LOCAL_BACKEND = false;
 
 export const BACKEND_URL = USE_LOCAL_BACKEND ? LOCAL_BACKEND_URL : PRODUCTION_BACKEND_URL;
 

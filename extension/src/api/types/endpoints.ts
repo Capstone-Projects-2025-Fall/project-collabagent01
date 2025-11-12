@@ -4,7 +4,7 @@ const LOCAL_ENDPOINT_URL = "http://127.0.0.1:5000";
 // Production backend URL - UPDATE THIS after deploying to Render
 const PRODUCTION_ENDPOINT_URL = process.env.BACKEND_URL || "https://project-collabagent01.onrender.com";
 
-const TESTING: boolean = true;
+const TESTING: boolean = false;
 
 const BASE_URL = TESTING ? LOCAL_ENDPOINT_URL : PRODUCTION_ENDPOINT_URL;
 
