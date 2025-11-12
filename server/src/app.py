@@ -23,6 +23,11 @@ app.register_blueprint(jira_bp)
 app.register_blueprint(profile_bp)
 app.register_blueprint(user_bp)
 
+# Health check endpoint for UptimeRobot
+@app.route('/health', methods=['GET'])
+def health_check():
+    return jsonify({"status": "healthy", "service": "collab-agent-backend"}), 200
+
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
