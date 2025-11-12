@@ -5,7 +5,7 @@ import requests
 user_bp = Blueprint("users", __name__, url_prefix="/users")
 
 SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
-SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or ""
+SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or "" 
 
 
 @user_bp.route("/<user_id>", methods=["GET"])

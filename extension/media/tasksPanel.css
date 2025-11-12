@@ -683,6 +683,12 @@
   padding: 28px;
 }
 
+/* Jira Configuration Form */
+.jira-config-form {
+  padding: 0;
+  margin-top: 24px;
+}
+
 .form-group {
   margin-bottom: 20px;
 }
@@ -702,6 +708,9 @@
 }
 
 .form-group input[type="text"],
+.form-group input[type="url"],
+.form-group input[type="email"],
+.form-group input[type="password"],
 .form-group textarea,
 .form-group select {
   width: 100%;
@@ -714,6 +723,31 @@
   font-family: inherit;
   transition: all 0.2s ease;
   box-sizing: border-box;
+}
+
+/* Input field specific styling */
+.input-field {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 8px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-size: 13px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  box-sizing: border-box;
+}
+
+.input-field:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder);
+  box-shadow: 0 0 0 3px rgba(14, 99, 156, 0.1);
+}
+
+.input-field::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+  opacity: 0.7;
 }
 
 .form-group input[type="text"]:focus,
@@ -772,6 +806,17 @@
   border-color: var(--vscode-focusBorder);
 }
 
+.button.disconnect-btn {
+  background: rgba(244, 67, 54, 0.1);
+  color: #F44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
+}
+
+.button.disconnect-btn:hover {
+  background: rgba(244, 67, 54, 0.2);
+  border-color: #F44336;
+}
+
 /* Loading state for submit button */
 .button.loading {
   opacity: 0.7;
@@ -789,6 +834,121 @@
   border-top-color: transparent;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
+}
+
+/* Field Hint - Small text below inputs */
+.field-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground);
+  margin-top: 6px;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Help Link - Clickable link in field hints */
+.help-link {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.help-link:hover {
+  color: var(--vscode-textLink-activeForeground);
+  text-decoration: underline;
+}
+
+/* Help Tooltip - Popup with instructions */
+.help-tooltip {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: var(--vscode-editor-background);
+  border: 2px solid var(--vscode-textLink-foreground);
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 500px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  z-index: 3000;
+  animation: fadeInScale 0.3s ease;
+}
+
+@keyframes fadeInScale {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+.help-content {
+  color: var(--vscode-foreground);
+}
+
+.help-content h4 {
+  margin: 0 0 16px 0;
+  color: var(--vscode-textLink-foreground);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.help-content ol {
+  margin: 0 0 20px 0;
+  padding-left: 24px;
+  line-height: 1.8;
+}
+
+.help-content li {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.help-content strong {
+  color: var(--vscode-textLink-foreground);
+  font-weight: 600;
+}
+
+/* Setup Status - Success/Error messages */
+.setup-status {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: slideInDown 0.3s ease;
+}
+
+@keyframes slideInDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.setup-status.success {
+  background: rgba(76, 175, 80, 0.15);
+  color: #4CAF50;
+  border: 1px solid rgba(76, 175, 80, 0.3);
+}
+
+.setup-status.error {
+  background: rgba(244, 67, 54, 0.15);
+  color: #F44336;
+  border: 1px solid rgba(244, 67, 54, 0.3);
 }
 
 /* Responsive Design */

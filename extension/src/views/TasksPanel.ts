@@ -216,7 +216,8 @@ export class TasksPanel {
                 showLoading: false,
                 showError: false,
                 statusText: `${issues.length} tasks loaded`,
-                tasks: issues
+                tasks: issues,
+                isAdmin: this._currentUserRole === 'admin'
             });
 
         } catch (error) {
@@ -260,6 +261,92 @@ export class TasksPanel {
             console.error('Failed to connect Jira:', error);
             vscode.window.showErrorMessage(
                 `Failed to connect to Jira: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
+     * Handles Jira connection with credentials provided directly from the form.
+     */
+    public async handleConnectJiraWithCredentials(jiraUrl: string, jiraEmail: string, jiraToken: string) {
+        // Security check: Only admins can connect Jira
+        if (!this._currentTeamId || this._currentUserRole !== 'admin') {
+            this._view?.webview.postMessage({
+                command: 'jiraConnectionFailed',
+                error: 'Only team admins can configure Jira integration'
+            });
+            return;
+        }
+
+        try {
+            const jiraService = JiraService.getInstance();
+
+            // Get current user ID
+            const { getAuthContext } = require('../services/auth-service');
+            const authResult = await getAuthContext();
+            const adminUserId = authResult?.context?.id;
+
+            if (!adminUserId) {
+                throw new Error('Unable to get user authentication context');
+            }
+
+            // Call the service method that handles the full flow with provided credentials
+            await jiraService.connectWithCredentials(this._currentTeamId, adminUserId, jiraUrl, jiraEmail, jiraToken);
+
+            // Send success message to webview
+            this._view?.webview.postMessage({
+                command: 'jiraConnected'
+            });
+
+            // Refresh state after successful connection
+            await this.refreshTeamState();
+            this.updateUI();
+
+        } catch (error) {
+            console.error('Failed to connect Jira with credentials:', error);
+            this._view?.webview.postMessage({
+                command: 'jiraConnectionFailed',
+                error: error instanceof Error ? error.message : 'Failed to connect to Jira'
+            });
+        }
+    }
+
+    /**
+     * Handles disconnecting from Jira (admin only).
+     */
+    public async handleDisconnectJira() {
+        // Security check: Only admins can disconnect Jira
+        if (!this._currentTeamId || this._currentUserRole !== 'admin') {
+            vscode.window.showErrorMessage('Only team admins can disconnect Jira integration');
+            return;
+        }
+
+        // Show confirmation dialog
+        const confirmation = await vscode.window.showWarningMessage(
+            'Are you sure you want to disconnect from Jira? This will remove the Jira integration for your team.',
+            { modal: true },
+            'Disconnect',
+            'Cancel'
+        );
+
+        if (confirmation !== 'Disconnect') {
+            return;
+        }
+
+        try {
+            const jiraService = JiraService.getInstance();
+            await jiraService.disconnectJira(this._currentTeamId);
+
+            vscode.window.showInformationMessage('Successfully disconnected from Jira');
+
+            // Refresh state to show setup UI again
+            await this.refreshTeamState();
+            this.updateUI();
+
+        } catch (error) {
+            console.error('Failed to disconnect Jira:', error);
+            vscode.window.showErrorMessage(
+                error instanceof Error ? error.message : 'Failed to disconnect from Jira'
             );
         }
     }

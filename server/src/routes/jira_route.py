@@ -7,7 +7,7 @@ jira_bp = Blueprint("jira", __name__, url_prefix="/api/jira")
 
 # Get Supabase config for direct REST calls
 SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
-SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY") or ""
+SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""  
 
 def sb_delete(table: str, params: dict):
     """Delete function using direct REST API call."""

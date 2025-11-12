@@ -1373,20 +1373,39 @@
 	}
 
 	function handleProfileLoaded(message) {
-		if (!message.profile) return;
-		
-		const profile = message.profile;
-		
-		const nameInput = document.getElementById('profile-name');
-		if (nameInput && profile.name) {
-			nameInput.value = profile.name;
+		console.log('[Profile] handleProfileLoaded called with:', message);
+
+		if (!message.profile) {
+			console.log('[Profile] No profile data received');
+			return;
 		}
-		
+
+		const profile = message.profile;
+		console.log('[Profile] Profile data:', profile);
+
+		// Clear name field first
+		const nameInput = document.getElementById('profile-name');
+		if (nameInput) {
+			nameInput.value = profile.name || '';
+			console.log('[Profile] Set name to:', profile.name);
+		}
+
+		// Clear all interest checkboxes first
+		const allInterestCheckboxes = document.querySelectorAll('input[name="interests"]');
+		allInterestCheckboxes.forEach(cb => {
+			cb.checked = false;
+		});
+		console.log('[Profile] Cleared all interest checkboxes');
+
 		if (profile.interests && Array.isArray(profile.interests)) {
+			console.log('[Profile] Loading interests:', profile.interests);
 			profile.interests.forEach(interest => {
 				const checkbox = document.querySelector(`input[name="interests"][value="${interest}"]`);
 				if (checkbox) {
 					checkbox.checked = true;
+					console.log('[Profile] Checked interest:', interest);
+				} else {
+					console.log('[Profile] Checkbox not found for interest:', interest);
 				}
 			});
 	

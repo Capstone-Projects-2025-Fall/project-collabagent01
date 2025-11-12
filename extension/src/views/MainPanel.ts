@@ -169,6 +169,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         return [
             'tasksWebviewReady',
             'connectJira',
+            'connectJiraWithCredentials',
+            'disconnectJira',
             'refreshTasks',
             'retryTasks',
             'loadSprint',
@@ -278,6 +280,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'connectJira':
                 await this._tasksPanel.handleConnectJira();
+                break;
+            case 'connectJiraWithCredentials':
+                await this._tasksPanel.handleConnectJiraWithCredentials(message.jiraUrl, message.jiraEmail, message.jiraToken);
+                break;
+            case 'disconnectJira':
+                await this._tasksPanel.handleDisconnectJira();
                 break;
             case 'refreshTasks':
                 await this._tasksPanel.handleRefreshTasks();

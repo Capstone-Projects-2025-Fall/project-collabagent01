@@ -1,15 +1,6 @@
 <div class="tasks-container">
     <div class="tasks-header">
         <h2>Team Tasks</h2>
-        <div class="info-icon-wrapper">
-            <svg class="info-icon" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="8" cy="8" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
-                <text x="8" y="11.5" text-anchor="middle" font-size="10" font-weight="bold" fill="currentColor">i</text>
-            </svg>
-            <div class="tooltip">
-                First, generate your Jira token:<br>Go to Jira in your browser &rarr; your Jira profile &rarr; manage your account &rarr; security tab &rarr; create and manage API tokens &rarr; generate a personal token <br><br> Once you have your token, return to VS Code and use Ctrl+Shift+P to open the command palette. Search for and select "Collab Agent: Connect to Jira" (or click the Jira button in the bottom status bar). When prompted, enter your Jira instance URL, your Jira email address, and paste your personal API token. Finally, select the correct project board from the project dropdown. Your Jira configuration will be saved, and the status bar will show a Jira icon with a checkmark to confirm the connection.
-            </div>
-        </div>
     </div>
     <div id="tasks-status" class="tasks-status">
         <span id="status-text">Loading...</span>
@@ -20,26 +11,76 @@
         <div class="setup-card">
             <h3>🔗 Connect to Jira</h3>
             <p>Connect your team's Jira board to view and track tasks collaboratively.</p>
-            <div class="setup-steps">
-                <div class="step">
-                    <span class="step-number">1</span>
-                    <span>Ensure you have a Jira account with access to the team board</span>
+
+            <form id="jira-setup-form" class="jira-config-form">
+                <div class="form-group">
+                    <label for="jira-url">Jira Instance URL <span class="required">*</span></label>
+                    <input
+                        type="url"
+                        id="jira-url"
+                        name="jiraUrl"
+                        required
+                        placeholder="https://your-domain.atlassian.net"
+                        class="input-field"
+                    />
+                    <small class="field-hint">Example: https://temple-cis-projects-in-cs.atlassian.net</small>
                 </div>
-                <div class="step">
-                    <span class="step-number">2</span>
-                    <span>Use Command Palette or Status Bar to connect Jira</span>
+
+                <div class="form-group">
+                    <label for="jira-email">Jira Email <span class="required">*</span></label>
+                    <input
+                        type="email"
+                        id="jira-email"
+                        name="jiraEmail"
+                        required
+                        placeholder="your-email@example.com"
+                        class="input-field"
+                    />
+                    <small class="field-hint">The email associated with your Jira account</small>
                 </div>
-                <div class="step">
-                    <span class="step-number">3</span>
-                    <span>All team members will be able to view tasks</span>
+
+                <div class="form-group">
+                    <label for="jira-token">API Token <span class="required">*</span></label>
+                    <input
+                        type="password"
+                        id="jira-token"
+                        name="jiraToken"
+                        required
+                        placeholder="Enter your Jira API token"
+                        class="input-field"
+                    />
+                    <small class="field-hint">
+                        <a href="#" id="token-help-link" class="help-link">How do I get an API token?</a>
+                        <br><br>
+                        <strong>Note:</strong> After clicking "Connect to Jira", a dropdown menu will appear at the top of VS Code. Please select your project from the dropdown to complete the setup.
+                    </small>
                 </div>
-            </div>
-            <div class="command-info">
-                <p><strong>How to connect:</strong></p>
-                <ul>
-                    <li><strong>Command Palette:</strong> Ctrl+Shift+P → "Collab Agent: Connect to Jira"</li>
-                    <li><strong>Status Bar:</strong> Click the Jira icon in the bottom status bar</li>
-                </ul>
+
+                <div class="form-actions">
+                    <button type="submit" class="button primary" id="connect-jira-btn">
+                        <span class="button-icon">🔗</span>
+                        Connect to Jira
+                    </button>
+                </div>
+
+                <div id="jira-setup-status" class="setup-status" style="display: none;"></div>
+            </form>
+
+            <!-- Help tooltip for token generation -->
+            <div id="token-help-tooltip" class="help-tooltip" style="display: none;">
+                <div class="help-content">
+                    <h4>How to Generate a Jira API Token</h4>
+                    <ol>
+                        <li>Go to Jira in your browser</li>
+                        <li>Click your profile picture → <strong>Manage account</strong></li>
+                        <li>Navigate to the <strong>Security</strong> tab</li>
+                        <li>Click <strong>Create and manage API tokens</strong></li>
+                        <li>Click <strong>Create API token</strong></li>
+                        <li>Give it a name and click <strong>Create</strong></li>
+                        <li>Copy the token and paste it above</li>
+                    </ol>
+                    <button class="button small" id="close-help-tooltip">Got it!</button>
+                </div>
             </div>
         </div>
     </div>
@@ -86,6 +127,10 @@
                 <button class="button small" id="refresh-tasks-btn" title="Refresh tasks">
                     <span class="button-icon"></span>
                     Refresh
+                </button>
+                <button class="button small disconnect-btn" id="disconnect-jira-btn" title="Disconnect from Jira" style="display: none;">
+                    <span class="button-icon"></span>
+                    Disconnect
                 </button>
             </div>
         </div>

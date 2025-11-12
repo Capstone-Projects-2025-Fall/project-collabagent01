@@ -199,7 +199,7 @@ def get_feed():
     try:
       from supabase import create_client, Client
       supabase_url = os.getenv("SUPABASE_URL")
-      service_key = os.getenv("SUPABASE_SERVICE_KEY")
+      service_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")  # Fixed: use correct env var name
       if supabase_url and service_key:
         supabase: Client = create_client(supabase_url, service_key)
         # Fetch users using admin API
