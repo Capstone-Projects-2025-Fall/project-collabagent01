@@ -479,7 +479,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
     private async handleDeleteAccount() {
         try {
-            const { getAuthContext } = require('../services/auth-service');
+            console.log('[DELETE ACCOUNT] Starting deletion');
+            const { getAuthContext, handleSignOut } = require('../services/auth-service');
             const authResult = await getAuthContext();
 
             if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
@@ -490,39 +491,50 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const user = authResult.context;
             const { getSupabase } = require('../auth/supabaseClient');
             const supabase = getSupabase();
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData?.session?.access_token;
 
-            // Delete the user from auth.users table (Supabase Admin API)
-            const { error } = await supabase.auth.admin.deleteUser(user.id);
+            if (!token) {
+                vscode.window.showErrorMessage('Authentication token missing. Please sign out and sign in again.');
+                return;
+            }
 
-            if (error) {
-                console.error('Error deleting account:', error);
-                vscode.window.showErrorMessage(`Failed to delete account: ${error.message}`);
-                this._view?.webview.postMessage({
-                    command: 'accountDeleted',
-                    success: false,
-                    error: error.message
-                });
-            } else {
-                // Sign out the user locally
-                await supabase.auth.signOut();
+            const { BASE_URL } = require('../api/types/endpoints');
+            console.log('[DELETE ACCOUNT] Calling backend:', `${BASE_URL}/api/account/delete`);
 
+            const response = await fetch(`${BASE_URL}/api/account/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('[DELETE ACCOUNT] Success:', result);
+                await handleSignOut();
                 vscode.window.showInformationMessage('Your account has been successfully deleted.');
-                this._view?.webview.postMessage({
-                    command: 'accountDeleted',
-                    success: true
-                });
-
-                // Refresh the panel to show logged-out state
-                await vscode.commands.executeCommand('collabAgent.refreshPanel');
+                this._view?.webview.postMessage({ command: 'accountDeleted', success: true });
+                await new Promise(resolve => setTimeout(resolve, 500));
+                if (this._view) {
+                    this._view.webview.html = await this._getHtmlForWebview(this._view.webview);
+                }
+            } else {
+                const errorData = await response.text();
+                console.error('[DELETE ACCOUNT] Error:', errorData);
+                let errorMessage = 'Failed to delete account.';
+                try {
+                    const errorJson = JSON.parse(errorData);
+                    errorMessage = errorJson.error || errorMessage;
+                } catch { }
+                vscode.window.showErrorMessage(`Failed to delete account: ${errorMessage}`);
+                this._view?.webview.postMessage({ command: 'accountDeleted', success: false, error: errorMessage });
             }
         } catch (err) {
-            console.error('Error deleting account:', err);
+            console.error('[DELETE ACCOUNT] Exception:', err);
             vscode.window.showErrorMessage('Error deleting account. Please try again.');
-            this._view?.webview.postMessage({
-                command: 'accountDeleted',
-                success: false,
-                error: String(err)
-            });
+            this._view?.webview.postMessage({ command: 'accountDeleted', success: false, error: String(err) });
         }
     }
 
