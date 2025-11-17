@@ -240,7 +240,7 @@ export async function insertLiveShareSummary(
       if (joinedUserIds && joinedUserIds.length > 0) {
         try {
           const dn = await getOrInitDisplayName(true);
-          headerParts.push(`Joined: ${dn.displayName}`);
+          headerParts.push(`${dn.displayName} has joined the team`);
         } catch {
           headerParts.push('Joined: 1 member');
         }
@@ -248,7 +248,7 @@ export async function insertLiveShareSummary(
       if (leftUserIds && leftUserIds.length > 0) {
         try {
           const dn = await getOrInitDisplayName(true);
-          headerParts.push(`Left: ${dn.displayName}`);
+          headerParts.push(`${dn.displayName} has left the team`);
         } catch {
           headerParts.push('Left: 1 member');
         }
