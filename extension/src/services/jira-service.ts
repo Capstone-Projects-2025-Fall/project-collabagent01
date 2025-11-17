@@ -697,6 +697,82 @@ export class JiraService {
     }
 
     /**
+     * Updates the story points for an issue.
+     * @param teamId
+     * @param issueKey
+     * @param storyPoints
+     */
+    public async updateStoryPoints(teamId: string, issueKey: string, storyPoints: number | null): Promise<void> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            await axios.put(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}`,
+                {
+                    fields: {
+                        customfield_10026: storyPoints
+                    }
+                },
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            console.log(`Successfully updated story points for ${issueKey} to ${storyPoints}`);
+        } catch (error: any) {
+            console.error('Failed to update story points:', error);
+            throw new Error(`Failed to update story points: ${error.message}`);
+        }
+    }
+
+    /**
+     * Updates the priority for an issue.
+     * @param teamId
+     * @param issueKey
+     * @param priorityName
+     */
+    public async updatePriority(teamId: string, issueKey: string, priorityName: string): Promise<void> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            await axios.put(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}`,
+                {
+                    fields: {
+                        priority: {
+                            name: priorityName
+                        }
+                    }
+                },
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            console.log(`Successfully updated priority for ${issueKey} to ${priorityName}`);
+        } catch (error: any) {
+            console.error('Failed to update priority:', error);
+            throw new Error(`Failed to update priority: ${error.message}`);
+        }
+    }
+
+    /**
      * Fetches assignable users for the project (for reassignment dropdown).
      */
     public async fetchAssignableUsers(teamId: string): Promise<Array<{accountId: string, displayName: string, emailAddress?: string}>> {

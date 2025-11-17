@@ -528,6 +528,59 @@ export class TasksPanel {
     }
 
     /**
+     * Handles updating story points for an issue.
+     */
+    public async handleUpdateStoryPoints(issueKey: string, storyPoints: number | null) {
+        if (!this._currentTeamId) return;
+
+        try {
+            const jiraService = JiraService.getInstance();
+
+            // Performs the update
+            await jiraService.updateStoryPoints(this._currentTeamId, issueKey, storyPoints);
+
+            const message = storyPoints !== null
+                ? `✅ ${issueKey} story points updated to ${storyPoints}`
+                : `✅ ${issueKey} story points cleared`;
+            vscode.window.showInformationMessage(message);
+
+            // Refresh the task list to show updated story points
+            await this.handleRefreshTasks();
+
+        } catch (error) {
+            console.error('Failed to update story points:', error);
+            vscode.window.showErrorMessage(
+                `Failed to update story points for ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
+     * Handles updating priority for an issue.
+     */
+    public async handleUpdatePriority(issueKey: string, priorityName: string) {
+        if (!this._currentTeamId) return;
+
+        try {
+            const jiraService = JiraService.getInstance();
+
+            // Performs the update
+            await jiraService.updatePriority(this._currentTeamId, issueKey, priorityName);
+
+            vscode.window.showInformationMessage(`✅ ${issueKey} priority updated to ${priorityName}`);
+
+            // Refresh the task list to show updated priority
+            await this.handleRefreshTasks();
+
+        } catch (error) {
+            console.error('Failed to update priority:', error);
+            vscode.window.showErrorMessage(
+                `Failed to update priority for ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
      * Handles fetching assignable users for the project.
      */
     public async handleFetchAssignableUsers() {

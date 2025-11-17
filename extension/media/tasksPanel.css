@@ -426,9 +426,114 @@
   transition: all 0.2s ease;
 }
 
-.task-story-points-badge:hover {
+.task-story-points-badge.editable {
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.task-story-points-badge.editable:hover {
   transform: scale(1.05);
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  border-color: var(--vscode-focusBorder);
+}
+
+.task-story-points-badge.empty {
+  opacity: 0.6;
+  font-weight: 600;
+}
+
+.task-story-points-badge.empty:hover {
+  opacity: 1;
+}
+
+/* Story Points Editor */
+.story-points-editor {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--vscode-dropdown-background);
+  border: 2px solid var(--vscode-focusBorder);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  animation: editorFadeIn 0.2s ease;
+}
+
+@keyframes editorFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.story-points-input {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-input-border);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.story-points-input:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder);
+}
+
+.story-points-input.error {
+  border-color: var(--vscode-errorForeground);
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.story-points-save,
+.story-points-cancel {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.story-points-save {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.story-points-save:hover {
+  background: var(--vscode-button-hoverBackground);
+  transform: scale(1.1);
+}
+
+.story-points-cancel {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+.story-points-cancel:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+  transform: scale(1.1);
 }
 
 /* Status Badges - Color Coded */
@@ -489,6 +594,26 @@
   background: var(--vscode-textCodeBlock-background);
   border-radius: 6px;
   transition: all 0.2s ease;
+}
+
+.task-priority.editable {
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.task-priority.editable:hover {
+  background: var(--vscode-list-hoverBackground);
+  border-color: var(--vscode-focusBorder);
+  transform: translateY(-1px);
+}
+
+.task-priority.empty {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.task-priority.empty:hover {
+  opacity: 1;
 }
 
 .task-assignee:hover, .task-priority:hover {
@@ -634,6 +759,62 @@
 }
 
 .reassign-option .assignee-name {
+  flex: 1;
+  font-size: 13px;
+}
+
+/* Priority Dropdown */
+.priority-dropdown {
+  position: absolute;
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  min-width: 200px;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+.priority-dropdown-header {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--vscode-dropdown-border);
+  background: var(--vscode-dropdown-listBackground);
+}
+
+.priority-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.priority-option:last-child {
+  border-bottom: none;
+}
+
+.priority-option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.priority-option.selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  font-weight: 600;
+}
+
+.priority-option .priority-icon {
+  font-size: 16px;
+}
+
+.priority-option .priority-name {
   flex: 1;
   font-size: 13px;
 }

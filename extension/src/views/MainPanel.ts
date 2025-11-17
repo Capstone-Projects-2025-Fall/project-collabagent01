@@ -177,6 +177,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'loadBacklog',
             'transitionIssue',
             'reassignIssue',
+            'updateStoryPoints',
+            'updatePriority',
             'fetchAssignableUsers',
             'createTask',
             'getAISuggestions'
@@ -306,6 +308,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'reassignIssue':
                 await this._tasksPanel.handleReassignIssue(message.issueKey, message.accountId);
+                break;
+            case 'updateStoryPoints':
+                await this._tasksPanel.handleUpdateStoryPoints(message.issueKey, message.storyPoints);
+                break;
+            case 'updatePriority':
+                await this._tasksPanel.handleUpdatePriority(message.issueKey, message.priorityName);
                 break;
             case 'fetchAssignableUsers':
                 await this._tasksPanel.handleFetchAssignableUsers();
