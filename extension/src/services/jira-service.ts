@@ -15,6 +15,7 @@ export interface JiraIssue {
             name: string;
         };
         assignee?: {
+            accountId: string;
             displayName: string;
             emailAddress?: string;
         };
@@ -657,6 +658,77 @@ export class JiraService {
         } catch (error: any) {
             console.error('Failed to transition issue:', error);
             throw new Error(`Failed to transition issue: ${error.message}`);
+        }
+    }
+
+    /**
+     * Reassigns an issue to a different user.
+     * @param teamId
+     * @param issueKey
+     * @param accountId
+     */
+    public async reassignIssue(teamId: string, issueKey: string, accountId: string | null): Promise<void> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            const payload = accountId ? { accountId } : null;
+            
+            await axios.put(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}/assignee`,
+                payload,
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            console.log(`Successfully reassigned issue ${issueKey} to ${accountId || 'unassigned'}`);
+        } catch (error: any) {
+            console.error('Failed to reassign issue:', error);
+            throw new Error(`Failed to reassign issue: ${error.message}`);
+        }
+    }
+
+    /**
+     * Fetches assignable users for the project (for reassignment dropdown).
+     */
+    public async fetchAssignableUsers(teamId: string): Promise<Array<{accountId: string, displayName: string, emailAddress?: string}>> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            const response = await axios.get(
+                `${config.jira_url}/rest/api/3/user/assignable/search`,
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json'
+                    },
+                    params: {
+                        project: config.jira_project_key,
+                        maxResults: 100
+                    },
+                    timeout: 10000
+                }
+            );
+
+            return response.data.map((user: any) => ({
+                accountId: user.accountId,
+                displayName: user.displayName,
+                emailAddress: user.emailAddress
+            }));
+        } catch (error: any) {
+            console.error('Failed to fetch assignable users:', error);
+            throw new Error(`Failed to fetch assignable users: ${error.message}`);
         }
     }
 

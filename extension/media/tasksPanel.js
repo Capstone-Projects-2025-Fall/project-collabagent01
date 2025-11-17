@@ -412,11 +412,39 @@
             console.log('[Tasks] Story points field:', allTasks[0].fields.customfield_10026);
         }
 
+        // Extract assignable users from current tasks
+        extractAssignableUsersFromTasks(allTasks);
+
         // Update assignee filter dropdown
         updateAssigneeFilter(allTasks);
 
         // Render tasks (without any filters initially)
         renderTasks(allTasks);
+    }
+
+    // Extract unique assignees from tasks to use for reassignment
+    function extractAssignableUsersFromTasks(tasks) {
+        const usersMap = new Map();
+        
+        tasks.forEach(function(task) {
+            if (task.fields.assignee) {
+                const assignee = task.fields.assignee;
+                if (!usersMap.has(assignee.accountId)) {
+                    usersMap.set(assignee.accountId, {
+                        accountId: assignee.accountId,
+                        displayName: assignee.displayName,
+                        emailAddress: assignee.emailAddress
+                    });
+                }
+            }
+        });
+        
+        // Converts map to array and sort by display name
+        assignableUsers = Array.from(usersMap.values()).sort(function(a, b) {
+            return a.displayName.localeCompare(b.displayName);
+        });
+        
+        console.log('[Tasks] Extracted assignable users from tasks:', assignableUsers.length);
     }
 
     function updateAssigneeFilter(tasks) {
@@ -479,6 +507,10 @@
                 transitionButtons = '<button class="transition-btn btn-done" data-key="' + task.key + '" data-transition="Done">Complete</button>';
             }
 
+            // the reassign button
+            const reassignButton = '<button class="reassign-btn" data-key="' + task.key + '" data-current-assignee="' + 
+                (task.fields.assignee ? task.fields.assignee.accountId : '') + '">👥 Reassign</button>';
+
             return '<div class="task-item">' +
                 '<div class="task-header">' +
                     '<div class="task-key-group">' +
@@ -492,7 +524,10 @@
                     (task.fields.assignee ? '<span class="task-assignee">👤 ' + task.fields.assignee.displayName + '</span>' : '<span class="task-assignee">👤 Unassigned</span>') +
                     (task.fields.priority ? '<span class="task-priority">⚡ ' + task.fields.priority.name + '</span>' : '') +
                 '</div>' +
-                (transitionButtons ? '<div class="task-actions">' + transitionButtons + '</div>' : '') +
+                '<div class="task-actions">' + 
+                    (transitionButtons || '') +
+                    reassignButton +
+                '</div>' +
             '</div>';
         }).join('');
 
@@ -510,5 +545,79 @@
                 });
             });
         });
+
+        // Added event listeners to reassign buttons
+        document.querySelectorAll('.reassign-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                const key = e.target.getAttribute('data-key');
+                const currentAssigneeId = e.target.getAttribute('data-current-assignee');
+                showReassignDropdown(key, currentAssigneeId, e.target);
+            });
+        });
+    }
+
+    // Store assignable users globally (extracted from tasks)
+    let assignableUsers = [];
+
+    // Shows the reassign dropdown
+    function showReassignDropdown(issueKey, currentAssigneeId, buttonElement) {
+        const existingDropdown = document.querySelector('.reassign-dropdown');
+        if (existingDropdown) {
+            existingDropdown.remove();
+        }
+
+        // Creates the dropdown
+        const dropdown = document.createElement('div');
+        dropdown.className = 'reassign-dropdown';
+        
+        let dropdownHtml = '<div class="reassign-dropdown-header">Assign to:</div>';
+        
+        // Add "Unassigned" option
+        dropdownHtml += '<div class="reassign-option' + (!currentAssigneeId ? ' selected' : '') + '" data-account-id="">' +
+            '<span class="assignee-icon">👤</span>' +
+            '<span class="assignee-name">Unassigned</span>' +
+        '</div>';
+        
+        // Add user options
+        assignableUsers.forEach(function(user) {
+            const isSelected = user.accountId === currentAssigneeId;
+            dropdownHtml += '<div class="reassign-option' + (isSelected ? ' selected' : '') + '" data-account-id="' + user.accountId + '">' +
+                '<span class="assignee-icon">👤</span>' +
+                '<span class="assignee-name">' + user.displayName + '</span>' +
+            '</div>';
+        });
+        
+        dropdown.innerHTML = dropdownHtml;
+        
+        // Position dropdown near button
+        const rect = buttonElement.getBoundingClientRect();
+        dropdown.style.position = 'absolute';
+        dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+        dropdown.style.left = rect.left + 'px';
+        
+        document.body.appendChild(dropdown);
+        
+        // Add click handlers to options
+        dropdown.querySelectorAll('.reassign-option').forEach(function(option) {
+            option.addEventListener('click', function() {
+                const accountId = this.getAttribute('data-account-id') || null;
+                window.vscode.postMessage({
+                    command: 'reassignIssue',
+                    issueKey: issueKey,
+                    accountId: accountId
+                });
+                dropdown.remove();
+            });
+        });
+        
+        // Close dropdown when clicking outside
+        setTimeout(function() {
+            document.addEventListener('click', function closeDropdown(e) {
+                if (!dropdown.contains(e.target) && e.target !== buttonElement) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }, 100);
     }
 })();
