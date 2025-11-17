@@ -597,7 +597,7 @@ def task_recommendations():
         # Build AI prompt for task-to-member matching
         tasks_text = "\n".join([
             f"Task {i+1}: [{task.get('key')}] {task.get('summary')}" +
-            (f" - {task.get('description')[:200]}" if task.get('description') else "")
+            (f" - {str(task.get('description'))[:200]}" if task.get('description') else "")
             for i, task in enumerate(unassigned_tasks[:10])  # Limit to 10 tasks to avoid token limits
         ])
 
