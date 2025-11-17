@@ -406,11 +406,45 @@
         // Store all tasks for filtering
         allTasks = tasks || [];
 
+        // Debug: Log first task to see story points
+        if (allTasks.length > 0) {
+            console.log('[Tasks] First task data:', JSON.stringify(allTasks[0], null, 2));
+            console.log('[Tasks] Story points field:', allTasks[0].fields.customfield_10026);
+        }
+
+        // Extract assignable users from current tasks
+        extractAssignableUsersFromTasks(allTasks);
+
         // Update assignee filter dropdown
         updateAssigneeFilter(allTasks);
 
         // Render tasks (without any filters initially)
         renderTasks(allTasks);
+    }
+
+    // Extract unique assignees from tasks to use for reassignment
+    function extractAssignableUsersFromTasks(tasks) {
+        const usersMap = new Map();
+        
+        tasks.forEach(function(task) {
+            if (task.fields.assignee) {
+                const assignee = task.fields.assignee;
+                if (!usersMap.has(assignee.accountId)) {
+                    usersMap.set(assignee.accountId, {
+                        accountId: assignee.accountId,
+                        displayName: assignee.displayName,
+                        emailAddress: assignee.emailAddress
+                    });
+                }
+            }
+        });
+        
+        // Converts map to array and sort by display name
+        assignableUsers = Array.from(usersMap.values()).sort(function(a, b) {
+            return a.displayName.localeCompare(b.displayName);
+        });
+        
+        console.log('[Tasks] Extracted assignable users from tasks:', assignableUsers.length);
     }
 
     function updateAssigneeFilter(tasks) {
@@ -458,6 +492,13 @@
             const statusName = task.fields.status.name;
             const statusClass = statusName.toLowerCase().replace(/ /g, '-');
 
+            // Debug story points
+            if (task.fields.customfield_10026) {
+                console.log('[Tasks] Task', task.key, 'has story points:', task.fields.customfield_10026);
+            } else {
+                console.log('[Tasks] Task', task.key, 'NO story points. Field value:', task.fields.customfield_10026);
+            }
+
             // Determine which transition buttons to show based on current status
             let transitionButtons = '';
             if (statusName === 'To Do') {
@@ -466,17 +507,31 @@
                 transitionButtons = '<button class="transition-btn btn-done" data-key="' + task.key + '" data-transition="Done">Complete</button>';
             }
 
+            // the reassign button
+            const reassignButton = '<button class="reassign-btn" data-key="' + task.key + '" data-current-assignee="' + 
+                (task.fields.assignee ? task.fields.assignee.accountId : '') + '">👥 Reassign</button>';
+
             return '<div class="task-item">' +
                 '<div class="task-header">' +
-                    '<span class="task-key">' + task.key + '</span>' +
+                    '<div class="task-key-group">' +
+                        '<span class="task-key">' + task.key + '</span>' +
+                        (task.fields.customfield_10026 
+                            ? '<span class="task-story-points-badge editable" data-key="' + task.key + '" data-points="' + task.fields.customfield_10026 + '" title="Click to edit">' + task.fields.customfield_10026 + ' SP</span>' 
+                            : '<span class="task-story-points-badge editable empty" data-key="' + task.key + '" data-points="" title="Click to add">+ SP</span>') +
+                    '</div>' +
                     '<span class="task-status status-' + statusClass + '">' + statusName + '</span>' +
                 '</div>' +
                 '<div class="task-title">' + task.fields.summary + '</div>' +
                 '<div class="task-meta">' +
                     (task.fields.assignee ? '<span class="task-assignee">👤 ' + task.fields.assignee.displayName + '</span>' : '<span class="task-assignee">👤 Unassigned</span>') +
-                    (task.fields.priority ? '<span class="task-priority">⚡ ' + task.fields.priority.name + '</span>' : '') +
+                    (task.fields.priority 
+                        ? '<span class="task-priority editable" data-key="' + task.key + '" data-priority="' + task.fields.priority.name + '" title="Click to change priority">⚡ ' + task.fields.priority.name + '</span>' 
+                        : '<span class="task-priority editable empty" data-key="' + task.key + '" data-priority="" title="Click to set priority">⚡ Set Priority</span>') +
                 '</div>' +
-                (transitionButtons ? '<div class="task-actions">' + transitionButtons + '</div>' : '') +
+                '<div class="task-actions">' + 
+                    (transitionButtons || '') +
+                    reassignButton +
+                '</div>' +
             '</div>';
         }).join('');
 
@@ -494,5 +549,259 @@
                 });
             });
         });
+
+        // Added event listeners to reassign buttons
+        document.querySelectorAll('.reassign-btn').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                const key = e.target.getAttribute('data-key');
+                const currentAssigneeId = e.target.getAttribute('data-current-assignee');
+                showReassignDropdown(key, currentAssigneeId, e.target);
+            });
+        });
+
+        // Add event listeners to story points badges for editing
+        document.querySelectorAll('.task-story-points-badge.editable').forEach(function(badge) {
+            badge.addEventListener('click', function(e) {
+                const key = e.target.getAttribute('data-key');
+                const currentPoints = e.target.getAttribute('data-points');
+                showStoryPointsEditor(key, currentPoints, e.target);
+            });
+        });
+
+        // Adds event listeners to priority badges for editing
+        document.querySelectorAll('.task-priority.editable').forEach(function(badge) {
+            badge.addEventListener('click', function(e) {
+                const key = e.target.getAttribute('data-key');
+                const currentPriority = e.target.getAttribute('data-priority');
+                showPriorityDropdown(key, currentPriority, e.target);
+            });
+        });
+    }
+
+    // Show story points editor
+    function showStoryPointsEditor(issueKey, currentPoints, badgeElement) {
+        const existingEditor = document.querySelector('.story-points-editor');
+        if (existingEditor) {
+            existingEditor.remove();
+        }
+
+        const editor = document.createElement('div');
+        editor.className = 'story-points-editor';
+        
+        const input = document.createElement('input');
+        input.type = 'number';
+        input.className = 'story-points-input';
+        input.value = currentPoints || '';
+        input.placeholder = 'SP';
+        input.min = '0';
+        input.step = '1';
+        
+        const saveBtn = document.createElement('button');
+        saveBtn.className = 'story-points-save';
+        saveBtn.textContent = '✓';
+        saveBtn.title = 'Save';
+        
+        const cancelBtn = document.createElement('button');
+        cancelBtn.className = 'story-points-cancel';
+        cancelBtn.textContent = '✕';
+        cancelBtn.title = 'Cancel';
+        
+        editor.appendChild(input);
+        editor.appendChild(saveBtn);
+        editor.appendChild(cancelBtn);
+        
+        // Position editor near badge
+        const rect = badgeElement.getBoundingClientRect();
+        editor.style.position = 'absolute';
+        editor.style.top = (rect.top + window.scrollY) + 'px';
+        editor.style.left = (rect.left + window.scrollX) + 'px';
+        
+        document.body.appendChild(editor);
+        input.focus();
+        input.select();
+        
+        // Save handler
+        const saveHandler = function() {
+            const newValue = input.value.trim();
+            const storyPoints = newValue === '' ? null : parseInt(newValue, 10);
+            
+            if (storyPoints !== null && (isNaN(storyPoints) || storyPoints < 0)) {
+                input.classList.add('error');
+                return;
+            }
+            
+            window.vscode.postMessage({
+                command: 'updateStoryPoints',
+                issueKey: issueKey,
+                storyPoints: storyPoints
+            });
+            
+            editor.remove();
+        };
+        
+        // Cancel handler
+        const cancelHandler = function() {
+            editor.remove();
+        };
+        
+        saveBtn.addEventListener('click', saveHandler);
+        cancelBtn.addEventListener('click', cancelHandler);
+        
+        // Save on Enter, cancel on Escape
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                saveHandler();
+            } else if (e.key === 'Escape') {
+                cancelHandler();
+            }
+        });
+        
+        // Close when clicking outside
+        setTimeout(function() {
+            document.addEventListener('click', function closeEditor(e) {
+                if (!editor.contains(e.target) && e.target !== badgeElement) {
+                    editor.remove();
+                    document.removeEventListener('click', closeEditor);
+                }
+            });
+        }, 100);
+    }
+
+    // Store assignable users globally (extracted from tasks)
+    let assignableUsers = [];
+
+    // Shows the reassign dropdown
+    function showReassignDropdown(issueKey, currentAssigneeId, buttonElement) {
+        const existingDropdown = document.querySelector('.reassign-dropdown');
+        if (existingDropdown) {
+            existingDropdown.remove();
+        }
+
+        // Creates the dropdown
+        const dropdown = document.createElement('div');
+        dropdown.className = 'reassign-dropdown';
+        
+        let dropdownHtml = '<div class="reassign-dropdown-header">Assign to:</div>';
+        
+        // Add "Unassigned" option
+        dropdownHtml += '<div class="reassign-option' + (!currentAssigneeId ? ' selected' : '') + '" data-account-id="">' +
+            '<span class="assignee-icon">👤</span>' +
+            '<span class="assignee-name">Unassigned</span>' +
+        '</div>';
+        
+        // Add user options
+        assignableUsers.forEach(function(user) {
+            const isSelected = user.accountId === currentAssigneeId;
+            dropdownHtml += '<div class="reassign-option' + (isSelected ? ' selected' : '') + '" data-account-id="' + user.accountId + '">' +
+                '<span class="assignee-icon">👤</span>' +
+                '<span class="assignee-name">' + user.displayName + '</span>' +
+            '</div>';
+        });
+        
+        dropdown.innerHTML = dropdownHtml;
+        
+        // Position dropdown near button
+        const rect = buttonElement.getBoundingClientRect();
+        dropdown.style.position = 'absolute';
+        dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+        dropdown.style.left = rect.left + 'px';
+        
+        document.body.appendChild(dropdown);
+        
+        // Add click handlers to options
+        dropdown.querySelectorAll('.reassign-option').forEach(function(option) {
+            option.addEventListener('click', function() {
+                const accountId = this.getAttribute('data-account-id') || null;
+                window.vscode.postMessage({
+                    command: 'reassignIssue',
+                    issueKey: issueKey,
+                    accountId: accountId
+                });
+                dropdown.remove();
+            });
+        });
+        
+        // Close dropdown when clicking outside
+        setTimeout(function() {
+            document.addEventListener('click', function closeDropdown(e) {
+                if (!dropdown.contains(e.target) && e.target !== buttonElement) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }, 100);
+    }
+
+    // Show priority dropdown
+    function showPriorityDropdown(issueKey, currentPriority, badgeElement) {
+        // Remove any existing dropdown
+        const existingDropdown = document.querySelector('.priority-dropdown');
+        if (existingDropdown) {
+            existingDropdown.remove();
+        }
+
+        // Priority options in Jira
+        const priorities = ['Highest', 'High', 'Medium', 'Low', 'Lowest'];
+
+        // Create dropdown
+        const dropdown = document.createElement('div');
+        dropdown.className = 'priority-dropdown';
+        
+        let dropdownHtml = '<div class="priority-dropdown-header">Set Priority:</div>';
+        
+        // Add priority options
+        priorities.forEach(function(priority) {
+            const isSelected = priority === currentPriority;
+            const emoji = getPriorityEmoji(priority);
+            dropdownHtml += '<div class="priority-option' + (isSelected ? ' selected' : '') + '" data-priority="' + priority + '">' +
+                '<span class="priority-icon">' + emoji + '</span>' +
+                '<span class="priority-name">' + priority + '</span>' +
+            '</div>';
+        });
+        
+        dropdown.innerHTML = dropdownHtml;
+        
+        // Position dropdown near badge
+        const rect = badgeElement.getBoundingClientRect();
+        dropdown.style.position = 'absolute';
+        dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+        dropdown.style.left = rect.left + 'px';
+        
+        document.body.appendChild(dropdown);
+        
+        // Add click handlers to options
+        dropdown.querySelectorAll('.priority-option').forEach(function(option) {
+            option.addEventListener('click', function() {
+                const priority = this.getAttribute('data-priority');
+                window.vscode.postMessage({
+                    command: 'updatePriority',
+                    issueKey: issueKey,
+                    priorityName: priority
+                });
+                dropdown.remove();
+            });
+        });
+        
+        // Close dropdown when clicking outside
+        setTimeout(function() {
+            document.addEventListener('click', function closeDropdown(e) {
+                if (!dropdown.contains(e.target) && e.target !== badgeElement) {
+                    dropdown.remove();
+                    document.removeEventListener('click', closeDropdown);
+                }
+            });
+        }, 100);
+    }
+
+    // Helper function to get emoji for priority
+    function getPriorityEmoji(priority) {
+        switch(priority) {
+            case 'Highest': return '🔴';
+            case 'High': return '🟠';
+            case 'Medium': return '🟡';
+            case 'Low': return '🟢';
+            case 'Lowest': return '🔵';
+            default: return '⚡';
+        }
     }
 })();

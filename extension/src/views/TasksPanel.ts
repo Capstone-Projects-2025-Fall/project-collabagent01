@@ -500,6 +500,113 @@ export class TasksPanel {
     }
 
     /**
+     * Handles reassigning a task to a different user.
+     */
+    public async handleReassignIssue(issueKey: string, accountId: string | null) {
+        if (!this._currentTeamId) return;
+
+        try {
+            const jiraService = JiraService.getInstance();
+
+            // Performs the reassignment
+            await jiraService.reassignIssue(this._currentTeamId, issueKey, accountId);
+
+            const message = accountId 
+                ? `✅ ${issueKey} has been reassigned`
+                : `✅ ${issueKey} has been unassigned`;
+            vscode.window.showInformationMessage(message);
+
+            // Refresh the task list to show updated assignee
+            await this.handleRefreshTasks();
+
+        } catch (error) {
+            console.error('Failed to reassign issue:', error);
+            vscode.window.showErrorMessage(
+                `Failed to reassign ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
+     * Handles updating story points for an issue.
+     */
+    public async handleUpdateStoryPoints(issueKey: string, storyPoints: number | null) {
+        if (!this._currentTeamId) return;
+
+        try {
+            const jiraService = JiraService.getInstance();
+
+            // Performs the update
+            await jiraService.updateStoryPoints(this._currentTeamId, issueKey, storyPoints);
+
+            const message = storyPoints !== null
+                ? `✅ ${issueKey} story points updated to ${storyPoints}`
+                : `✅ ${issueKey} story points cleared`;
+            vscode.window.showInformationMessage(message);
+
+            // Refresh the task list to show updated story points
+            await this.handleRefreshTasks();
+
+        } catch (error) {
+            console.error('Failed to update story points:', error);
+            vscode.window.showErrorMessage(
+                `Failed to update story points for ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
+     * Handles updating priority for an issue.
+     */
+    public async handleUpdatePriority(issueKey: string, priorityName: string) {
+        if (!this._currentTeamId) return;
+
+        try {
+            const jiraService = JiraService.getInstance();
+
+            // Performs the update
+            await jiraService.updatePriority(this._currentTeamId, issueKey, priorityName);
+
+            vscode.window.showInformationMessage(`✅ ${issueKey} priority updated to ${priorityName}`);
+
+            // Refresh the task list to show updated priority
+            await this.handleRefreshTasks();
+
+        } catch (error) {
+            console.error('Failed to update priority:', error);
+            vscode.window.showErrorMessage(
+                `Failed to update priority for ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /**
+     * Handles fetching assignable users for the project.
+     */
+    public async handleFetchAssignableUsers() {
+        if (!this._currentTeamId || !this._view) return;
+
+        try {
+            const jiraService = JiraService.getInstance();
+            const users = await jiraService.fetchAssignableUsers(this._currentTeamId);
+
+            // Send users to webview
+            this._view.webview.postMessage({
+                command: 'assignableUsers',
+                users: users
+            });
+
+        } catch (error) {
+            console.error('Failed to fetch assignable users:', error);
+            this._view?.webview.postMessage({
+                command: 'assignableUsers',
+                users: [],
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
+    /**
      * Handles creating a new Jira task.
      */
     public async handleCreateTask(taskData: any) {
