@@ -391,6 +391,12 @@
   margin-bottom: 12px;
 }
 
+.task-key-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .task-key {
   font-family: 'Courier New', monospace;
   font-weight: 700;
@@ -404,6 +410,25 @@
 
 .task-key:hover {
   background: var(--vscode-list-hoverBackground);
+}
+
+.task-story-points-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.task-story-points-badge:hover {
+  transform: scale(1.05);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
 }
 
 /* Status Badges - Color Coded */

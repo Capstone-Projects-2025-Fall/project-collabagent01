@@ -406,6 +406,12 @@
         // Store all tasks for filtering
         allTasks = tasks || [];
 
+        // Debug: Log first task to see story points
+        if (allTasks.length > 0) {
+            console.log('[Tasks] First task data:', JSON.stringify(allTasks[0], null, 2));
+            console.log('[Tasks] Story points field:', allTasks[0].fields.customfield_10026);
+        }
+
         // Update assignee filter dropdown
         updateAssigneeFilter(allTasks);
 
@@ -458,6 +464,13 @@
             const statusName = task.fields.status.name;
             const statusClass = statusName.toLowerCase().replace(/ /g, '-');
 
+            // Debug story points
+            if (task.fields.customfield_10026) {
+                console.log('[Tasks] Task', task.key, 'has story points:', task.fields.customfield_10026);
+            } else {
+                console.log('[Tasks] Task', task.key, 'NO story points. Field value:', task.fields.customfield_10026);
+            }
+
             // Determine which transition buttons to show based on current status
             let transitionButtons = '';
             if (statusName === 'To Do') {
@@ -468,7 +481,10 @@
 
             return '<div class="task-item">' +
                 '<div class="task-header">' +
-                    '<span class="task-key">' + task.key + '</span>' +
+                    '<div class="task-key-group">' +
+                        '<span class="task-key">' + task.key + '</span>' +
+                        (task.fields.customfield_10026 ? '<span class="task-story-points-badge">' + task.fields.customfield_10026 + ' SP</span>' : '') +
+                    '</div>' +
                     '<span class="task-status status-' + statusClass + '">' + statusName + '</span>' +
                 '</div>' +
                 '<div class="task-title">' + task.fields.summary + '</div>' +

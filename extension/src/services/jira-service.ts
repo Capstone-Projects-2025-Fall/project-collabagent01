@@ -27,6 +27,7 @@ export interface JiraIssue {
             name: string;
         };
         sprint?: any;
+        customfield_10026?: number;
     };
 }
 
@@ -393,11 +394,26 @@ export class JiraService {
                             'Authorization': `Basic ${config.access_token}`,
                             'Accept': 'application/json'
                         },
-                        params: {
-                            fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority'
-                        },
+                        // Request ALL fields to find story points
                         timeout: 10000
                     });
+                    
+                    // Debug: Log all custom fields for the first issue to find story points field
+                    if (issue.id === issueIds[0].id) {
+                        const allCustomFields = Object.keys(detailResponse.data.fields).filter(k => k.startsWith('customfield_'));
+                        console.log('[Jira Debug] All custom fields:', allCustomFields);
+                        
+                        // Log values of custom fields that have data
+                        const customFieldsWithData: any = {};
+                        allCustomFields.forEach(fieldKey => {
+                            const value = detailResponse.data.fields[fieldKey];
+                            if (value !== null && value !== undefined) {
+                                customFieldsWithData[fieldKey] = value;
+                            }
+                        });
+                        console.log('[Jira Debug] Custom fields with data:', JSON.stringify(customFieldsWithData, null, 2));
+                    }
+                    
                     return detailResponse.data;
                 } catch (error) {
                     console.error(`Failed to fetch details for issue ${issue.id}:`, error);
@@ -533,7 +549,7 @@ export class JiraService {
                         'Accept': 'application/json'
                     },
                     params: {
-                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,sprint'
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,sprint,customfield_10026'
                     },
                     timeout: 15000
                 }
@@ -569,7 +585,7 @@ export class JiraService {
                         'Accept': 'application/json'
                     },
                     params: {
-                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority'
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,customfield_10026'
                     },
                     timeout: 15000
                 }
@@ -722,7 +738,7 @@ export class JiraService {
                         'Accept': 'application/json'
                     },
                     params: {
-                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,description'
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,description,customfield_10026'
                     },
                     timeout: 10000
                 }
