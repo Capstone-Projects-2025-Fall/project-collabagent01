@@ -222,10 +222,56 @@ export async function insertLiveShareSummary(
         body: JSON.stringify(payload)
       });
 
-      if (!res.ok) {
-        const txt = await res.text();
-        console.error('[TeamActivityService] Failed to insert participant status:', txt);
-        return { success: false, error: `HTTP ${res.status}: ${txt}` };
+      if (res.ok) {
+        return { success: true };
+      }
+
+      // Fallback: insert directly via Supabase if backend route not available in deployment
+      const txt = await res.text();
+      console.warn('[TeamActivityService] Backend insert failed, trying Supabase fallback:', `HTTP ${res.status}: ${txt}`);
+
+      // Lazy import to avoid circular deps in webview bundle
+      const { getSupabase } = require('../auth/supabaseClient');
+      const { getOrInitDisplayName } = require('./profile-service');
+      const supabase = getSupabase();
+
+      // Compose simple header using initiator's display name (self-join/leave)
+      let headerParts: string[] = [];
+      if (joinedUserIds && joinedUserIds.length > 0) {
+        try {
+          const dn = await getOrInitDisplayName(true);
+          headerParts.push(`Joined: ${dn.displayName}`);
+        } catch {
+          headerParts.push('Joined: 1 member');
+        }
+      }
+      if (leftUserIds && leftUserIds.length > 0) {
+        try {
+          const dn = await getOrInitDisplayName(true);
+          headerParts.push(`Left: ${dn.displayName}`);
+        } catch {
+          headerParts.push('Left: 1 member');
+        }
+      }
+
+      const event_header = headerParts.join(' ; ');
+      const feed_row = {
+        team_id: teamId,
+        user_id: initiatorUserId,
+        event_header,
+        summary: null,
+        file_path: null,
+        source_snapshot_id: null,
+        activity_type: 'participant_status'
+      } as const;
+
+      const { error: insertErr } = await supabase
+        .from('team_activity_feed')
+        .insert(feed_row);
+
+      if (insertErr) {
+        console.error('[TeamActivityService] Supabase fallback insert failed:', insertErr);
+        return { success: false, error: insertErr.message };
       }
 
       return { success: true };

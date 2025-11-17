@@ -355,6 +355,17 @@
 		if (fsTeamId) fsTeamId.value = team?.id || '';
 		if (fsUserId && userId) fsUserId.value = userId;
 		persistFsIds({ userId: (fsUserId && fsUserId.value) || '', teamId: (fsTeamId && fsTeamId.value) || '' });
+
+		// Refresh the activity feed when team context changes
+		try {
+			if (team?.id) {
+				requestActivityFeed();
+			} else {
+				// Clear list when no team
+				const list = document.getElementById('activityList');
+				if (list) list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No active team.</div>';
+			}
+		} catch (e) {}
 	}
 
 	// Toggle team members list
