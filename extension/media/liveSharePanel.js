@@ -716,6 +716,7 @@
 					<option value="changes">Changes</option>
 					<option value="live_share_started">Started Live Share</option>
 					<option value="live_share_ended">Ended Live Share</option>
+					<option value="participant_status">Participant Status</option>
 				</select>
 				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
 			</div>
@@ -791,6 +792,8 @@
 					return activityType === 'live_share_started';
 				} else if (filterValue === 'live_share_ended') {
 					return activityType === 'live_share_ended';
+				} else if (filterValue === 'participant_status') {
+					return activityType === 'participant_status';
 				}
 				return true;
 			});
@@ -835,6 +838,11 @@
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
 					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
 				`;
+			} else if (activityType === 'participant_status') {
+				// Participant Status: membership changes (non-clickable informational event)
+				// Styled similar to Initial Snapshot (bordered) but using white instead of green
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #ffffff; color:#ffffff; border-radius:4px; margin-right:6px;">Participant Status</span>';
+				// No buttons => non-clickable
 			} else if (activityType === 'ai_task_recommendation') {
 				// Purple badge for AI task recommendations
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';

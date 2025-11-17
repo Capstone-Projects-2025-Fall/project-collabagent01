@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getAuthContext } from './auth-service';
+import { insertParticipantStatusEvent } from './team-activity-service';
 import { ProjectInfo, getCurrentProjectInfo, validateCurrentProject, getProjectDescription } from './project-detection-service';
 import { verifyGitHubPushAccess, isGitHubRepository, promptGitHubVerification } from './github-verification-service';
 
@@ -253,6 +254,13 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
 
         if (joinErr) {
             return { error: `Failed to join team: ${joinErr.message}` };
+        }
+
+        // Emit participant status event (joined)
+        try {
+            await insertParticipantStatusEvent(teamData.id, authUser.id, [authUser.id], []);
+        } catch (e) {
+            console.warn('[joinTeam] Failed to insert participant status event:', e);
         }
 
         return { team: teamData };
@@ -597,6 +605,13 @@ export async function leaveTeam(teamId: string): Promise<{ success: boolean; err
 
         if (deleteErr || leftOk !== true) {
             return { success: false, error: deleteErr?.message || 'Unable to leave team (no membership removed)' };
+        }
+
+        // Emit participant status event (left)
+        try {
+            await insertParticipantStatusEvent(teamId, currentUser.user.id, [], [currentUser.user.id]);
+        } catch (e) {
+            console.warn('[leaveTeam] Failed to insert participant status event:', e);
         }
 
         return { success: true };

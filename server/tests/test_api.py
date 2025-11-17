@@ -16,5 +16,11 @@ class APITestCase(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn('summary', response.json)
 
+    def test_participant_status_event_missing_fields(self):
+        # Missing team_id/user_id should yield 400
+        resp = self.app.post('/api/ai/participant_status_event', json={"joined": ["abc"], "left": []})
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('error', resp.json)
+
 if __name__ == '__main__':
     unittest.main()

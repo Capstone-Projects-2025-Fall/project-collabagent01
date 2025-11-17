@@ -321,6 +321,83 @@ def live_share_event():
   }), 201
 
 
+@ai_bp.post("/participant_status_event")
+def participant_status_event():
+  """Create a Participant Status event when team members join or leave.
+
+  Request body:
+  {
+    "team_id": "uuid",          # Team receiving the event (required)
+    "user_id": "uuid",          # User initiating the action (required - e.g. admin or system user)
+    "joined": ["user_uuid"],     # List of user_ids who just joined
+    "left": ["user_uuid"],       # List of user_ids who just left
+  }
+
+  The event header will list joined and/or left users. This event is informational only:
+  - Tag: "Participant Status" (blue)
+  - Non-clickable in UI (no buttons / details section)
+  - No AI summary, "summary" stored as null
+  """
+  body = request.get_json(force=True) or {}
+  team_id = body.get("team_id")
+  user_id = body.get("user_id")
+  joined_ids = body.get("joined", []) or []
+  left_ids = body.get("left", []) or []
+
+  if not team_id or not user_id:
+    return jsonify({"error": "team_id and user_id are required"}), 400
+
+  if len(joined_ids) == 0 and len(left_ids) == 0:
+    return jsonify({"error": "Provide at least one joined or left user id"}), 400
+
+  # Helper to resolve display names for provided user IDs
+  def resolve_names(user_ids):
+    if not user_ids:
+      return []
+    try:
+      profiles = sb_select("user_profiles", {
+        "select": "user_id,name",
+        "user_id": f"in.({','.join(user_ids)})"
+      }) or []
+      name_map = {p.get("user_id"): (p.get("name") or p.get("user_id")[:8] + "…") for p in profiles}
+      return [name_map.get(uid, uid[:8] + "…") for uid in user_ids]
+    except Exception as e:
+      print(f"[participant_status_event] Failed to resolve names: {e}")
+      return [uid[:8] + "…" for uid in user_ids]
+
+  joined_names = resolve_names(joined_ids)
+  left_names = resolve_names(left_ids)
+
+  parts = []
+  if joined_names:
+    parts.append("Joined: " + ", ".join(joined_names))
+  if left_names:
+    parts.append("Left: " + ", ".join(left_names))
+  event_header = " ; ".join(parts)
+
+  feed_row = {
+    "team_id": team_id,
+    "user_id": user_id,
+    "event_header": event_header,
+    "summary": None,  # Non-clickable informational event
+    "file_path": None,
+    "source_snapshot_id": None,
+    "activity_type": "participant_status",
+  }
+
+  try:
+    out = sb_insert("team_activity_feed", feed_row)
+  except Exception as e:
+    print(f"[participant_status_event] Failed to insert feed row: {e}")
+    return jsonify({"error": "Failed to insert participant status event"}), 500
+
+  return jsonify({
+    "inserted": out,
+    "event_header": event_header,
+    "activity_type": "participant_status"
+  }), 201
+
+
 @ai_bp.post("/live_share_summary")
 def live_share_summary():
   """

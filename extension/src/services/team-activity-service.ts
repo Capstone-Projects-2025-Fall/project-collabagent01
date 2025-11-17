@@ -192,3 +192,45 @@ export async function insertLiveShareSummary(
     return { success: false, error: err?.message || String(err) };
   }
 }
+
+  /**
+   * Inserts a Participant Status event (users joined or left) into the team activity feed.
+   * Non-clickable informational event used to broadcast membership changes.
+   * @param teamId Team identifier
+   * @param initiatorUserId User performing the action (or the user who joined/left)
+   * @param joinedUserIds Array of user IDs that just joined (optional)
+   * @param leftUserIds Array of user IDs that just left (optional)
+   */
+  export async function insertParticipantStatusEvent(
+    teamId: string,
+    initiatorUserId: string,
+    joinedUserIds: string[] = [],
+    leftUserIds: string[] = []
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const url = new URL(`${BASE_URL}/api/ai/participant_status_event`);
+      const payload = {
+        team_id: teamId,
+        user_id: initiatorUserId,
+        joined: joinedUserIds,
+        left: leftUserIds
+      };
+
+      const res = await fetch(url.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error('[TeamActivityService] Failed to insert participant status:', txt);
+        return { success: false, error: `HTTP ${res.status}: ${txt}` };
+      }
+
+      return { success: true };
+    } catch (err: any) {
+      console.error('[TeamActivityService] Exception inserting participant status:', err);
+      return { success: false, error: err?.message || String(err) };
+    }
+  }
