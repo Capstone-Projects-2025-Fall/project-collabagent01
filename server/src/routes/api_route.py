@@ -370,9 +370,15 @@ def participant_status_event():
 
   parts = []
   if joined_names:
-    parts.append("Joined: " + ", ".join(joined_names))
+    if len(joined_names) == 1:
+      parts.append(f"{joined_names[0]} has joined the team")
+    else:
+      parts.append(f"{', '.join(joined_names[:-1])} and {joined_names[-1]} have joined the team")
   if left_names:
-    parts.append("Left: " + ", ".join(left_names))
+    if len(left_names) == 1:
+      parts.append(f"{left_names[0]} has left the team")
+    else:
+      parts.append(f"{', '.join(left_names[:-1])} and {left_names[-1]} have left the team")
   event_header = " ; ".join(parts)
 
   feed_row = {

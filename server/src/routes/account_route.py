@@ -99,18 +99,24 @@ def delete_account():
                 "team_id": f"eq.{team_id}"
             })
 
+            print(f"[DELETE ACCOUNT] Total members in team: {len(all_members)}")
+            print(f"[DELETE ACCOUNT] All members: {all_members}")
+
             other_members = [m for m in all_members if m.get("user_id") != user_id]
-            print(f"[DELETE ACCOUNT] Team has {len(other_members)} other members")
+            print(f"[DELETE ACCOUNT] Team has {len(other_members)} other members (excluding deleting admin)")
+            print(f"[DELETE ACCOUNT] Other members: {other_members}")
 
             if len(other_members) == 0:
-                # Delete empty team
+                # Delete empty team (only if no other members)
                 print(f"[DELETE ACCOUNT] No other members, deleting team {team_id}")
                 try:
                     sb_delete("team_jira_configs", {"team_id": f"eq.{team_id}"})
                 except Exception as e:
                     print(f"[DELETE ACCOUNT] Note: No Jira config to delete or error: {e}")
 
-                sb_delete("team_membership", {"team_id": f"eq.{team_id}"})
+                # Delete the admin's membership first
+                sb_delete("team_membership", {"id": f"eq.{membership.get('id')}"})
+                # Then delete the team itself
                 sb_delete("teams", {"id": f"eq.{team_id}"})
                 print(f"[DELETE ACCOUNT] Team {team_id} deleted")
             else:
