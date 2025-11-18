@@ -201,5 +201,9 @@
     "jira-client": "^8.2.2",
     "typedoc-theme-hierarchy": "^5.0.4",
     "vsls": "^1.0.4753"
+  },
+  "overrides": {
+    "glob": "^11.1.0",
+    "xml2js": "^0.5.0"
   }
 }
