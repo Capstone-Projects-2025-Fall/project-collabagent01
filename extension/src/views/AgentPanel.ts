@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, getTeamMembers, type TeamWithMembership, type TeamMember } from '../services/team-service';
 import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
+import { startConcurrentActivityMonitoring, stopConcurrentActivityMonitoring } from '../services/concurrent-activity-service';
 
 /**
  * Provides the webview panel for Agent-specific features (separate from Live Share).
@@ -157,6 +158,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         // IMPORTANT: If no workspace folder is open, clear current team
         if (!vscode.workspace.workspaceFolders || vscode.workspace.workspaceFolders.length === 0) {
             console.log('[AgentPanel] No workspace folders - clearing team');
+            // Stop concurrent activity monitoring when no workspace
+            stopConcurrentActivityMonitoring();
             // Clear the current team - user must open a project folder first
             this._context.globalState.update(this._teamStateKey, undefined);
             const teamInfo = {
@@ -363,6 +366,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 if (result.team) {
                     await this._context.globalState.update(this._teamStateKey, result.team.id);
                     this.postTeamInfo();
+                    
+                    // Start monitoring for concurrent activity
+                    startConcurrentActivityMonitoring(result.team.id);
+                    console.log(`[AgentPanel] Started concurrent activity monitoring for new team: ${result.team.id}`);
                 }
             }
         });
@@ -451,6 +458,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                 await this.refreshTeams();
                 await this._context.globalState.update(this._teamStateKey, result.team.id);
                 this.postTeamInfo();
+                
+                // Start monitoring for concurrent activity
+                startConcurrentActivityMonitoring(result.team.id);
+                console.log(`[AgentPanel] Started concurrent activity monitoring for joined team: ${result.team.id}`);
             }
         });
     }
@@ -534,6 +545,10 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
             // Take initial snapshot for this team
             await this.takeInitialSnapshot(selected.team.id);
+            
+            // Start monitoring for concurrent activity
+            startConcurrentActivityMonitoring(selected.team.id);
+            console.log(`[AgentPanel] Started concurrent activity monitoring for team: ${selected.team.id}`);
         }
     }
 

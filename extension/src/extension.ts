@@ -18,6 +18,7 @@ import { SnapshotManager } from './views/snapshotManager';
 import * as path from "path";
 import * as dotenv from "dotenv";
 import { getSupabase } from "./auth/supabaseClient";
+import { stopConcurrentActivityMonitoring } from './services/concurrent-activity-service';
 
 
 
@@ -248,4 +249,6 @@ export async function activate(context: vscode.ExtensionContext) {
 
 export function deactivate() {
   console.log("Collab Agent Deactivated");
+  // Stop concurrent activity monitoring on extension deactivation
+  stopConcurrentActivityMonitoring();
 }
