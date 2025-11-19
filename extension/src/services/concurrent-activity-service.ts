@@ -16,8 +16,8 @@ interface UserActivity {
 
 interface SnapshotRecord {
   user_id: string;
-  created_at: string;
-  changes: Record<string, string>;
+  updated_at: string;
+  changes: string | Record<string, string> | null; // Can be text (from DB) or object
 }
 
 export class ConcurrentActivityDetector {
@@ -25,7 +25,7 @@ export class ConcurrentActivityDetector {
   private checkInterval: NodeJS.Timeout | null = null;
   private readonly CHECK_INTERVAL_MS = 30000; // Check every 30 seconds
   private readonly ACTIVITY_WINDOW_MS = 300000; // 5 minute window for "active"
-  private readonly MIN_CHANGES_THRESHOLD = 2; // Minimum 2 changes
+  private readonly MIN_CHANGES_THRESHOLD = 1; // Minimum 1 change
   private readonly MAX_CHANGES_THRESHOLD = 5; // Maximum 5 changes for notification
   private notifiedPairs = new Set<string>(); // Track who we've already notified about
   private lastCheckTime = new Date();
@@ -76,23 +76,34 @@ export class ConcurrentActivityDetector {
       // Get recent snapshots within the activity window
       const windowStart = new Date(Date.now() - this.ACTIVITY_WINDOW_MS);
       
+      console.log(`[ConcurrentActivity] Checking team: ${teamId}`);
+      console.log(`[ConcurrentActivity] Looking for snapshots after: ${windowStart.toISOString()}`);
+      console.log(`[ConcurrentActivity] Current user: ${currentUserId}`);
+      
       const { data: snapshots, error } = await this.supabase
         .from('file_snapshots')
         .select(`
           user_id,
-          created_at,
+          updated_at,
           changes
         `)
         .eq('team_id', teamId)
-        .gte('created_at', windowStart.toISOString())
-        .order('created_at', { ascending: false });
+        .gte('updated_at', windowStart.toISOString())
+        .order('updated_at', { ascending: false });
 
       if (error) {
         console.error('[ConcurrentActivity] Error fetching snapshots:', error);
         return;
       }
 
+      console.log(`[ConcurrentActivity] Found ${snapshots?.length || 0} total snapshots`);
+      
+      if (snapshots && snapshots.length > 0) {
+        console.log('[ConcurrentActivity] All snapshot user_ids:', snapshots.map(s => s.user_id));
+      }
+      
       if (!snapshots || snapshots.length === 0) {
+        console.log('[ConcurrentActivity] No snapshots found in activity window');
         return;
       }
 
@@ -102,18 +113,39 @@ export class ConcurrentActivityDetector {
       for (const snapshot of snapshots as SnapshotRecord[]) {
         const userId = snapshot.user_id;
         
+        // Parse changes - it's stored as text in DB but we need it as an object
+        let parsedChanges: Record<string, string> = {};
+        try {
+          if (typeof snapshot.changes === 'string') {
+            parsedChanges = JSON.parse(snapshot.changes);
+          } else if (typeof snapshot.changes === 'object' && snapshot.changes !== null) {
+            parsedChanges = snapshot.changes as Record<string, string>;
+          }
+        } catch (e) {
+          console.log(`[ConcurrentActivity] Failed to parse changes for snapshot:`, e);
+          continue;
+        }
+        
         // Count the number of file changes in this snapshot
-        const changeCount = snapshot.changes ? Object.keys(snapshot.changes).length : 0;
+        const changeCount = Object.keys(parsedChanges).length;
+        
+        console.log(`[ConcurrentActivity] Snapshot from user ${userId}: ${changeCount} changes at ${snapshot.updated_at}`);
         
         if (changeCount === 0) {
+          console.log(`[ConcurrentActivity] Skipping snapshot with 0 changes`);
           continue; // Skip snapshots with no changes
         }
 
-        const activityTime = new Date(snapshot.created_at);
+        const activityTime = new Date(snapshot.updated_at);
 
         if (!userActivityMap.has(userId)) {
           // Get user display name
-          const displayName = await this.getUserDisplayName(userId);
+          let displayName = 'Unknown User';
+          try {
+            displayName = await this.getUserDisplayName(userId);
+          } catch (e) {
+            console.log(`[ConcurrentActivity] Failed to get display name for ${userId}, using fallback`);
+          }
           
           userActivityMap.set(userId, {
             userId,
@@ -141,8 +173,15 @@ export class ConcurrentActivityDetector {
         u.changeCount <= this.MAX_CHANGES_THRESHOLD
       );
 
+      console.log(`[ConcurrentActivity] Found ${otherUsers.length} other active users`);
+      console.log(`[ConcurrentActivity] Users in threshold (${this.MIN_CHANGES_THRESHOLD}-${this.MAX_CHANGES_THRESHOLD}):`, 
+        activeUsers.map(u => `${u.displayName} (${u.changeCount} changes)`));
+
       if (activeUsers.length > 0) {
         await this.sendConcurrentActivityNotification(teamId, currentUserId, activeUsers);
+      } else if (otherUsers.length > 0) {
+        console.log('[ConcurrentActivity] No users in notification threshold. Other users:', 
+          otherUsers.map(u => `${u.displayName} (${u.changeCount} changes - outside threshold)`));
       }
 
       // Update last check time
@@ -168,10 +207,10 @@ export class ConcurrentActivityDetector {
       for (const user of activeUsers) {
         const pairKey = [currentUserId, user.userId].sort().join(':');
         
-        // Skip if we've already notified about this pair recently
-        if (this.notifiedPairs.has(pairKey)) {
-          continue;
-        }
+        // Cooldown check disabled for testing
+        // if (this.notifiedPairs.has(pairKey)) {
+        //   continue;
+        // }
 
         // Create notification message
         const summary = `${currentUserName} and ${user.displayName} are both actively working on the project (${user.changeCount} recent changes detected). Consider reaching out and starting a Live Share session to collaborate!`;
@@ -206,11 +245,11 @@ export class ConcurrentActivityDetector {
             vscode.commands.executeCommand('liveshare.start');
           }
 
-          // Mark this pair as notified (expires after 1 hour)
-          this.notifiedPairs.add(pairKey);
-          setTimeout(() => {
-            this.notifiedPairs.delete(pairKey);
-          }, 3600000); // 1 hour
+          // Cooldown disabled for testing - will notify every time
+          // this.notifiedPairs.add(pairKey);
+          // setTimeout(() => {
+          //   this.notifiedPairs.delete(pairKey);
+          // }, 3600000); // 1 hour
         }
       }
     } catch (error) {

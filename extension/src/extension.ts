@@ -245,6 +245,28 @@ export async function activate(context: vscode.ExtensionContext) {
       }
     })
   );
+
+  // Debug command to manually trigger concurrent activity check
+  context.subscriptions.push(
+    vscode.commands.registerCommand("collabAgent.checkConcurrentActivity", async () => {
+      try {
+        const teamId = context.globalState.get<string>('collabAgent.currentTeam');
+        if (!teamId) {
+          vscode.window.showWarningMessage("No team selected. Please select a team first.");
+          return;
+        }
+
+        vscode.window.showInformationMessage("Checking for concurrent activity..5.");
+        const { getConcurrentActivityDetector } = require('./services/concurrent-activity-service');
+        const detector = getConcurrentActivityDetector();
+        await detector.triggerCheck(teamId);
+        vscode.window.showInformationMessage("Concurrent activity check complete. See console for details.");
+      } catch (err) {
+        console.error("[Debug] Failed to check concurrent activity:", err);
+        vscode.window.showErrorMessage("Failed to check concurrent activity. Check console for details.");
+      }
+    })
+  );
 }
 
 export function deactivate() {
