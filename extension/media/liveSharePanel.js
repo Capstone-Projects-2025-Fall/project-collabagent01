@@ -1024,6 +1024,9 @@
 			padding: 20px;
 		`;
 
+		// Format the diff content with syntax highlighting
+		const formattedDiff = formatGitDiff(diffContent);
+
 		modal.innerHTML = `
 			<div style="
 				background: var(--vscode-editor-background);
@@ -1046,14 +1049,14 @@
 					<button class="button" onclick="document.getElementById('diffModal').remove()">Close</button>
 				</div>
 				<div style="
-					padding: 16px;
+					padding: 8px;
 					overflow: auto;
 					flex: 1;
-					font-family: monospace;
-					font-size: 12px;
-					white-space: pre-wrap;
-					word-break: break-all;
-				">${escapeHtml(diffContent)}</div>
+					font-family: var(--vscode-editor-font-family, 'Courier New', monospace);
+					font-size: 13px;
+					line-height: 1.6;
+					background: var(--vscode-editor-background);
+				">${formattedDiff}</div>
 			</div>
 		`;
 
@@ -1178,14 +1181,17 @@
 			padding: 20px;
 		`;
 
+		// Format the snapshot content with file tree view
+		const formattedSnapshot = formatSnapshot(snapshotContent);
+
 		modal.innerHTML = `
 			<div style="
 				background: var(--vscode-editor-background);
 				border: 1px solid var(--vscode-editorWidget-border);
 				border-radius: 6px;
 				width: 90%;
-				max-width: 900px;
-				max-height: 80vh;
+				max-width: 1000px;
+				max-height: 85vh;
 				display: flex;
 				flex-direction: column;
 			">
@@ -1195,19 +1201,17 @@
 					display: flex;
 					justify-content: space-between;
 					align-items: center;
+					background: var(--vscode-titleBar-activeBackground);
 				">
-					<h3 style="margin: 0;">${escapeHtml(title)}</h3>
+					<h3 style="margin: 0; color: var(--vscode-titleBar-activeForeground);">${escapeHtml(title || 'Workspace Snapshot')}</h3>
 					<button class="button" onclick="document.getElementById('snapshotModal').remove()">Close</button>
 				</div>
 				<div style="
 					padding: 16px;
 					overflow: auto;
 					flex: 1;
-					font-family: monospace;
-					font-size: 12px;
-					white-space: pre-wrap;
-					word-break: break-all;
-				">${escapeHtml(snapshotContent)}</div>
+					background: var(--vscode-editor-background);
+				">${formattedSnapshot}</div>
 			</div>
 		`;
 
@@ -1231,6 +1235,268 @@
 			return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[s]);
 		});
 	}
+
+	/**
+	 * Formats git diff content with proper line breaks and syntax highlighting
+	 * Converts escape sequences to actual whitespace and adds GitHub-style colors
+	 */
+	function formatGitDiff(diffContent) {
+		if (!diffContent || typeof diffContent !== 'string') {
+			return '<div style="color: var(--vscode-descriptionForeground);">No changes available</div>';
+		}
+
+		// Step 1: Decode escape sequences
+		// Handle various escape sequence formats that might be in the database
+		let decoded = diffContent
+			.replace(/\\r\\n/g, '\n')  // \r\n → newline
+			.replace(/\\n/g, '\n')      // \n → newline
+			.replace(/\\r/g, '\n')      // \r → newline
+			.replace(/\\t/g, '\t');     // \t → tab
+
+		// Step 2: Split into lines
+		const lines = decoded.split('\n');
+
+		// Step 3: Format each line with appropriate styling
+		const formattedLines = lines.map(line => {
+			const escapedLine = escapeHtml(line);
+
+			// File headers (diff --git, index, +++, ---)
+			if (line.startsWith('diff --git') || line.startsWith('index ') ||
+			    line.startsWith('---') || line.startsWith('+++')) {
+				return `<div style="color: var(--vscode-descriptionForeground); font-weight: bold;">${escapedLine}</div>`;
+			}
+			// Hunk headers (@@ ... @@)
+			else if (line.startsWith('@@')) {
+				return `<div style="color: var(--vscode-textPreformat-foreground); background: var(--vscode-textBlockQuote-background); padding: 2px 4px; margin: 4px 0;">${escapedLine}</div>`;
+			}
+			// Added lines (green)
+			else if (line.startsWith('+')) {
+				return `<div style="background: rgba(46, 160, 67, 0.2); color: var(--vscode-gitDecoration-addedResourceForeground, #46a043); padding: 1px 4px;">${escapedLine}</div>`;
+			}
+			// Deleted lines (red)
+			else if (line.startsWith('-')) {
+				return `<div style="background: rgba(248, 81, 73, 0.2); color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); padding: 1px 4px;">${escapedLine}</div>`;
+			}
+			// Context lines (unchanged)
+			else {
+				return `<div style="color: var(--vscode-editor-foreground); padding: 1px 4px;">${escapedLine}</div>`;
+			}
+		});
+
+		return formattedLines.join('');
+	}
+
+	/**
+	 * Builds a hierarchical tree structure from flat file paths
+	 * @param {Object} snapshot - Object with file paths as keys and content as values
+	 * @returns {Object} Tree structure
+	 */
+	function buildFileTree(snapshot) {
+		const tree = {};
+		const filePaths = Object.keys(snapshot).sort();
+
+		filePaths.forEach(filePath => {
+			// Normalize path separators (handle both / and \)
+			const normalizedPath = filePath.replace(/\\/g, '/');
+			const parts = normalizedPath.split('/');
+			let current = tree;
+
+			parts.forEach((part, index) => {
+				const isFile = index === parts.length - 1;
+
+				if (isFile) {
+					// This is a file
+					if (!current.__files) current.__files = [];
+					current.__files.push({
+						name: part,
+						fullPath: filePath,
+						content: snapshot[filePath]
+					});
+				} else {
+					// This is a folder
+					if (!current[part]) {
+						current[part] = {};
+					}
+					current = current[part];
+				}
+			});
+		});
+
+		return tree;
+	}
+
+	/**
+	 * Counts total files in a tree (recursively)
+	 */
+	function countFilesInTree(tree) {
+		let count = 0;
+
+		if (tree.__files) {
+			count += tree.__files.length;
+		}
+
+		Object.keys(tree).forEach(key => {
+			if (key !== '__files') {
+				count += countFilesInTree(tree[key]);
+			}
+		});
+
+		return count;
+	}
+
+	/**
+	 * Renders a file tree recursively
+	 * @param {Object} tree - Tree structure from buildFileTree
+	 * @param {Number} level - Indentation level
+	 * @param {String} path - Current path (for unique IDs)
+	 * @returns {String} HTML string
+	 */
+	function renderFileTree(tree, level, path) {
+		level = level || 0;
+		path = path || '';
+		let html = '';
+		const indent = level * 20;
+		let itemIndex = 0;
+
+		// Render folders first
+		const folders = Object.keys(tree).filter(key => key !== '__files').sort();
+
+		folders.forEach(folderName => {
+			const folderId = 'folder-' + path + '-' + itemIndex++;
+			const folderPath = path ? path + '/' + folderName : folderName;
+
+			// Count files in this folder (recursively)
+			const fileCount = countFilesInTree(tree[folderName]);
+
+			html += '<div style="margin-bottom: 4px;">';
+			html += '<div style="padding: 6px 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; padding-left: ' + (indent + 8) + 'px; border-radius: 4px; transition: background 0.1s;" ';
+			html += 'onmouseover="this.style.background=\'var(--vscode-list-hoverBackground)\'" ';
+			html += 'onmouseout="this.style.background=\'transparent\'" ';
+			html += 'onclick="toggleFolder(\'' + folderId + '\')">';
+			html += '<span id="' + folderId + '-icon" style="color: var(--vscode-descriptionForeground); font-size: 10px;">▶</span>';
+			html += '<span style="color: var(--vscode-icon-foreground); margin-right: 4px;">📁</span>';
+			html += '<strong style="color: var(--vscode-foreground);">' + escapeHtml(folderName) + '/</strong>';
+			html += '<span style="color: var(--vscode-descriptionForeground); font-size: 11px; margin-left: auto;">(' + fileCount + ' file' + (fileCount !== 1 ? 's' : '') + ')</span>';
+			html += '</div>';
+			html += '<div id="' + folderId + '" style="display: none;">';
+			html += renderFileTree(tree[folderName], level + 1, folderPath);
+			html += '</div>';
+			html += '</div>';
+		});
+
+		// Render files
+		const files = tree.__files || [];
+		files.forEach(function(file) {
+			const fileId = 'file-' + path + '-' + itemIndex++;
+
+			// Decode escape sequences in file content
+			const decodedContent = (file.content || '')
+				.replace(/\\r\\n/g, '\n')
+				.replace(/\\n/g, '\n')
+				.replace(/\\r/g, '\n')
+				.replace(/\\t/g, '\t');
+
+			const lineCount = decodedContent.split('\n').length;
+
+			html += '<div style="margin-bottom: 8px; border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; overflow: hidden; margin-left: ' + indent + 'px;">';
+			html += '<div style="background: var(--vscode-textBlockQuote-background); padding: 6px 10px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--vscode-editorWidget-border);" onclick="toggleFile(\'' + fileId + '\')">';
+			html += '<div style="display: flex; align-items: center; gap: 8px;">';
+			html += '<span id="' + fileId + '-icon" style="color: var(--vscode-descriptionForeground); font-size: 10px;">▶</span>';
+			html += '<span style="color: var(--vscode-icon-foreground); margin-right: 4px;">📄</span>';
+			html += '<strong style="color: var(--vscode-textLink-foreground); font-family: var(--vscode-editor-font-family, monospace);">' + escapeHtml(file.name) + '</strong>';
+			html += '</div>';
+			html += '<span style="color: var(--vscode-descriptionForeground); font-size: 11px;">' + lineCount + ' lines</span>';
+			html += '</div>';
+			html += '<div id="' + fileId + '" style="display: none; padding: 0; background: var(--vscode-editor-background);">';
+			html += '<pre style="margin: 0; padding: 12px; overflow-x: auto; color: var(--vscode-editor-foreground); font-size: 13px; line-height: 1.6; font-family: var(--vscode-editor-font-family, \'Courier New\', monospace);">' + escapeHtml(decodedContent) + '</pre>';
+			html += '</div>';
+			html += '</div>';
+		});
+
+		return html;
+	}
+
+	/**
+	 * Formats snapshot content (initial workspace snapshot) with proper formatting
+	 * Displays files in a hierarchical folder tree with syntax-highlighted content
+	 */
+	function formatSnapshot(snapshotContent) {
+		// Handle different snapshot formats
+		let snapshot = snapshotContent;
+
+		// If it's a string, try to parse as JSON
+		if (typeof snapshotContent === 'string') {
+			try {
+				snapshot = JSON.parse(snapshotContent);
+			} catch (e) {
+				// If parsing fails, treat as raw text and decode escape sequences
+				const decoded = snapshotContent
+					.replace(/\\r\\n/g, '\n')
+					.replace(/\\n/g, '\n')
+					.replace(/\\r/g, '\n')
+					.replace(/\\t/g, '\t');
+
+				return '<pre style="margin: 0; color: var(--vscode-editor-foreground);">' + escapeHtml(decoded) + '</pre>';
+			}
+		}
+
+		// If snapshot is not an object, return error
+		if (!snapshot || typeof snapshot !== 'object') {
+			return '<div style="color: var(--vscode-descriptionForeground);">No snapshot available</div>';
+		}
+
+		// Get all file paths
+		const filePaths = Object.keys(snapshot);
+
+		if (filePaths.length === 0) {
+			return '<div style="color: var(--vscode-descriptionForeground);">Empty snapshot</div>';
+		}
+
+		// Build hierarchical tree structure
+		const tree = buildFileTree(snapshot);
+
+		// Add file count header
+		let html = '<div style="padding: 8px; background: var(--vscode-textBlockQuote-background); border-radius: 4px; margin-bottom: 12px; color: var(--vscode-descriptionForeground);">';
+		html += '<strong>' + filePaths.length + '</strong> file' + (filePaths.length !== 1 ? 's' : '') + ' captured';
+		html += '</div>';
+
+		// Render the tree
+		html += renderFileTree(tree, 0, '');
+
+		return html;
+	}
+
+	// Add toggle function to global scope for file expansion
+	window.toggleFile = function(fileId) {
+		const content = document.getElementById(fileId);
+		const icon = document.getElementById(fileId + '-icon');
+
+		if (content && icon) {
+			if (content.style.display === 'none') {
+				content.style.display = 'block';
+				icon.textContent = '▼';
+			} else {
+				content.style.display = 'none';
+				icon.textContent = '▶';
+			}
+		}
+	};
+
+	// Add toggle function for folders
+	window.toggleFolder = function(folderId) {
+		const content = document.getElementById(folderId);
+		const icon = document.getElementById(folderId + '-icon');
+
+		if (content && icon) {
+			if (content.style.display === 'none') {
+				content.style.display = 'block';
+				icon.textContent = '▼';
+			} else {
+				content.style.display = 'none';
+				icon.textContent = '▶';
+			}
+		}
+	};
 
 	function collectSnapshotPayload(){
 		const id = document.getElementById('fs-id')?.value?.trim();
