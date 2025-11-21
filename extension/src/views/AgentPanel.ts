@@ -464,11 +464,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             return;
         }
 
-        if (this._userTeams.length === 1) {
-            vscode.window.showInformationMessage('You only belong to one team.');
-            return;
-        }
-
+        // Allow team selection even for single-team users
+        // This is necessary to trigger the initial snapshot and validate project match
         const teamOptions = this._userTeams.map(team => ({
             label: team.lobby_name,
             description: `${team.role === 'admin' ? 'Admin' : 'Member'} • Code: ${team.join_code}`,
@@ -476,7 +473,9 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         }));
 
         const selected = await vscode.window.showQuickPick(teamOptions, {
-            placeHolder: 'Select a team to switch to'
+            placeHolder: this._userTeams.length === 1
+                ? 'Select your team to activate snapshot tracking'
+                : 'Select a team to switch to'
         });
 
         if (selected) {
@@ -527,8 +526,16 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             }
             
             // Project matches - allow switch
+            const currentTeamId = this._context.globalState.get<string>(this._teamStateKey);
+            const isSameTeam = currentTeamId === selected.team.id;
+
             await this._context.globalState.update(this._teamStateKey, selected.team.id);
-            vscode.window.showInformationMessage(`Successfully switched to team "${selected.team.lobby_name}"`);
+
+            if (isSameTeam) {
+                vscode.window.showInformationMessage(`Team "${selected.team.lobby_name}" activated - snapshot tracking enabled`);
+            } else {
+                vscode.window.showInformationMessage(`Successfully switched to team "${selected.team.lobby_name}"`);
+            }
 
             this.postTeamInfo();
 
@@ -539,6 +546,7 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
 
     /**
      * Takes initial snapshot when team is selected
+     * This captures the baseline state of the workspace and enables automatic snapshot tracking
      */
     private async takeInitialSnapshot(teamId: string) {
         try {
@@ -554,6 +562,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             const { snapshotManager } = require('../extension');
 
             if (snapshotManager) {
+                // Always take initial snapshot when team is selected/switched
+                // This creates a fresh baseline for automatic snapshot tracking
                 await snapshotManager.takeSnapshot(userId, projectName, teamId);
                 console.log(`[AgentPanel] Initial snapshot captured for team: ${teamId}`);
             }

@@ -78,11 +78,9 @@ export class SnapshotManager {
       return;
     }
 
-    // We require a baseline snapshot to compare against.
+    // Initial snapshots should ONLY be created when the user clicks "Switch Team".
     if (!this.baselineSnapshot) {
-      // No baseline yet? Create one now (e.g., first run after opening project).
-      const projectName = this.getProjectName();
-      await this.takeSnapshot(userId, projectName, teamId);
+      console.log('[SnapshotManager] No baseline snapshot exists - automatic snapshots will not run until user selects a team via Switch Team');
       return;
     }
 
@@ -370,11 +368,10 @@ export class SnapshotManager {
   private async forceSavePendingChanges(userId: string, teamId: string) {
     console.log('[SnapshotManager] Force-saving pending changes (ignoring thresholds)');
 
-    // We require a baseline snapshot to compare against.
+    // Initial snapshots should ONLY be created when the user clicks "Switch Team".
     if (!this.baselineSnapshot) {
-      console.log('[SnapshotManager] No baseline yet - taking initial snapshot first');
-      const projectName = this.getProjectName();
-      await this.takeSnapshot(userId, projectName, teamId);
+      console.log('[SnapshotManager] No baseline snapshot exists - cannot save pending changes. User must select team via Switch Team first.');
+      vscode.window.showWarningMessage('Please select a team via Switch Team before starting a Live Share session');
       return;
     }
 
