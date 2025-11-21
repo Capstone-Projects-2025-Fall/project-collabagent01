@@ -2,6 +2,17 @@ import * as vscode from 'vscode';
 import { SnapshotManager } from '../views/snapshotManager';
 import { createTwoFilesPatch } from 'diff';
 
+let mockContext: any;
+
+beforeEach(() => {
+  mockContext = {
+    globalState: {
+      get: jest.fn(),
+      update: jest.fn(),
+    },
+  };
+});
+
 jest.mock('vscode', () => ({
   window: {
     showInformationMessage: jest.fn(),
@@ -31,8 +42,10 @@ jest.mock('path', () => ({
 }));
 
 // Supabase mock
-const mockInsert = jest.fn(async () => ({ data: [{ id: 'abc123' }], error: null }));
-const mockFrom = jest.fn(() => ({ insert: mockInsert, select: jest.fn(() => ({ data: [], error: null })) }));
+const mockSelect = jest.fn(() => Promise.resolve({ data: [{ id: 'abc123' }], error: null }));
+const mockInsert = jest.fn(() => ({ select: mockSelect }));
+const mockFrom = jest.fn(() => ({ insert: mockInsert }));
+
 jest.mock('../auth/supabaseClient', () => ({
   getSupabase: jest.fn(() => ({ from: mockFrom }))
 }));
@@ -97,8 +110,7 @@ describe('SnapshotManager', () => {
     await manager.takeSnapshot('user-1', 'project', 'team-1');
     expect(mockInsert).toHaveBeenCalled();
     expect(vscode.window.showInformationMessage).toHaveBeenCalledWith(
-      expect.stringContaining('✅ Initial snapshot complete'),
-      undefined
+    expect.stringContaining('✅ Initial snapshot complete')
     );
   });
 
@@ -125,15 +137,30 @@ describe('SnapshotManager', () => {
   // ─────────────────────────────
   // IDLE HANDLER
   // ─────────────────────────────
-  it('onWorkspaceActivity sets idle timer and triggers snapshot', async () => {
+    it('onWorkspaceActivity sets idle timer and triggers snapshot', async () => {
     jest.useFakeTimers();
-    const spy = jest.spyOn(manager as any, 'takeIncrementalSnapshot').mockResolvedValue(undefined);
-    (manager as any).isAutomaticTrackingPaused = false;
+
+    const manager = new SnapshotManager(mockContext as any);
+
+    const spy = jest.spyOn(manager, 'takeIncrementalSnapshot').mockResolvedValue();
+
+    // Mock user + team so the timer doesn't short-circuit
+    jest.spyOn(manager as any, 'requireUser').mockResolvedValue('user-1');
+    (mockContext.globalState.get as jest.Mock).mockReturnValue('team-1');
+
+    // Trigger workspace activity
     (manager as any).onWorkspaceActivity();
-    jest.runAllTimers();
+
+    // Advance the fake timers fully (simulate the 60s delay instantly)
+    await jest.runAllTimersAsync?.() ?? jest.runAllTimers();
+
+    // Let async promise chain flush
+    await Promise.resolve();
+
     expect(spy).toHaveBeenCalled();
+
     jest.useRealTimers();
-  });
+    });
 
   // ─────────────────────────────
   // LIVE SHARE INTEGRATION
