@@ -203,54 +203,68 @@ export class ConcurrentActivityDetector {
     try {
       const currentUserName = await this.getUserDisplayName(currentUserId);
       
-      // Check each active user to see if we should notify
-      for (const user of activeUsers) {
-        const pairKey = [currentUserId, user.userId].sort().join(':');
+      // Create a single combined notification for all active users
+      const groupKey = ['group', currentUserId, ...activeUsers.map(u => u.userId).sort()].join(':');
+      
+      // Cooldown check disabled for testing
+      // if (this.notifiedPairs.has(groupKey)) {
+      //   return;
+      // }
+
+      // Format message based on number of users
+      let summary: string;
+      let eventHeader: string;
+      let vscodeMessage: string;
+      
+      if (activeUsers.length === 1) {
+        // Single other user
+        const user = activeUsers[0];
+        summary = `${currentUserName} and ${user.displayName} are both actively working on the project (${user.changeCount} recent changes detected). Consider starting a Live Share session to collaborate!`;
+        eventHeader = `👥 Concurrent Activity Detected`;
+        vscodeMessage = `${user.displayName} is also working on this project. Start a Live Share session?`;
+      } else {
+        // Multiple other users
+        const userNames = activeUsers.map(u => u.displayName).join(', ');
+        const totalChanges = activeUsers.reduce((sum, u) => sum + u.changeCount, 0);
+        summary = `${currentUserName} and others (${userNames}) are actively working on the project (${totalChanges} recent changes detected). Consider starting a Live Share session to collaborate!`;
+        eventHeader = `👥 Multiple Users Active`;
+        vscodeMessage = `${activeUsers.length} other team members are working on this project. Start a Live Share session?`;
+      }
+
+      // Insert into team activity feed
+      const { error } = await this.supabase
+        .from('team_activity_feed')
+        .insert({
+          team_id: teamId,
+          user_id: currentUserId,
+          event_header: eventHeader,
+          summary: summary,
+          activity_type: 'concurrent_activity',
+          file_path: null,
+          source_snapshot_id: null
+        });
+
+      if (error) {
+        console.error('[ConcurrentActivity] Error inserting notification:', error);
+      } else {
+        console.log(`[ConcurrentActivity] Notification sent: ${activeUsers.length} concurrent user(s)`);
         
-        // Cooldown check disabled for testing
-        // if (this.notifiedPairs.has(pairKey)) {
-        //   continue;
-        // }
+        // Show VS Code notification
+        const action = await vscode.window.showInformationMessage(
+          vscodeMessage,
+          'Start Live Share',
+          'Dismiss'
+        );
 
-        // Create notification message
-        const summary = `${currentUserName} and ${user.displayName} are both actively working on the project (${user.changeCount} recent changes detected). Consider reaching out and starting a Live Share session to collaborate!`;
-        const eventHeader = `👥 Concurrent Activity Detected`;
-
-        // Insert into team activity feed
-        const { error } = await this.supabase
-          .from('team_activity_feed')
-          .insert({
-            team_id: teamId,
-            user_id: currentUserId,
-            event_header: eventHeader,
-            summary: summary,
-            activity_type: 'concurrent_activity',
-            file_path: null,
-            source_snapshot_id: null
-          });
-
-        if (error) {
-          console.error('[ConcurrentActivity] Error inserting notification:', error);
-        } else {
-          console.log(`[ConcurrentActivity] Notification sent: ${currentUserName} and ${user.displayName} working concurrently`);
-          
-          // Show VS Code notification
-          const action = await vscode.window.showInformationMessage(
-            `${user.displayName} is also working on this project. Start a Live Share session?`,
-            'Start Live Share',
-            'Dismiss'
-          );
-
-          if (action === 'Start Live Share') {
-            vscode.commands.executeCommand('liveshare.start');
-          }
-
-          // Cooldown disabled for testing - will notify every time
-          // this.notifiedPairs.add(pairKey);
-          // setTimeout(() => {
-          //   this.notifiedPairs.delete(pairKey);
-          // }, 3600000); // 1 hour
+        if (action === 'Start Live Share') {
+          vscode.commands.executeCommand('liveshare.start');
         }
+
+        // Cooldown disabled for testing - will notify every time
+        // this.notifiedPairs.add(groupKey);
+        // setTimeout(() => {
+        //   this.notifiedPairs.delete(groupKey);
+        // }, 3600000); // 1 hour
       }
     } catch (error) {
       console.error('[ConcurrentActivity] Error sending notification:', error);
@@ -262,11 +276,11 @@ export class ConcurrentActivityDetector {
    */
   private async getUserDisplayName(userId: string): Promise<string> {
     try {
-      // First try to get from user_profiles
+      // First try to get from user_profiles using user_id column
       const { data: profile, error: profileError } = await this.supabase
         .from('user_profiles')
         .select('name')
-        .eq('id', userId)
+        .eq('user_id', userId)
         .single();
 
       if (!profileError && profile?.name) {

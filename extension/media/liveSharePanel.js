@@ -722,6 +722,7 @@
 				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
 				<select id="activityFilterDropdown" class="dropdown" title="Filter events by type" style="padding:4px 8px; font-size:12px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); border-radius:4px; cursor:pointer;">
 					<option value="all">All</option>
+					<option value="concurrent_activity">Concurrent Activity</option>
 					<option value="ai_task_recommendation">Task Delegation</option>
 					<option value="initial_snapshot">Initial Snapshot</option>
 					<option value="changes">Changes</option>
@@ -793,7 +794,9 @@
 				const hasChanges = it.changes && it.changes.trim().length > 0 && it.changes !== '{}';
 
 				// Map filter value to activity type or condition
-				if (filterValue === 'ai_task_recommendation') {
+				if (filterValue === 'concurrent_activity') {
+					return activityType === 'concurrent_activity';
+				} else if (filterValue === 'ai_task_recommendation') {
 					return activityType === 'ai_task_recommendation';
 				} else if (filterValue === 'initial_snapshot') {
 					return activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges);
@@ -854,6 +857,13 @@
 				// Styled similar to Initial Snapshot (bordered) but using white instead of green
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #ffffff; color:#ffffff; border-radius:4px; margin-right:6px;">Participant Status</span>';
 				// No buttons => non-clickable
+			} else if (activityType === 'concurrent_activity') {
+				// Concurrent Activity: Multiple users working simultaneously
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #2196f3; color:#2196f3; border-radius:4px; margin-right:6px;">👥 Concurrent Activity</span>';
+				// Show Start Live Share button
+				buttons = `
+					<button class="button small" style="background-color: #2196f3; color: #ffffff;" onclick="startLiveShareFromActivity('${it.id}')" title="Start a Live Share session">Start Live Share</button>
+				`;
 			} else if (activityType === 'ai_task_recommendation') {
 				// Purple badge for AI task recommendations
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';
@@ -999,6 +1009,23 @@
 			console.log('No reason available for this task recommendation');
 			console.log('Activity data:', activity);
 		}
+	};
+
+	window.startLiveShareFromActivity = function(activityId) {
+		console.log('Start Live Share from activity:', activityId);
+
+		// Find the activity item
+		const activity = currentActivityItems.find(item => item.id === activityId);
+		if (!activity) {
+			console.error('Activity not found:', activityId);
+			return;
+		}
+
+		// Send message to extension to start Live Share
+		post('startLiveShareSession', { 
+			activityId: activityId,
+			teamId: activity.team_id 
+		});
 	};
 
 	function showDiffModal(diffContent, title) {

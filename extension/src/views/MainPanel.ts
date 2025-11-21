@@ -224,6 +224,11 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             case 'manualPasteInviteLink':
                 this._liveShareManager.pasteInviteLinkFromClipboard();
                 break;
+            case 'startLiveShareSession':
+                // Start Live Share from concurrent activity notification
+                this._liveShareManager.startLiveShareSession();
+                vscode.window.showInformationMessage('Starting Live Share session...');
+                break;
         }
     }
 
