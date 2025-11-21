@@ -6,14 +6,20 @@ import {
   handleSignOut,
 } from "../services/auth-service";
 
+// proxy-based self-reference, fully synchronous
+const notifications: any = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      return (module.exports as any)[prop];
+    }
+  }
+);
+
 const showErrors = true;
 
 /**
  * Displays an error notification to the user in VS Code.
- *
- * Logs the error to the console and, if enabled, shows a non-modal error message in the editor.
- *
- * @param message - The error message to display.
  */
 export async function errorNotification(message: string) {
   console.error(message);
@@ -25,9 +31,6 @@ export async function errorNotification(message: string) {
 
 /**
  * Prompts unauthenticated users to either sign in or sign up.
- *
- * Displays an informational notification with "Sign In" and "Sign Up" options,
- * and triggers the appropriate authentication workflow based on the user's choice.
  */
 export async function authNotification() {
   const choice = await vscode.window.showInformationMessage(
@@ -43,17 +46,12 @@ export async function authNotification() {
   }
 }
 
-
 /**
  * Notifies the user with a sign-out prompt.
- *
- * If the user confirms, triggers the sign-out process.
- *
- * @param messsage - The message to display with the sign-out option.
  */
-export async function authSignOutNotification(messsage: string) {
+export async function authSignOutNotification(message: string) {
   const signOutChoice = await vscode.window.showInformationMessage(
-    `${messsage}`,
+    `${message}`,
     "Sign Out"
   );
 
@@ -63,14 +61,9 @@ export async function authSignOutNotification(messsage: string) {
 }
 
 /**
- * Shows a temporary warning notification in the VS Code status bar.
- *
- * Displays the message for 2 seconds before automatically dismissing it.
- *
- * @param message - The message to display in the status bar.
+ * Shows a temporary warning notification in the status bar.
  */
 export async function showAuthNotification(message: string) {
-  //   vscode.window.showInformationMessage(message, { modal: false });
   const notification = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
     90
@@ -83,7 +76,6 @@ export async function showAuthNotification(message: string) {
   );
   notification.show();
 
-  // Auto-dismiss after 2 seconds
   setTimeout(() => {
     notification.hide();
     notification.dispose();
@@ -91,38 +83,30 @@ export async function showAuthNotification(message: string) {
 }
 
 /**
- * Displays a help-related notification if the user is authenticated
- * and has notifications enabled in their settings.
- *
- * If the user is unauthenticated, prompts them to sign in.
- *
- * @param message - The help message to display.
+ * Displays a help-related notification.
  */
 export async function helpNotification(message: string) {
   const { context, error } = await getAuthContext();
+
   if (error) {
-    errorNotification(error);
+    await notifications.errorNotification(error);
     return;
   }
+
   if (!context) {
-    authNotification();
+    await notifications.authNotification();
     return;
   }
+
   if (!context.settings.show_notifications) {
     return;
   }
+
   vscode.window.showInformationMessage(message, { modal: false });
 }
 
 /**
  * Notifies the user with a customizable informational message.
- * Optionally offers a "Review" action that redirects the user to a URL.
- *
- * Checks for authentication and user notification settings before displaying the message.
- *
- * @param message - The message to display to the user.
- * @param url - (Optional) The URL to open if the user chooses "Review".
- * @param isModal - (Optional) Whether the notification should appear as a modal. Defaults to `false`.
  */
 export async function notifyUser(
   message: string,
@@ -130,14 +114,17 @@ export async function notifyUser(
   isModal: boolean = false
 ) {
   const { context, error } = await getAuthContext();
+
   if (error) {
-    errorNotification(error);
+    await notifications.errorNotification(error);
     return;
   }
+
   if (!context) {
-    authNotification();
+    await notifications.authNotification();
     return;
   }
+
   if (!context.settings.show_notifications) {
     return;
   }
@@ -147,7 +134,10 @@ export async function notifyUser(
     .then((selection) => {
       if (selection === "Review") {
         vscode.env.openExternal(
-          vscode.Uri.parse(url || "https://github.com/Capstone-Projects-2025-Fall/project-collabagent01")
+          vscode.Uri.parse(
+            url ||
+              "https://github.com/Capstone-Projects-2025-Fall/project-collabagent01"
+          )
         );
       }
     });
