@@ -1,9 +1,8 @@
 import * as vscode from 'vscode';
 import * as vsls from 'vsls';
 
-const registeredCommands: Record<string, (...args: any[]) => any> = {};
-
 jest.mock('vscode', () => {
+  const registeredCommands: Record<string, (...args: any[]) => any> = {};
   const showInformationMessage = jest.fn();
   const showWarningMessage = jest.fn();
   const showErrorMessage = jest.fn();
@@ -136,6 +135,7 @@ jest.mock('../services/github-verification-service', () => ({
 describe('extension activate/deactivate', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    const registeredCommands = (vscode.commands as any)._registeredCommands;
     Object.keys(registeredCommands).forEach((k) => delete registeredCommands[k]);
   });
 
@@ -185,8 +185,7 @@ describe('extension activate/deactivate', () => {
 
     await loadAndActivate();
 
-    const commandsMap = (vscode.commands as any)
-      ._registeredCommands as typeof registeredCommands;
+    const commandsMap = (vscode.commands as any)._registeredCommands;
 
     await commandsMap['collabAgent.userSnapshot']();
 
@@ -202,8 +201,7 @@ describe('extension activate/deactivate', () => {
 
     await loadAndActivate();
 
-    const commandsMap = (vscode.commands as any)
-      ._registeredCommands as typeof registeredCommands;
+    const commandsMap = (vscode.commands as any)._registeredCommands;
 
     await commandsMap['collabAgent.userSnapshot']();
 
@@ -222,8 +220,7 @@ describe('extension activate/deactivate', () => {
 
     await loadAndActivate();
 
-    const commandsMap = (vscode.commands as any)
-      ._registeredCommands as typeof registeredCommands;
+    const commandsMap = (vscode.commands as any)._registeredCommands;
 
     await commandsMap['collabAgent.publishSnapshot']();
 
@@ -239,8 +236,7 @@ describe('extension activate/deactivate', () => {
 
     await loadAndActivate();
 
-    const commandsMap = (vscode.commands as any)
-      ._registeredCommands as typeof registeredCommands;
+    const commandsMap = (vscode.commands as any)._registeredCommands;
 
     await commandsMap['collabAgent.publishSnapshot']();
 
