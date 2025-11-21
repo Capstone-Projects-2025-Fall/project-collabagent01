@@ -9,10 +9,6 @@ server/node_modules/
 # Build output for VS Code extension (can be regenerated with npm run compile)
 extension/dist/
 
-# Test files in subdirectories (reorganized test files)
-extension/src/test/testViews/
-extension/src/test/testServices/
-
 # Environment variables (IMPORTANT: Protects API keys and secrets)
 .env
 .env.local
