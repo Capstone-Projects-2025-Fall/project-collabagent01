@@ -144,7 +144,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'manualSetInviteLink',
             'manualClearInviteLink',
             'requestStoredLink',
-            'manualPasteInviteLink'
+            'manualPasteInviteLink',
+            'startLiveShareSession'
         ].includes(command);
     }
 
