@@ -12,6 +12,7 @@
 
 	window.startLiveShare = () => post('startLiveShare');
 	window.joinLiveShare = () => post('joinLiveShare');
+	window.broadcastSnapshot = () => post('broadcastSnapshot');
 
 	// Home tab: Install Live Share and Login buttons
 	function setupHomePanelButtons() {

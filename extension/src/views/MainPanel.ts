@@ -160,7 +160,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'aiQuery',
             'addFileSnapshot',
             // 'generateSummary' removed - edge function now handles automatic summarization
-            'loadActivityFeed'
+            'loadActivityFeed',
+            'broadcastSnapshot'
         ].includes(command);
     }
 
@@ -267,6 +268,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             // generateSummary case removed - edge function now handles automatic summarization
             case 'loadActivityFeed':
                 await (this._agentPanel as any).loadActivityFeed?.(message.teamId, message.limit);
+                break;
+            case 'broadcastSnapshot':
+                await (this._agentPanel as any).broadcastSnapshot?.();
                 break;
             default:
                 console.log('Unknown agent command:', message.command);

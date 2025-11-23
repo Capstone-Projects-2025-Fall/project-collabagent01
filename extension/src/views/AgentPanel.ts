@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { createTeam, joinTeam, getUserTeams, deleteTeam as deleteTeamSvc, leaveTeam as leaveTeamSvc, getTeamMembers, type TeamWithMembership, type TeamMember } from '../services/team-service';
 import { validateCurrentProject, getCurrentProjectInfo, getProjectDescription } from '../services/project-detection-service';
+import { getCurrentUserId } from '../services/auth-service';
 
 /**
  * Provides the webview panel for Agent-specific features (separate from Live Share).
@@ -290,6 +291,54 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
             }
         } catch (err) {
             this._view?.webview.postMessage({ command: 'fileSnapshotError', error: String(err) });
+        }
+    }
+
+    /**
+     * Broadcasts a snapshot manually, bypassing automatic snapshot constraints
+     * Checks for initial snapshot, minimum line changes, and cooldown period
+     */
+    public async broadcastSnapshot() {
+        try {
+            console.log('[AgentPanel] broadcastSnapshot called');
+
+            // Get current user ID
+            const userId = await getCurrentUserId();
+            if (!userId) {
+                vscode.window.showWarningMessage('Please sign in before broadcasting snapshots');
+                return;
+            }
+
+            // Get current team ID
+            const teamId = this._context.globalState.get<string>(this._teamStateKey);
+            if (!teamId) {
+                vscode.window.showWarningMessage('Please select a team before broadcasting snapshots');
+                return;
+            }
+
+            // Get project name
+            const projectName = vscode.workspace.workspaceFolders?.[0]?.name ?? "untitled-workspace";
+
+            // Call snapshotManager's broadcastSnapshot method
+            const { snapshotManager } = require('../extension');
+            if (!snapshotManager) {
+                vscode.window.showErrorMessage('Snapshot manager not initialized');
+                return;
+            }
+
+            const result = await snapshotManager.broadcastSnapshot(userId, projectName, teamId);
+
+            if (result.success) {
+                console.log('[AgentPanel] Broadcast successful:', result.message);
+                // Refresh the activity feed to show the new broadcast
+                await this.loadActivityFeed(teamId);
+            } else {
+                console.log('[AgentPanel] Broadcast failed:', result.message);
+                vscode.window.showWarningMessage(result.message);
+            }
+        } catch (err) {
+            console.error('[AgentPanel] Error broadcasting snapshot:', err);
+            vscode.window.showErrorMessage(`Failed to broadcast: ${String(err)}`);
         }
     }
 

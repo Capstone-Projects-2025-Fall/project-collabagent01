@@ -29,6 +29,10 @@ export class SnapshotManager {
   /** Workspace root path for relative path conversion */
   private workspaceRoot: string;
 
+  /** Broadcast cooldown tracking */
+  private lastBroadcastTime: number = 0;
+  private BROADCAST_COOLDOWN = 60_000; // 60 seconds cooldown
+
   constructor(private context: vscode.ExtensionContext) {
     this.supabase = getSupabase();
 
@@ -314,6 +318,110 @@ export class SnapshotManager {
 
     // Update baseline to current state
     this.baselineSnapshot = newSnapshot;
+  }
+
+  /**
+   * Broadcast snapshot - Manual override that bypasses automatic snapshot constraints
+   * Checks:
+   * 1. Initial snapshot exists
+   * 2. At least 2 lines changed
+   * 3. 60-second cooldown occured
+   * Returns success/error object
+   */
+  public async broadcastSnapshot(userId: string, projectName: string, teamId?: string): Promise<{success: boolean, message: string}> {
+    // Require teamId for snapshot
+    if (!teamId) {
+      console.warn('[SnapshotManager] No team selected - skipping broadcast');
+      return {
+        success: false,
+        message: 'Please select a team before broadcasting snapshots'
+      };
+    }
+
+    // Check 1: Initial snapshot must exist
+    if (!this.baselineSnapshot) {
+      console.log('[SnapshotManager] No baseline snapshot exists - cannot broadcast');
+      return {
+        success: false,
+        message: 'Please trigger initial snapshot first by switching to a team'
+      };
+    }
+
+    // Check 2: Cooldown period
+    const now = Date.now();
+    const timeSinceLastBroadcast = now - this.lastBroadcastTime;
+    if (timeSinceLastBroadcast < this.BROADCAST_COOLDOWN) {
+      const remainingSeconds = Math.ceil((this.BROADCAST_COOLDOWN - timeSinceLastBroadcast) / 1000);
+      console.log(`[SnapshotManager] Broadcast cooldown active - ${remainingSeconds}s remaining`);
+      return {
+        success: false,
+        message: `Please wait ${remainingSeconds} seconds before broadcasting again`
+      };
+    }
+
+    // Capture current state and compute changes
+    const newSnapshot = await this.captureWholeWorkspace();
+    const diff = this.computeUnifiedDiffs(this.baselineSnapshot, newSnapshot);
+
+    const filesChanged = Object.keys(diff).length;
+    const linesChanged = this.countTotalLines(diff);
+
+    console.log(`[SnapshotManager] Broadcast check: ${filesChanged} files, ${linesChanged} lines changed`);
+
+    // Check 3: At least 2 lines changed
+    if (linesChanged < 2) {
+      console.log('[SnapshotManager] Insufficient changes for broadcast (need at least 2 lines)');
+      return {
+        success: false,
+        message: `Only ${linesChanged} line(s) changed. Need at least 2 lines to broadcast`
+      };
+    }
+
+    // All checks passed - create broadcast snapshot
+    vscode.window.showInformationMessage(
+      `📡 Broadcasting snapshot: ${filesChanged} files, ${linesChanged} lines changed`
+    );
+
+    // Create new snapshot row with broadcast marker in file_path
+    const payload = {
+      user_id: userId,
+      team_id: teamId,
+      project_name: projectName,
+      snapshot: {},
+      changes: diff,
+      file_path: '[BROADCAST]', // Special marker for broadcast snapshots
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await this.supabase
+      .from("file_snapshots")
+      .insert(payload)
+      .select();
+
+    if (error) {
+      console.error('[SnapshotManager] Failed to broadcast snapshot:', error);
+      return {
+        success: false,
+        message: `Failed to broadcast: ${error.message}`
+      };
+    }
+
+    // Update cooldown timer
+    this.lastBroadcastTime = now;
+
+    // Update baseline to current state
+    this.baselineSnapshot = newSnapshot;
+
+    console.log('[SnapshotManager] Broadcast snapshot created successfully');
+
+    vscode.window.showInformationMessage(
+      `✅ Broadcast successful: ${filesChanged} files, ${linesChanged} lines`
+    );
+
+    return {
+      success: true,
+      message: `Broadcast successful: ${filesChanged} files, ${linesChanged} lines changed`
+    };
   }
 
   private async requireUser(): Promise<string> {
