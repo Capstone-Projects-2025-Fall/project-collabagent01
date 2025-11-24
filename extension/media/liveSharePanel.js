@@ -5,6 +5,7 @@
 	let isEndingSession = false;
 	let endingSessionTimer = null;
 	window.__collabAgentLastLink = '';
+	let currentSessionStatus = null; // Track current session status (null, 'hosting', 'joined')
 
 	function post(command, payload = {}) {
 		vscode.postMessage({ command, ...payload });
@@ -12,7 +13,15 @@
 
 	window.startLiveShare = () => post('startLiveShare');
 	window.joinLiveShare = () => post('joinLiveShare');
-	window.broadcastSnapshot = () => post('broadcastSnapshot');
+	window.broadcastSnapshot = () => {
+		// Check if user is in an active Live Share session
+		if (currentSessionStatus === 'hosting' || currentSessionStatus === 'joined') {
+			// Show warning message via vscode
+			post('broadcastBlockedBySession');
+			return;
+		}
+		post('broadcastSnapshot');
+	};
 
 	// Home tab: Install Live Share and Login buttons
 	function setupHomePanelButtons() {
@@ -140,6 +149,7 @@
 		setupSnapshotForm();
 		setupActivityFeed();
 		setupProfilePanel();
+		updateBroadcastButtonState(); // Initialize broadcast button state
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -408,6 +418,25 @@
 		console.log('Activity update:', activity);
 	}
 
+	function updateBroadcastButtonState() {
+		const broadcastBtn = document.getElementById('broadcastBtn');
+		if (!broadcastBtn) return;
+
+		const inSession = currentSessionStatus === 'hosting' || currentSessionStatus === 'joined';
+
+		if (inSession) {
+			broadcastBtn.disabled = true;
+			broadcastBtn.style.opacity = '0.5';
+			broadcastBtn.style.cursor = 'not-allowed';
+			broadcastBtn.title = 'Cannot broadcast while in an active Live Share session';
+		} else {
+			broadcastBtn.disabled = false;
+			broadcastBtn.style.opacity = '1';
+			broadcastBtn.style.cursor = 'pointer';
+			broadcastBtn.title = 'Broadcast your changes to the team';
+		}
+	}
+
 	function updateSessionStatus(status, link, participants, role, duration) {
 		const statusDiv = document.getElementById('sessionStatus');
 		const btns = document.getElementById('sessionButtons');
@@ -425,6 +454,10 @@
 		if (isEndingSession && status === 'joined') {
 			return;
 		}
+
+		// Update current session status and broadcast button state
+		currentSessionStatus = status;
+		updateBroadcastButtonState();
 
 		if (chatInput) {
 			if (status === 'hosting' || status === 'joined') {

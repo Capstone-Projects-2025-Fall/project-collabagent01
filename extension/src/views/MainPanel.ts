@@ -161,7 +161,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'addFileSnapshot',
             // 'generateSummary' removed - edge function now handles automatic summarization
             'loadActivityFeed',
-            'broadcastSnapshot'
+            'broadcastSnapshot',
+            'broadcastBlockedBySession'
         ].includes(command);
     }
 
@@ -271,6 +272,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'broadcastSnapshot':
                 await (this._agentPanel as any).broadcastSnapshot?.();
+                break;
+            case 'broadcastBlockedBySession':
+                vscode.window.showWarningMessage('Cannot broadcast changes while in an active Live Share session. Please end the session first.');
                 break;
             default:
                 console.log('Unknown agent command:', message.command);
