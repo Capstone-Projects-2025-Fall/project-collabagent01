@@ -33,6 +33,12 @@ export class SnapshotManager {
   private lastBroadcastTime: number = 0;
   private BROADCAST_COOLDOWN = 60_000; // 60 seconds cooldown
 
+  /** Track if user has been notified about missing initial snapshot */
+  private hasShownInitialSnapshotWarning: boolean = false;
+
+  /** Track if we're currently taking an initial snapshot */
+  private isTakingInitialSnapshot: boolean = false;
+
   constructor(private context: vscode.ExtensionContext) {
     this.supabase = getSupabase();
 
@@ -44,6 +50,35 @@ export class SnapshotManager {
     vscode.workspace.onDidCreateFiles(() => this.onWorkspaceActivity());
     vscode.workspace.onDidDeleteFiles(() => this.onWorkspaceActivity());
     vscode.workspace.onDidRenameFiles(() => this.onWorkspaceActivity());
+
+    // Monitor when files are opened to check for initial snapshot
+    vscode.workspace.onDidOpenTextDocument((document) => this.checkInitialSnapshotOnFileOpen(document));
+
+    // Check if there are already open documents when extension activates
+    // Use a small delay to ensure extension context is fully initialized
+    setTimeout(() => {
+      this.checkAlreadyOpenDocuments();
+    }, 1000);
+  }
+
+  /**
+   * Checks already-open documents when extension activates
+   * This handles the case where user has files open before initial snapshot is taken
+   */
+  private async checkAlreadyOpenDocuments() {
+    // Check if we have any text documents already open
+    const openDocuments = vscode.workspace.textDocuments;
+
+    if (openDocuments.length > 0) {
+      // Check the active (visible) document first if it exists
+      const activeDocument = vscode.window.activeTextEditor?.document;
+      if (activeDocument) {
+        await this.checkInitialSnapshotOnFileOpen(activeDocument);
+      } else if (openDocuments.length > 0) {
+        // If no active document, check the first open document
+        await this.checkInitialSnapshotOnFileOpen(openDocuments[0]);
+      }
+    }
   }
 
   // ——————————————————————
@@ -59,6 +94,9 @@ export class SnapshotManager {
       return;
     }
 
+    // Mark that we're taking initial snapshot
+    this.isTakingInitialSnapshot = true;
+
     vscode.window.showInformationMessage('📸 Taking initial workspace snapshot...');
 
     const snapshot = await this.captureWholeWorkspace();
@@ -66,12 +104,18 @@ export class SnapshotManager {
     // Save baseline in memory
     this.baselineSnapshot = snapshot;
 
+    // Reset warning flag since initial snapshot is now taken
+    this.hasShownInitialSnapshotWarning = false;
+
     // Write to DB: snapshot (all files), clear changes
     await this.insertNewSnapshot(userId, projectName, teamId, snapshot, {});
 
     const fileCount = Object.keys(snapshot).length;
     vscode.window.showInformationMessage(`✅ Initial snapshot complete: ${fileCount} files captured`);
     console.log("Full workspace snapshot saved.");
+
+    // Mark that we're done taking initial snapshot
+    this.isTakingInitialSnapshot = false;
   }
 
   /** Idle-based incremental snapshot: recompute ALL changes vs baseline and check thresholds */
@@ -121,6 +165,65 @@ export class SnapshotManager {
     } else {
       console.log(`[SnapshotManager] Threshold not met (need ${this.LINES_THRESHOLD} lines or ${this.FILES_THRESHOLD} files). Skipping snapshot.`);
     }
+  }
+
+  // Initial snapshot notification
+  /**
+   * Checks if initial snapshot exists when user opens a file.
+   * Shows a one-time notification if no baseline snapshot exists.
+   */
+  private async checkInitialSnapshotOnFileOpen(document: vscode.TextDocument) {
+    // Only check for workspace files (not settings, output panels, etc.)
+    if (document.uri.scheme !== 'file') {
+      return;
+    }
+
+    // Skip if already shown warning
+    if (this.hasShownInitialSnapshotWarning) {
+      return;
+    }
+
+    // Skip if we're currently taking an initial snapshot
+    if (this.isTakingInitialSnapshot) {
+      return;
+    }
+
+    // Skip if baseline snapshot exists
+    if (this.baselineSnapshot) {
+      return;
+    }
+
+    // Skip if no workspace is open
+    if (!vscode.workspace.workspaceFolders?.length) {
+      return;
+    }
+
+    // Check if file is within the workspace
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) {
+      return;
+    }
+
+    // Check if user is signed in
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      // User not signed in yet, don't show notification
+      return;
+    }
+
+    // Mark as shown to prevent repeated notifications
+    this.hasShownInitialSnapshotWarning = true;
+
+    // Show notification with action button
+    vscode.window.showInformationMessage(
+      'No initial snapshot detected. Please select a team in the Team panel to track your changes and share updates with your team.',
+      'Open Team Panel'
+    ).then(selection => {
+      if (selection === 'Open Team Panel') {
+        // Open the Team Activity panel
+        vscode.commands.executeCommand('workbench.view.extension.collabAgent');
+      }
+    });
   }
 
   // ——————————————————————
@@ -575,6 +678,7 @@ export class SnapshotManager {
       // Take a new initial snapshot to set a fresh baseline for local changes
       vscode.window.showInformationMessage('📸 Taking snapshot after session...');
       await this.takeSnapshot(userId, projectName, teamId);
+      // Note: takeSnapshot already resets hasShownInitialSnapshotWarning
     }
 
     // Resume automatic tracking
