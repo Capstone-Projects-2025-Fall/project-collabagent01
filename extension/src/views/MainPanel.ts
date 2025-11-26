@@ -3,7 +3,6 @@ import { LiveShareManager } from './LiveSharePanel';
 import { AgentPanelProvider } from './AgentPanel';
 import { HomeScreenPanel } from './HomeScreenPanel';
 import { TasksPanel } from './TasksPanel';
-import { ProfilePanel } from './ProfilePanel';
 
 /**
  * Main orchestrator panel that manages and displays five sub-panels:
@@ -32,8 +31,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     /** Tasks panel instance for Jira task integration */
     private _tasksPanel: TasksPanel;
 
-    /** Profile panel instance for user profile management */
-    private _profilePanel: ProfilePanel;
+
 
     /** Interval to monitor auth state changes */
     private _authMonitorInterval: any | undefined;
@@ -51,7 +49,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         this._agentPanel = new AgentPanelProvider(this._extensionUri, this._context);
         this._homeScreen = new HomeScreenPanel(this._extensionUri, this._context);
         this._tasksPanel = new TasksPanel(this._context);
-        this._profilePanel = new ProfilePanel(this._extensionUri, this._context);
     }
 
     /**
@@ -680,7 +677,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const homeHtml = await this._homeScreen.getHtml(webview, liveShareInstalled, loggedIn, userInfo);
             const agentHtml = this._agentPanel.getInnerHtml();
             const tasksHtml = this._tasksPanel.getHtml();
-            const profileHtml = await this._profilePanel.getHtml(webview);
             
             // Get Live Share panel content
             const fs = require('fs');
@@ -724,8 +720,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{HOME_HTML}}', homeHtml)
                 .replace('{{LIVESHARE_HTML}}', liveShareHtml)
                 .replace('{{AGENT_HTML}}', agentHtml)
-                .replace('{{TASKS_HTML}}', tasksHtml)
-                .replace('{{PROFILE_HTML}}', profileHtml);
+                .replace('{{TASKS_HTML}}', tasksHtml);
 
             return html;
         })();

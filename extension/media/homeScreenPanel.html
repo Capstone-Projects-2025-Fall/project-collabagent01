@@ -6,6 +6,7 @@
     <title>Collab Agent Home</title>
     <link href="{{PANEL_STYLE_URI}}" rel="stylesheet" />
     <link href="{{HOME_STYLE_URI}}" rel="stylesheet" />
+    <link href="{{PROFILE_STYLE_URI}}" rel="stylesheet" />
 </head>
 <body>
     <div class="panel-content">
@@ -16,6 +17,126 @@
         </div>
         {{LIVE_SHARE_STATUS}}
         {{LOGIN_STATUS}}
+        {{PROFILE_CONTENT}}
     </div>
+
+    <script>
+        // Clear all skill checkboxes
+        document.getElementById('clear-skills-btn')?.addEventListener('click', function() {
+            const checkboxes = document.querySelectorAll('input[name="interests"]');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = false;
+            });
+        });
+
+        // Delete Account Modal Logic
+        const deleteModal = document.getElementById('delete-modal');
+        const deleteBtn = document.getElementById('delete-account-btn');
+        const modalCloseBtn = document.getElementById('modal-close-btn');
+        const modalCancelBtn = document.getElementById('modal-cancel-btn');
+        const modalConfirmBtn = document.getElementById('modal-confirm-btn');
+        const deleteInput = document.getElementById('delete-confirmation-input');
+        const deleteError = document.getElementById('delete-error');
+
+        if (deleteBtn) {
+            // Open modal
+            deleteBtn.addEventListener('click', function() {
+                if (deleteModal) {
+                    deleteModal.style.display = 'flex';
+                    if (deleteInput) {
+                        deleteInput.value = '';
+                        deleteInput.focus();
+                    }
+                    if (modalConfirmBtn) modalConfirmBtn.disabled = true;
+                    if (deleteError) deleteError.style.display = 'none';
+                }
+            });
+        }
+
+        // Close modal functions
+        function closeModal() {
+            if (deleteModal) deleteModal.style.display = 'none';
+            if (deleteInput) deleteInput.value = '';
+            if (modalConfirmBtn) modalConfirmBtn.disabled = true;
+            if (deleteError) deleteError.style.display = 'none';
+        }
+
+        if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
+        if (modalCancelBtn) modalCancelBtn.addEventListener('click', closeModal);
+
+        // Close modal when clicking overlay
+        if (deleteModal) {
+            deleteModal.querySelector('.modal-overlay')?.addEventListener('click', closeModal);
+        }
+
+        // Enable/disable confirm button based on input
+        if (deleteInput) {
+            deleteInput.addEventListener('input', function() {
+                const inputValue = this.value.trim();
+                if (modalConfirmBtn) {
+                    if (inputValue === 'DELETE') {
+                        modalConfirmBtn.disabled = false;
+                        if (deleteError) deleteError.style.display = 'none';
+                    } else {
+                        modalConfirmBtn.disabled = true;
+                    }
+                }
+            });
+        }
+
+        // Handle account deletion
+        if (modalConfirmBtn) {
+            modalConfirmBtn.addEventListener('click', function() {
+                console.log('[DELETE ACCOUNT] Button clicked');
+                const inputValue = deleteInput?.value.trim();
+                console.log('[DELETE ACCOUNT] Input value:', inputValue);
+
+                if (inputValue === 'DELETE') {
+                    console.log('[DELETE ACCOUNT] Validation passed, sending message');
+                    // Send message to extension to delete account
+                    const vscode = window.vscode || acquireVsCodeApi();
+                    console.log('[DELETE ACCOUNT] vscode API:', vscode);
+                    modalConfirmBtn.disabled = true;
+                    modalConfirmBtn.textContent = 'Deleting...';
+                    vscode.postMessage({
+                        command: 'deleteAccount'
+                    });
+                    console.log('[DELETE ACCOUNT] Message sent');
+                } else {
+                    console.log('[DELETE ACCOUNT] Validation failed');
+                    if (deleteError) deleteError.style.display = 'block';
+                }
+            });
+        }
+
+        // Allow Enter key to confirm if input is valid
+        if (deleteInput) {
+            deleteInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && this.value.trim() === 'DELETE') {
+                    modalConfirmBtn?.click();
+                }
+            });
+        }
+
+        // Listen for response from extension
+        window.addEventListener('message', event => {
+            const message = event.data;
+            if (message.command === 'accountDeleted') {
+                if (message.success) {
+                    closeModal();
+                    if (modalConfirmBtn) {
+                        modalConfirmBtn.disabled = false;
+                        modalConfirmBtn.textContent = 'Delete My Account';
+                    }
+                } else {
+                    alert('Error: ' + (message.error || 'Failed to delete account'));
+                    if (modalConfirmBtn) {
+                        modalConfirmBtn.disabled = false;
+                        modalConfirmBtn.textContent = 'Delete My Account';
+                    }
+                }
+            }
+        });
+    </script>
 </body>
 </html>
