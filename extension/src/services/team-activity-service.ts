@@ -38,6 +38,7 @@ export async function fetchTeamActivity(teamId: string, limit = 25): Promise<{ s
  * @param displayName - The display name of the user
  * @param sessionId - Optional session ID for reference
  * @param snapshotId - Optional snapshot ID for the initial workspace snapshot (used for started events)
+ * @param sessionLink - Optional session invite link for joining the session
  * @returns Promise with success status
  */
 export async function insertLiveShareActivity(
@@ -46,7 +47,8 @@ export async function insertLiveShareActivity(
   eventType: 'live_share_started' | 'live_share_joined',
   displayName: string,
   sessionId?: string,
-  snapshotId?: string
+  snapshotId?: string,
+  sessionLink?: string
 ): Promise<{ success: boolean; error?: string; summary?: string }> {
   try {
     const url = new URL(`${BASE_URL}/api/ai/live_share_event`);
@@ -57,7 +59,8 @@ export async function insertLiveShareActivity(
       team_id: teamId,
       user_id: userId,
       display_name: displayName,
-      snapshot_id: snapshotId  // Include snapshot ID for linking to initial snapshot
+      snapshot_id: snapshotId,  // Include snapshot ID for linking to initial snapshot
+      session_link: sessionLink  // Include session invite link
     };
 
     console.log('[TeamActivityService] Sending Live Share event to backend:', payload);
@@ -81,6 +84,94 @@ export async function insertLiveShareActivity(
     return { success: true, summary: data.summary };
   } catch (err: any) {
     console.error('[TeamActivityService] Exception inserting Live Share activity:', err);
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
+/**
+ * Updates an existing Live Share Started event with the session invite link
+ * @param teamId - The team ID
+ * @param sessionId - The session ID
+ * @param sessionLink - The session invite link to add
+ * @returns Promise with success status
+ */
+export async function updateLiveShareActivityLink(
+  teamId: string,
+  sessionId: string,
+  sessionLink: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const url = new URL(`${BASE_URL}/api/ai/live_share_update_link`);
+
+    const payload = {
+      team_id: teamId,
+      session_id: sessionId,
+      session_link: sessionLink
+    };
+
+    console.log('[TeamActivityService] Updating Live Share event with session link:', payload);
+
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[TeamActivityService] Error from backend:', txt);
+      return { success: false, error: `HTTP ${res.status}: ${txt}` };
+    }
+
+    const data = await res.json();
+    console.log('[TeamActivityService] Live Share activity link updated:', data);
+    return { success: true };
+  } catch (err: any) {
+    console.error('[TeamActivityService] Exception updating Live Share activity link:', err);
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
+/**
+ * Cleans up orphaned pinned Live Share Started events
+ * Unpins all pinned "Live Share Started" events for a team
+ * This is called when the extension initializes with no active session
+ * @param teamId - The team ID
+ * @returns Promise with success status
+ */
+export async function cleanupOrphanedPinnedEvents(
+  teamId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const url = new URL(`${BASE_URL}/api/ai/cleanup_orphaned_pins`);
+
+    const payload = {
+      team_id: teamId
+    };
+
+    console.log('[TeamActivityService] Cleaning up orphaned pinned events for team:', teamId);
+
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      console.error('[TeamActivityService] Error from backend:', txt);
+      return { success: false, error: `HTTP ${res.status}: ${txt}` };
+    }
+
+    const data = await res.json();
+    console.log('[TeamActivityService] Orphaned events cleaned up:', data);
+    return { success: true };
+  } catch (err: any) {
+    console.error('[TeamActivityService] Exception cleaning up orphaned events:', err);
     return { success: false, error: err?.message || String(err) };
   }
 }

@@ -160,10 +160,11 @@ def get_feed():
     return jsonify({"error": "team_id is required"}), 400
 
   # Select from team_activity_feed and join with file_snapshots to get changes and snapshot
+  # Sort by pinned status first (pinned items on top), then by created_at descending
   rows = sb_select("team_activity_feed", {
-    "select": "id,team_id,user_id,summary,event_header,file_path,source_snapshot_id,activity_type,created_at,file_snapshots(changes,snapshot)",
+    "select": "id,team_id,user_id,summary,event_header,file_path,source_snapshot_id,activity_type,created_at,pinned,file_snapshots(changes,snapshot)",
     "team_id": f"eq.{team_id}",
-    "order": "created_at.desc",
+    "order": "pinned.desc.nullslast,created_at.desc",
     "limit": str(limit)
   })
 
@@ -254,15 +255,34 @@ def live_share_event():
 
   # Handle session start event
   if event_type == "started":
+    session_link = body.get("session_link")  # Get session invite link
     event_header = f"{display_name} started hosting a Live Share session, join up and collaborate"
     activity_type = "live_share_started"
-    summary = None  # No AI summary yet for started events
+    # Store session link in summary temporarily (will be displayed in UI)
+    summary = session_link if session_link else None
     source_snapshot_id = body.get("snapshot_id")  # Link to initial workspace snapshot
+    pinned = True  # Pin Live Share Started events to top of activity feed
 
   # Handle session end event
   elif event_type == "ended":
     if not session_id:
       return jsonify({"error": "session_id is required for ended events"}), 400
+
+    # Unpin the corresponding "Live Share Started" event
+    # Find the started event by matching session_id in file_path
+    from ..database.db import sb_update
+    try:
+      sb_update("team_activity_feed", {
+        "pinned": "eq.true",
+        "activity_type": "eq.live_share_started",
+        "file_path": f"eq.session:{session_id}"
+      }, {
+        "pinned": False
+      })
+      print(f"[live_share_event] Unpinned Live Share Started event for session {session_id}")
+    except Exception as e:
+      print(f"[live_share_event] Warning: Could not unpin started event: {e}")
+      # Continue even if unpinning fails
 
     # Get participants from session_participants table
     participants = sb_select("session_participants", {
@@ -298,6 +318,7 @@ def live_share_event():
     activity_type = "live_share_ended"
     summary = None  # Will be filled by edge function with AI summary
     source_snapshot_id = body.get("snapshot_id")  # Link to git diff snapshot
+    pinned = False  # Don't pin ended events
 
   else:
     return jsonify({"error": "Invalid event_type. Must be 'started' or 'ended'"}), 400
@@ -311,6 +332,7 @@ def live_share_event():
     "file_path": f"session:{session_id}" if session_id else None,
     "source_snapshot_id": source_snapshot_id,  # Link snapshot for both started and ended events
     "activity_type": activity_type,
+    "pinned": pinned  # Pin Live Share Started events to top
   }
   out = sb_insert("team_activity_feed", feed_row)
 
@@ -402,6 +424,82 @@ def participant_status_event():
     "event_header": event_header,
     "activity_type": "participant_status"
   }), 201
+
+
+@ai_bp.post("/live_share_update_link")
+def live_share_update_link():
+  """
+  Updates an existing Live Share Started event with the session invite link.
+  This is called when the user captures the invite link from clipboard.
+  """
+  body = request.get_json(force=True) or {}
+  team_id = body.get("team_id")
+  session_id = body.get("session_id")
+  session_link = body.get("session_link")
+
+  if not team_id or not session_id or not session_link:
+    return jsonify({"error": "team_id, session_id, and session_link are required"}), 400
+
+  try:
+    from ..database.db import sb_update
+
+    # Update the Live Share Started event for this session
+    # Find by team_id, session_id in file_path, and activity_type
+    sb_update("team_activity_feed", {
+      "team_id": f"eq.{team_id}",
+      "file_path": f"eq.session:{session_id}",
+      "activity_type": "eq.live_share_started"
+    }, {
+      "summary": session_link
+    })
+
+    print(f"[live_share_update_link] Updated Live Share Started event with session link for session {session_id}")
+
+    return jsonify({
+      "success": True,
+      "message": "Session link updated successfully"
+    }), 200
+
+  except Exception as e:
+    print(f"[live_share_update_link] Error updating session link: {e}")
+    return jsonify({"error": str(e)}), 500
+
+
+@ai_bp.post("/cleanup_orphaned_pins")
+def cleanup_orphaned_pins():
+  """
+  Cleans up orphaned pinned Live Share Started events.
+  This happens when VS Code closes while a session is active.
+  Unpins all "Live Share Started" events for a team.
+  """
+  body = request.get_json(force=True) or {}
+  team_id = body.get("team_id")
+
+  if not team_id:
+    return jsonify({"error": "team_id is required"}), 400
+
+  try:
+    from ..database.db import sb_update
+
+    # Unpin all Live Share Started events for this team
+    sb_update("team_activity_feed", {
+      "team_id": f"eq.{team_id}",
+      "activity_type": "eq.live_share_started",
+      "pinned": "eq.true"
+    }, {
+      "pinned": False
+    })
+
+    print(f"[cleanup_orphaned_pins] Unpinned all orphaned Live Share Started events for team {team_id}")
+
+    return jsonify({
+      "success": True,
+      "message": "Orphaned pinned events cleaned up successfully"
+    }), 200
+
+  except Exception as e:
+    print(f"[cleanup_orphaned_pins] Error cleaning up orphaned pins: {e}")
+    return jsonify({"error": str(e)}), 500
 
 
 @ai_bp.post("/live_share_summary")

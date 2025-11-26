@@ -137,9 +137,12 @@ export class LiveShareManager {
         this._liveShareApi = await vsls.getApi();
         if (this._liveShareApi) {
             console.log('Live Share API initialized successfully.');
-            
+
             this.setupLiveShareEventListeners();
-            
+
+            // Clean up any orphaned pinned events from previous sessions
+            await this.cleanupOrphanedPinnedEvents();
+
             return true;
         } else {
             console.log('Live Share extension not available.');
@@ -469,7 +472,8 @@ export class LiveShareManager {
                 eventType,
                 displayName,
                 sessionId,
-                snapshotId  // Pass snapshot ID for linking to initial snapshot
+                snapshotId,  // Pass snapshot ID for linking to initial snapshot
+                this._sessionLink  // Pass session invite link
             );
 
             if (result.success) {
@@ -486,6 +490,85 @@ export class LiveShareManager {
             }
         } catch (err) {
             console.error('[LiveShareManager] Exception inserting Live Share event:', err);
+        }
+    }
+
+    /**
+     * Cleans up orphaned pinned Live Share Started events
+     * This happens when VS Code closes while a session is active
+     * Unpins any "Live Share Started" events if there's no active session
+     */
+    private async cleanupOrphanedPinnedEvents() {
+        try {
+            // Only clean up if there's no active session
+            if (this._liveShareApi?.session) {
+                console.log('[LiveShareManager] Active session detected, skipping orphaned event cleanup');
+                return;
+            }
+
+            // Get current team ID
+            const teamId = this._context.globalState.get<string>(this._teamStateKey);
+            if (!teamId) {
+                console.log('[LiveShareManager] No active team, skipping orphaned event cleanup');
+                return;
+            }
+
+            console.log('[LiveShareManager] Checking for orphaned pinned events...');
+
+            // Call backend to unpin all Live Share Started events for this team
+            const { cleanupOrphanedPinnedEvents } = await import('../services/team-activity-service.js');
+            const result = await cleanupOrphanedPinnedEvents(teamId);
+
+            if (result.success) {
+                console.log('[LiveShareManager] Orphaned pinned events cleaned up successfully');
+
+                // Refresh activity feed to show updated pin status
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'refreshActivityFeed'
+                    });
+                }
+            } else {
+                console.error('[LiveShareManager] Error cleaning up orphaned events:', result.error);
+            }
+        } catch (error) {
+            console.error('[LiveShareManager] Exception cleaning up orphaned events:', error);
+        }
+    }
+
+    /**
+     * Updates an existing Live Share Started event with the session invite link
+     * This is called when the user captures the invite link from clipboard
+     * @param sessionId - The session ID to update
+     * @param sessionLink - The session invite link
+     */
+    private async updateLiveShareEventWithLink(sessionId: string, sessionLink: string) {
+        try {
+            // Get current team ID
+            const teamId = this._context.globalState.get<string>(this._teamStateKey);
+            if (!teamId) {
+                console.log('[LiveShareManager] No active team, skipping activity update');
+                return;
+            }
+
+            // Call backend to update the event
+            const { updateLiveShareActivityLink } = await import('../services/team-activity-service.js');
+            const result = await updateLiveShareActivityLink(teamId, sessionId, sessionLink);
+
+            if (result.success) {
+                console.log('[LiveShareManager] Live Share activity updated with session link');
+
+                // Notify webview to refresh activity feed so the Join button appears
+                if (this._view) {
+                    this._view.webview.postMessage({
+                        command: 'refreshActivityFeed'
+                    });
+                }
+            } else {
+                console.error('[LiveShareManager] Error updating Live Share activity with link:', result.error);
+            }
+        } catch (error) {
+            console.error('[LiveShareManager] Exception updating Live Share activity with link:', error);
         }
     }
 
@@ -785,7 +868,7 @@ export class LiveShareManager {
      * 
      * @param link - The invite link to set, or undefined to clear
      */
-    public setManualInviteLink(link: string | undefined) {
+    public async setManualInviteLink(link: string | undefined) {
         if (!link || !link.trim()) {
             if (this._view) {
                 this._view.webview.postMessage({ command: 'manualLinkInvalid', reason: 'empty' });
@@ -795,6 +878,12 @@ export class LiveShareManager {
         const trimmed = link.trim();
         this._sessionLink = trimmed;
         this._context.globalState.update(this._persistedLinkKey, this._sessionLink);
+
+        // Update the existing Live Share Started event in the activity feed with the session link
+        if (this.currentSessionId) {
+            await this.updateLiveShareEventWithLink(this.currentSessionId, trimmed);
+        }
+
         if (this._view) {
             this._view.webview.postMessage({
                 command: 'manualLinkUpdated',
@@ -1175,8 +1264,46 @@ export class LiveShareManager {
     }
 
     /**
+     * Joins a Live Share session using a provided invite link
+     * @param inviteLink - The Live Share session invite link
+     */
+    public async joinLiveShareSessionWithLink(inviteLink: string) {
+        if (!this._liveShareApi) {
+            vscode.window.showErrorMessage('Live Share API not available. Please install Live Share extension.');
+            return;
+        }
+
+        if (!inviteLink || inviteLink.trim().length === 0) {
+            vscode.window.showErrorMessage('Invalid invite link provided');
+            return;
+        }
+
+        try {
+            vscode.window.showInformationMessage('Joining Live Share session...');
+
+            const inviteUri = vscode.Uri.parse(inviteLink.trim());
+            await this._liveShareApi.join(inviteUri);
+            this._sessionLink = inviteLink;
+            vscode.window.showInformationMessage('Successfully joined Live Share session!');
+            this.startDurationUpdater();
+
+            if (this._view) {
+                this._view.webview.postMessage({
+                    command: 'updateSessionStatus',
+                    status: 'joined',
+                    link: inviteLink
+                });
+            }
+
+        } catch (error) {
+            console.error('Error joining Live Share session:', error);
+            vscode.window.showErrorMessage('Error joining Live Share session: ' + error);
+        }
+    }
+
+    /**
      * Sends a team message in the current Live Share session.
-     * 
+     *
      * @param message - The message text to send
      */
     public sendTeamMessage(message: string) {

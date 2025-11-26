@@ -871,9 +871,27 @@
 			if (activityType === 'live_share_started') {
 				// Bright green tag for session start
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; background-color:#4caf50; color:#ffffff; border-radius:4px; margin-right:6px;">Started Live Share</span>';
-				// Show View Initial Snapshot button for started events
+				// Show View Initial Snapshot button and Join Session button (if session link available)
+				const sessionLink = summary;  // Session link is stored in summary field for started events
+
+				// Check if this session has ended by looking for a corresponding ended event
+				const sessionId = it.file_path ? it.file_path.replace('session:', '') : null;
+				const hasEnded = sessionId && filteredItems.some(item =>
+					item.activity_type === 'live_share_ended' &&
+					item.file_path === `session:${sessionId}`
+				);
+
+				// Disable join button if session has ended
+				const joinButtonDisabled = hasEnded;
+				const joinButtonStyle = joinButtonDisabled
+					? 'background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); opacity: 0.5; cursor: not-allowed;'
+					: 'background-color: var(--vscode-button-background); color: var(--vscode-button-foreground);';
+				const joinButtonOnClick = joinButtonDisabled ? '' : `onclick="joinSessionFromActivity('${escapeHtml(sessionLink)}')"`;
+				const joinButtonTitle = joinButtonDisabled ? 'This session has ended' : 'Join this Live Share session';
+
 				buttons = `
-					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
+					${hasSnapshot ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>` : ''}
+					${sessionLink ? `<button class="button small" style="${joinButtonStyle}" ${joinButtonOnClick} title="${joinButtonTitle}" ${joinButtonDisabled ? 'disabled' : ''}>Join Session</button>` : ''}
 				`;
 			} else if (activityType === 'live_share_ended') {
 				// Red tag for session end
@@ -927,11 +945,16 @@
 				</div>
 			` : '';
 
+			// Add pin indicator for pinned items
+			const isPinned = it.pinned === true;
+			const pinIndicator = isPinned ? '<span style="margin-right:4px; opacity:0.6;" title="Pinned to top">📌</span>' : '';
+			const pinnedBorder = isPinned ? 'border-left:3px solid var(--vscode-button-background);' : '';
+
 			return `
-				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); padding:12px; border-radius:6px; background: var(--vscode-editor-background);">
+				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); ${pinnedBorder} padding:12px; border-radius:6px; background: var(--vscode-editor-background);">
 					<div id="${itemId}" style="cursor:${buttons ? 'pointer' : 'default'}; user-select:none;" ${buttons ? `onclick="toggleActivityDetails('${detailsId}')"` : ''}>
 						<div style="font-size:11px; color: var(--vscode-descriptionForeground); opacity:0.8;">
-							${icon} ${when} • ${who}
+							${pinIndicator}${icon} ${when} • ${who}
 						</div>
 						<div style="margin-top:6px; font-size:13px; font-weight:500; line-height:1.4;">${escapeHtml(eventHeader)}</div>
 					</div>
@@ -1033,6 +1056,22 @@
 			console.log('No reason available for this task recommendation');
 			console.log('Activity data:', activity);
 		}
+	};
+
+	// Join Live Share session from activity feed
+	window.joinSessionFromActivity = function(sessionLink) {
+		console.log('Join session from activity feed with link:', sessionLink);
+
+		if (!sessionLink) {
+			console.error('No session link provided');
+			return;
+		}
+
+		// Send message to backend to join the session
+		vscode.postMessage({
+			command: 'joinLiveShareWithLink',
+			link: sessionLink
+		});
 	};
 
 	function showDiffModal(diffContent, title) {

@@ -137,7 +137,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private isLiveShareCommand(command: string): boolean {
         return [
             'startLiveShare',
-            'joinLiveShare', 
+            'joinLiveShare',
+            'joinLiveShareWithLink',
             'endLiveShare',
             'leaveLiveShare',
             'sendTeamMessage',
@@ -204,6 +205,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'joinLiveShare':
                 this._liveShareManager.joinLiveShareSession();
+                break;
+            case 'joinLiveShareWithLink':
+                this._liveShareManager.joinLiveShareSessionWithLink(message.link);
                 break;
             case 'endLiveShare':
                 this._liveShareManager.endLiveShareSession();
