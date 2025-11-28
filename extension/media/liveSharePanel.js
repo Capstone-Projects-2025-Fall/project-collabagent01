@@ -1803,4 +1803,45 @@
 	function handleProfileLoadError(message) {
 		console.error('Failed to load profile:', message.error);
 	}
+
+	// Tooltip positioning - ensure tooltips stay within viewport
+	function positionTooltips() {
+		const iconWrappers = document.querySelectorAll('.info-icon-wrapper');
+
+		iconWrappers.forEach(wrapper => {
+			const tooltip = wrapper.querySelector('.tooltip');
+			if (!tooltip) return;
+
+			wrapper.addEventListener('mouseenter', function() {
+				const wrapperRect = wrapper.getBoundingClientRect();
+				const tooltipRect = tooltip.getBoundingClientRect();
+				const viewportWidth = window.innerWidth;
+
+				// Calculate how far from the right edge of the icon the tooltip should be positioned
+				// to ensure it stays within the viewport
+				const spaceOnRight = viewportWidth - wrapperRect.right;
+				const tooltipWidth = tooltipRect.width || 320; // fallback to max-width
+
+				// If there's not enough space on the right, position tooltip to the left
+				if (spaceOnRight < tooltipWidth + 20) {
+					// Position tooltip to extend to the left
+					tooltip.style.left = 'auto';
+					tooltip.style.right = '0';
+					tooltip.style.transform = 'translateX(0) translateY(-4px)';
+				} else {
+					// Center the tooltip below the icon
+					tooltip.style.left = '50%';
+					tooltip.style.right = 'auto';
+					tooltip.style.transform = 'translateX(-50%) translateY(-4px)';
+				}
+			});
+		});
+	}
+
+	// Run tooltip positioning after DOM is ready
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', positionTooltips);
+	} else {
+		positionTooltips();
+	}
 })();

@@ -85,6 +85,11 @@ export class SnapshotManager {
   // Public APIs you already call
   // ——————————————————————
 
+  /** Check if baseline snapshot exists */
+  public hasBaselineSnapshot(): boolean {
+    return this.baselineSnapshot !== null;
+  }
+
   /** Initial full snapshot (called when team is selected) */
   public async takeSnapshot(userId: string, projectName: string, teamId?: string) {
     // Require teamId for snapshot

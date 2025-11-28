@@ -28,6 +28,8 @@ body {
 	justify-content: flex-start;
 	box-sizing: border-box;
 	padding: 0;
+	overflow-x: hidden;
+	overflow-y: auto;
 }
 
 .panel-content {
@@ -40,6 +42,7 @@ body {
 	height: 100%;
 	box-sizing: border-box;
 	padding: 2vw 0;
+	overflow: visible;
 }
 
 @media (max-width: 600px) {
@@ -57,6 +60,7 @@ body {
 	background: var(--vscode-editor-background);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 	transition: all 0.3s ease;
+	overflow: visible;
 }
 
 .section:hover {
@@ -70,6 +74,8 @@ body {
 	align-items: center;
 	justify-content: space-between;
 	margin-bottom: 16px;
+	position: relative;
+	overflow: visible;
 }
 
 .section-title {
@@ -104,9 +110,11 @@ body {
 .tooltip {
 	position: absolute;
 	top: calc(100% + 8px);
-	right: 0;
-	min-width: 250px;
-	max-width: 320px;
+	left: auto;
+	right: auto;
+	width: max-content;
+	min-width: 200px;
+	max-width: min(320px, calc(100vw - 40px));
 	padding: 12px 16px;
 	background: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
@@ -117,16 +125,18 @@ body {
 	line-height: 1.5;
 	opacity: 0;
 	visibility: hidden;
-	transform: translateY(-4px);
+	transform: translateX(-50%) translateY(-4px);
 	transition: all 0.2s ease;
-	z-index: 1000;
+	z-index: 10000;
 	pointer-events: none;
+	white-space: normal;
+	word-wrap: break-word;
+	overflow-wrap: break-word;
 }
 
 .info-icon-wrapper:hover .tooltip {
 	opacity: 1;
 	visibility: visible;
-	transform: translateY(0);
 }
 
 .tooltip::before {

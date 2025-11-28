@@ -187,8 +187,8 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
         let currentTeam = this._userTeams.find(t => t.id === currentTeamId);
         console.log('[AgentPanel] currentTeam found:', currentTeam ? currentTeam.lobby_name : 'NOT FOUND');
         
-        // Don't auto-select a team - user must explicitly switch to a team
-        // This prevents confusion when switching between projects
+        // Note: If a team is already loaded, we will auto-trigger the initial snapshot
+        // This prevents users from having to manually re-select an already-loaded team
 
         // Validate current project if we have an active team
         let projectValidation = null;
@@ -226,6 +226,15 @@ export class AgentPanelProvider implements vscode.WebviewViewProvider {
                     teamMembers = membersResult.members;
                 } else if (membersResult.error) {
                     console.warn('[AgentPanel] Failed to fetch team members:', membersResult.error);
+                }
+            }
+
+            // Auto-trigger initial snapshot if team is loaded but no baseline exists
+            if (currentTeam && userId && projectValidation?.isMatch) {
+                const { snapshotManager } = require('../extension');
+                if (snapshotManager && !snapshotManager.hasBaselineSnapshot()) {
+                    console.log('[AgentPanel] Team is loaded but no baseline snapshot exists - triggering initial snapshot automatically');
+                    await this.takeInitialSnapshot(currentTeam.id);
                 }
             }
 
