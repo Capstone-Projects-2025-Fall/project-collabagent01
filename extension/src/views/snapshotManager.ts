@@ -39,12 +39,34 @@ export class SnapshotManager {
   /** Track if we're currently taking an initial snapshot */
   private isTakingInitialSnapshot: boolean = false;
 
+  // ==========================================
+  // GLOBAL RATE LIMITING (AI API Cost Protection)
+  // ==========================================
+  /**
+   * Global rate limit for ALL snapshot triggers (passive + active)
+   * Per user: 16 AI snapshots per hour (independent of team)
+   */
+  private readonly MAX_SNAPSHOTS_PER_HOUR = 16;
+  private readonly RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+  /**
+   * Track snapshot timestamps per user
+   * Key: userId, Value: array of timestamps (sorted, oldest first)
+   */
+  private snapshotHistory: Map<string, number[]> = new Map();
+
+  /** Track if user has been shown rate limit warning for current hour */
+  private hasShownRateLimitWarning: Map<string, boolean> = new Map();
+
   constructor(private context: vscode.ExtensionContext) {
     this.supabase = getSupabase();
 
     // Initialize workspace root
     const workspaceFolders = vscode.workspace.workspaceFolders;
     this.workspaceRoot = workspaceFolders?.[0]?.uri.fsPath || '';
+
+    // Load persisted rate limit history from storage
+    this.loadRateLimitHistory();
 
     vscode.workspace.onDidChangeTextDocument(() => this.onWorkspaceActivity());
     vscode.workspace.onDidCreateFiles(() => this.onWorkspaceActivity());
@@ -59,6 +81,133 @@ export class SnapshotManager {
     setTimeout(() => {
       this.checkAlreadyOpenDocuments();
     }, 1000);
+  }
+
+  // ==========================================
+  // GLOBAL RATE LIMITING METHODS
+  // ==========================================
+
+  /**
+   * Checks if the user has exceeded the hourly snapshot limit.
+   * Returns an object with:
+   * - allowed: boolean - whether snapshot is allowed
+   * - remaining: number - snapshots remaining in current window
+   * - resetTime: Date - when the quota resets
+   * - message: string - user-friendly message
+   */
+  private checkRateLimit(userId: string): {
+    allowed: boolean;
+    remaining: number;
+    resetTime: Date | null;
+    message: string;
+  } {
+    const now = Date.now();
+
+    // Get or initialize snapshot history for this user
+    let history = this.snapshotHistory.get(userId) || [];
+
+    // Remove snapshots older than 1 hour (sliding window)
+    history = history.filter(timestamp => now - timestamp < this.RATE_LIMIT_WINDOW_MS);
+
+    // Update the history
+    this.snapshotHistory.set(userId, history);
+
+    const snapshotsInWindow = history.length;
+    const remaining = this.MAX_SNAPSHOTS_PER_HOUR - snapshotsInWindow;
+
+    if (snapshotsInWindow >= this.MAX_SNAPSHOTS_PER_HOUR) {
+      // Find the oldest snapshot to calculate reset time
+      const oldestSnapshot = history[0];
+      const resetTime = new Date(oldestSnapshot + this.RATE_LIMIT_WINDOW_MS);
+      const minutesUntilReset = Math.ceil((resetTime.getTime() - now) / 60000);
+
+      return {
+        allowed: false,
+        remaining: 0,
+        resetTime: resetTime,
+        message: `⏱️ AI snapshot limit reached (${this.MAX_SNAPSHOTS_PER_HOUR}/hour). Quota resets in ${minutesUntilReset} minute(s). This helps manage API costs.`
+      };
+    }
+
+    return {
+      allowed: true,
+      remaining: remaining,
+      resetTime: history.length > 0 ? new Date(history[0] + this.RATE_LIMIT_WINDOW_MS) : null,
+      message: `${remaining} AI snapshot(s) remaining this hour`
+    };
+  }
+
+  /**
+   * Records a snapshot in the rate limit history.
+   * Call this AFTER successfully creating a snapshot.
+   */
+  private recordSnapshot(userId: string): void {
+    const now = Date.now();
+    const history = this.snapshotHistory.get(userId) || [];
+    history.push(now);
+    this.snapshotHistory.set(userId, history);
+
+    // Reset the warning flag so user can be warned again next hour
+    this.hasShownRateLimitWarning.delete(userId);
+
+    // Persist to storage to prevent restart bypass
+    this.saveRateLimitHistory();
+  }
+
+  /**
+   * Shows a one-time warning per hour when user is getting close to limit.
+   * Call this when user has 2 or fewer snapshots remaining.
+   */
+  private showRateLimitWarningIfNeeded(userId: string, remaining: number): void {
+    // Only show warning once per hour, and only when 2 or fewer remain
+    if (remaining <= 2 && !this.hasShownRateLimitWarning.get(userId)) {
+      vscode.window.showWarningMessage(
+        `⚠️ AI Snapshot Budget: Only ${remaining} snapshot(s) remaining this hour. Please use wisely to manage API costs.`
+      );
+      this.hasShownRateLimitWarning.set(userId, true);
+    }
+  }
+
+  /**
+   * Loads rate limit history from persistent storage (globalState).
+   * Called on extension startup to prevent rate limit bypass via restart.
+   */
+  private loadRateLimitHistory(): void {
+    try {
+      const stored = this.context.globalState.get<Record<string, number[]>>('snapshotRateLimitHistory');
+      if (stored) {
+        const now = Date.now();
+        // Convert stored object to Map and filter out expired snapshots
+        for (const [userId, timestamps] of Object.entries(stored)) {
+          const validTimestamps = timestamps.filter(ts => now - ts < this.RATE_LIMIT_WINDOW_MS);
+          if (validTimestamps.length > 0) {
+            this.snapshotHistory.set(userId, validTimestamps);
+          }
+        }
+        console.log('[SnapshotManager] Rate limit history loaded from storage');
+      }
+    } catch (error) {
+      console.error('[SnapshotManager] Failed to load rate limit history:', error);
+    }
+  }
+
+  /**
+   * Saves rate limit history to persistent storage (globalState).
+   * Called after each snapshot to prevent rate limit bypass via restart.
+   */
+  private saveRateLimitHistory(): void {
+    try {
+      // Convert Map to plain object for storage
+      const toStore: Record<string, number[]> = {};
+      for (const [userId, timestamps] of this.snapshotHistory.entries()) {
+        if (timestamps.length > 0) {
+          toStore[userId] = timestamps;
+        }
+      }
+      this.context.globalState.update('snapshotRateLimitHistory', toStore);
+    } catch (error) {
+      console.error('[SnapshotManager] Failed to save rate limit history:', error);
+    }
   }
 
   /**
@@ -137,6 +286,18 @@ export class SnapshotManager {
       return;
     }
 
+    // ====== GLOBAL RATE LIMIT CHECK (per-user) ======
+    const rateLimit = this.checkRateLimit(userId);
+    if (!rateLimit.allowed) {
+      console.log(`[SnapshotManager] Rate limit exceeded: ${rateLimit.message}`);
+      vscode.window.showWarningMessage(rateLimit.message);
+      return;
+    }
+
+    // Show warning if getting close to limit
+    this.showRateLimitWarningIfNeeded(userId, rateLimit.remaining);
+    // =================================================
+
     const projectName = this.getProjectName();
     const current = await this.captureWholeWorkspace();
 
@@ -152,12 +313,15 @@ export class SnapshotManager {
     // Only create snapshot if threshold is met
     if (linesChanged >= this.LINES_THRESHOLD || filesChanged >= this.FILES_THRESHOLD) {
       vscode.window.showInformationMessage(
-        `📸 Capturing snapshot: ${filesChanged} files, ${linesChanged} lines changed`
+        `📸 Capturing snapshot: ${filesChanged} files, ${linesChanged} lines changed (${rateLimit.remaining - 1} AI snapshots left this hour)`
       );
 
       // Create NEW row with ONLY changes (not full workspace)
       // Pass empty object {} for snapshot to save space
       await this.insertNewSnapshot(userId, projectName, teamId, {}, mergedChanges);
+
+      // Record snapshot in rate limit history (per-user)
+      this.recordSnapshot(userId);
 
       vscode.window.showInformationMessage(
         `✅ Snapshot sent to AI for analysis`
@@ -434,6 +598,7 @@ export class SnapshotManager {
    * 1. Initial snapshot exists
    * 2. At least 2 lines changed
    * 3. 60-second cooldown occured
+   * 4. Global rate limit not exceeded (10/hour across all triggers)
    * Returns success/error object
    */
   public async broadcastSnapshot(userId: string, projectName: string, teamId?: string): Promise<{success: boolean, message: string}> {
@@ -455,7 +620,20 @@ export class SnapshotManager {
       };
     }
 
-    // Check 2: Cooldown period
+    // Check 2: Global rate limit (per-user, applies to both passive AND active triggers)
+    const rateLimit = this.checkRateLimit(userId);
+    if (!rateLimit.allowed) {
+      console.log(`[SnapshotManager] Rate limit exceeded for broadcast: ${rateLimit.message}`);
+      return {
+        success: false,
+        message: rateLimit.message
+      };
+    }
+
+    // Show warning if getting close to limit
+    this.showRateLimitWarningIfNeeded(userId, rateLimit.remaining);
+
+    // Check 3: Cooldown period (broadcast-specific, prevents spam clicking)
     const now = Date.now();
     const timeSinceLastBroadcast = now - this.lastBroadcastTime;
     if (timeSinceLastBroadcast < this.BROADCAST_COOLDOWN) {
@@ -476,7 +654,7 @@ export class SnapshotManager {
 
     console.log(`[SnapshotManager] Broadcast check: ${filesChanged} files, ${linesChanged} lines changed`);
 
-    // Check 3: At least 2 lines changed
+    // Check 4: At least 2 lines changed
     if (linesChanged < 2) {
       console.log('[SnapshotManager] Insufficient changes for broadcast (need at least 2 lines)');
       return {
@@ -487,7 +665,7 @@ export class SnapshotManager {
 
     // All checks passed - create broadcast snapshot
     vscode.window.showInformationMessage(
-      `📡 Broadcasting snapshot: ${filesChanged} files, ${linesChanged} lines changed`
+      `📡 Broadcasting snapshot: ${filesChanged} files, ${linesChanged} lines changed (${rateLimit.remaining - 1} AI snapshots left this hour)`
     );
 
     // Create new snapshot row with broadcast marker in file_path
@@ -516,6 +694,9 @@ export class SnapshotManager {
 
     // Update cooldown timer
     this.lastBroadcastTime = now;
+
+    // Record snapshot in rate limit history (per-user)
+    this.recordSnapshot(userId);
 
     // Update baseline to current state
     this.baselineSnapshot = newSnapshot;

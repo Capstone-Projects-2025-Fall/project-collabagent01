@@ -373,13 +373,20 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const user = authResult.context;
             const { BASE_URL } = require('../api/types/endpoints');
 
+            // Sanitize and limit skills to prevent abuse
+            const sanitizeSkillArray = (arr: string[], maxCount: number = 18, maxLength: number = 30): string[] => {
+                if (!Array.isArray(arr)) return [];
+                return arr
+                    .slice(0, maxCount)  // Max 18 skills
+                    .map(skill => String(skill).trim().substring(0, maxLength))  // Max 30 chars each
+                    .filter(skill => skill.length > 0);  // Remove empty strings
+            };
+
             const payload = {
                 user_id: user.id,
-                name: profileData.name || '',
-                interests: profileData.interests || [],
-                strengths: profileData.strengths || [],
-                weaknesses: profileData.weaknesses || [],
-                custom_skills: profileData.custom_skills || []
+                name: (profileData.name || '').substring(0, 100),  // Max 100 chars for name
+                interests: sanitizeSkillArray(profileData.interests || []),
+                custom_skills: sanitizeSkillArray(profileData.custom_skills || [])
             };
 
             const token = user.auth_token || user.id || 'no-token-available';

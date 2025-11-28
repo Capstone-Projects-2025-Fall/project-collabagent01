@@ -1663,23 +1663,26 @@
 		const customInterests = document.getElementById('custom-interests')?.value || '';
 		if (customInterests) {
 			const customArray = customInterests.split(',').map(s => s.trim()).filter(s => s);
-			interests.push(...customArray);
-		}
-		
-		const weaknessesCheckboxes = document.querySelectorAll('input[name="weaknesses"]:checked');
-		const weaknesses = Array.from(weaknessesCheckboxes).map(cb => cb.value);
-		
-		const customWeaknesses = document.getElementById('custom-weaknesses')?.value || '';
-		if (customWeaknesses) {
-			const customArray = customWeaknesses.split(',').map(s => s.trim()).filter(s => s);
-			weaknesses.push(...customArray);
+
+			// Limit to 18 custom skills max, each max 30 characters
+			const limitedCustom = customArray
+				.slice(0, 18)  // Max 18 custom skills
+				.map(skill => skill.substring(0, 30));  // Max 30 chars per skill
+
+			if (customArray.length > 18) {
+				const statusEl = document.getElementById('profile-status');
+				if (statusEl) {
+					statusEl.textContent = `⚠️ Limited to first 18 custom interests (you entered ${customArray.length})`;
+					statusEl.className = 'status-message warning';
+				}
+			}
+
+			interests.push(...limitedCustom);
 		}
 
 		const profileData = {
 			name,
 			interests,
-			strengths: interests,
-			weaknesses,
 			custom_skills: []
 		};
 
@@ -1775,26 +1778,6 @@
 				const customInput = document.getElementById('custom-interests');
 				if (customInput) {
 					customInput.value = customInterests.join(', ');
-				}
-			}
-		}
-		
-		if (profile.weaknesses && Array.isArray(profile.weaknesses)) {
-			profile.weaknesses.forEach(weakness => {
-				const checkbox = document.querySelector(`input[name="weaknesses"][value="${weakness}"]`);
-				if (checkbox) {
-					checkbox.checked = true;
-				}
-			});
-	
-			const predefinedWeaknesses = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 'Swift',
-				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Cloud', 'Security', 'Testing',
-				'API', 'Documentation', 'Debugging'];
-			const customWeaknesses = profile.weaknesses.filter(w => !predefinedWeaknesses.includes(w));
-			if (customWeaknesses.length > 0) {
-				const customInput = document.getElementById('custom-weaknesses');
-				if (customInput) {
-					customInput.value = customWeaknesses.join(', ');
 				}
 			}
 		}

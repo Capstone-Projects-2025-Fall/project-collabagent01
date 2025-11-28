@@ -686,7 +686,7 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
             const userIds = fallbackData.map((m: any) => m.user_id);
             const { data: profilesData, error: profilesError } = await supabase
                 .from('user_profiles')
-                .select('user_id, name, strengths, interests')
+                .select('user_id, name, interests, custom_skills')
                 .in('user_id', userIds);
 
             console.log('[getTeamMembers] Profiles data fetched:', profilesData);
@@ -702,12 +702,13 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
                 const profile = profilesMap.get(membership.user_id) as any;
                 console.log('[getTeamMembers] Profile for user', membership.user_id, ':', profile);
 
-                // Try strengths first, then interests, handle both array and null
+                // Combine interests and custom_skills
                 let skills: string[] = [];
-                if (profile?.strengths && Array.isArray(profile.strengths) && profile.strengths.length > 0) {
-                    skills = profile.strengths;
-                } else if (profile?.interests && Array.isArray(profile.interests) && profile.interests.length > 0) {
-                    skills = profile.interests;
+                if (profile?.interests && Array.isArray(profile.interests) && profile.interests.length > 0) {
+                    skills = [...profile.interests];
+                }
+                if (profile?.custom_skills && Array.isArray(profile.custom_skills) && profile.custom_skills.length > 0) {
+                    skills = [...skills, ...profile.custom_skills];
                 }
 
                 console.log('[getTeamMembers] Skills for user', membership.user_id, ':', skills);
@@ -741,7 +742,13 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
             }
 
             // Get skills from user profile if available (from enhanced RPC)
-            const skills = row.strengths || row.interests || [];
+            let skills: string[] = [];
+            if (row.interests && Array.isArray(row.interests)) {
+                skills = [...row.interests];
+            }
+            if (row.custom_skills && Array.isArray(row.custom_skills)) {
+                skills = [...skills, ...row.custom_skills];
+            }
 
             return {
                 id: row.membership_id,
@@ -757,13 +764,13 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
         });
 
         // Fetch user profiles for skills if not already included in RPC response
-        if (members.length > 0 && !rpcData[0]?.strengths && !rpcData[0]?.interests) {
+        if (members.length > 0 && !rpcData[0]?.interests && !rpcData[0]?.custom_skills) {
             console.log('[getTeamMembers] RPC did not include skills, fetching from user_profiles...');
             const userIds = members.map(m => m.userId);
 
             const { data: profilesData, error: profilesError } = await supabase
                 .from('user_profiles')
-                .select('user_id, name, strengths, interests')
+                .select('user_id, name, interests, custom_skills')
                 .in('user_id', userIds);
 
             if (!profilesError && profilesData) {
@@ -773,7 +780,14 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
                 members.forEach(member => {
                     const profile = profilesMap.get(member.userId) as any;
                     if (profile) {
-                        member.skills = profile.strengths || profile.interests || [];
+                        let skills: string[] = [];
+                        if (profile.interests && Array.isArray(profile.interests)) {
+                            skills = [...profile.interests];
+                        }
+                        if (profile.custom_skills && Array.isArray(profile.custom_skills)) {
+                            skills = [...skills, ...profile.custom_skills];
+                        }
+                        member.skills = skills;
                         if (!member.displayName && profile.name) {
                             member.displayName = profile.name;
                         }
