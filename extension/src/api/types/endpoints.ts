@@ -1,5 +1,5 @@
 // Local backend default port should match Flask app PORT
-const LOCAL_ENDPOINT_URL = "http://127.0.0.1:5000";
+const LOCAL_ENDPOINT_URL = "http://127.0.0.1:5001";
 
 // Production backend URL - UPDATE THIS after deploying to Render
 const PRODUCTION_ENDPOINT_URL = process.env.BACKEND_URL || "https://project-collabagent01.onrender.com";
