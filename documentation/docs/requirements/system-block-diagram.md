@@ -3,10 +3,34 @@ sidebar_position: 2
 ---
 
 # System Block Diagram
-<img width="1214" height="571" alt="image" src="https://github.com/user-attachments/assets/de7ef793-e0b4-421a-82e9-88cdf77c6717" />
+<!-- <img width="1214" height="571" alt="image" src="https://github.com/user-attachments/assets/de7ef793-e0b4-421a-82e9-88cdf77c6717" /> -->
+<!-- <img width="1803" height="454" alt="image" src="https://github.com/user-attachments/assets/f0f49800-452c-444e-a11b-bf56adb2ce1b" /> -->
+<img width="1795" height="395" alt="image" src="https://github.com/user-attachments/assets/b01e69a3-fad6-403d-989e-a48a465af69a" />
+
+
+
+
 
 
 # Description
-The system starts when a user installs the CollabAgent extension in VS Code. The extension provides two main features: Live Share and Agent01. To use Live Share, the extension checks whether the required third-party Live Share extension is already installed in VS Code. If it isn’t, the system installs it automatically so the user can start using that feature. The Agent01 feature requires users to be logged in, and login is handled through OAuth, which allows sign-in with Google. If both login and installing of live share extension is done, the extension activates two main parts, Live Share (SYN) for session sharing, team activity, and chat, and Agent 01 (ASYN) for tracking tasks, changes, and lobby creation.
+The workflow begins when the user interacts with the VS Code IDE, where the extension’s internal components including authentication modules, views, commands, and services process these initial actions locally. To handle more complex logic, the extension’s services communicate with a central Flask backend via secure HTTP requests. Upon receiving these requests, the backend acts as a coordinator, querying the Supabase database for persistent storage and calling the Gemini AI API to generate intelligent features. Throughout this entire process, secure access is managed through GitHub OAuth and Supabase authentication, while real-time team collaboration is seamlessly enabled through an integration with VS Code Live Share.
 
-The extension connects to the Live Share API for real-time collaboration, which manages sessions, authentication, team activity, and chat. The agent feature connects to a central backend server (Flask) that coordinates data flow. The backend logs activity through an AI Agent, which uses gemini api key to record edits, commits, and participation details. All user and team information is stored in a Supabase database, which manages accounts, teams, memberships, and activity logs. The frontend (React) provides an friendly user interface. 
+## 1. VS Code Extension Layer (Light Colors)
+
+Light Green: Entry Point & Authentication (Handles extension initialization and user login via GitHub OAuth/Supabase).
+
+Light Blue: Views (The 6 webview panels including Agent, Tasks, and Snapshot Manager).
+
+Light Orange: Commands (Handlers for triggers like Jira integration and GitHub tokens).
+
+Light Purple: Services (The 9 core internal services managing teams, git operations, and session synchronization).
+
+## 2. Flask Backend Server (Dark Colors)
+
+Dark Blue: API & Routes (The central REST endpoints and route organization receiving HTTP requests).
+
+Dark Green: Backend Logic & Database (The business logic services and database layer that handle queries and external interactions).
+
+## 3. External Services (Gray)
+
+Gray: Represents all third-party integrations and storage, including Supabase DB, GitHub OAuth, Jira API, Live Share, and Gemini AI.
