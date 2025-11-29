@@ -752,20 +752,22 @@
 					</div>
 				</div>
 			</div>
-			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
-				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
-				<select id="activityFilterDropdown" class="dropdown" title="Filter events by type" style="padding:4px 8px; font-size:12px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); border-radius:4px; cursor:pointer;">
-					<option value="all">All</option>
-					<option value="ai_task_recommendation">Task Delegation</option>
-					<option value="initial_snapshot">Initial Snapshot</option>
-					<option value="changes">Changes</option>
-					<option value="live_share_started">Started Live Share</option>
-					<option value="live_share_ended">Ended Live Share</option>
-					<option value="participant_status">Participant Status</option>
-				</select>
-				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
+			<div class="activity-feed-container">
+				<div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+					<button class="button-modern" id="activityRefreshBtn" title="Reload feed">Refresh</button>
+					<select id="activityFilterDropdown" class="filter-dropdown" title="Filter events by type">
+						<option value="all">All</option>
+						<option value="ai_task_recommendation">Task Delegation</option>
+						<option value="initial_snapshot">Initial Snapshot</option>
+						<option value="changes">Changes</option>
+						<option value="live_share_started">Started Live Share</option>
+						<option value="live_share_ended">Ended Live Share</option>
+						<option value="participant_status">Participant Status</option>
+					</select>
+					<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
+				</div>
+				<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
 			</div>
-			<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
 		`;
 		anchor.insertAdjacentElement('afterend', section);
 

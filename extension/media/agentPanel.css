@@ -120,6 +120,9 @@
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
+	max-width: 600px;
+	margin: 0 auto;
+	width: 100%;
 }
 
 /* Team Info Row - Make values stand out */
@@ -131,6 +134,8 @@
 	border-radius: 8px;
 	border-left: 3px solid var(--vscode-textLink-foreground);
 	transition: all 0.2s ease;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 #teamProduct > div:first-child:hover,
@@ -163,6 +168,8 @@
 	gap: 8px;
 	border-left: 3px solid var(--vscode-charts-green);
 	transition: all 0.2s ease;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 #joinCodeSection:hover {
@@ -676,11 +683,95 @@
   cursor: pointer;
 }
 
-/* ========================================
-   MODERN BUTTON STYLES
-   ======================================== */
+/* Button Container - Main Row */
+.button-row-main {
+	margin-top: 12px;
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+	justify-content: center;
+}
 
-/* Standard Buttons */
+/* Button Container - Broadcast Row */
+.button-row-broadcast {
+	margin-top: 12px;
+	display: flex;
+	justify-content: center;
+	width: 100%;
+}
+
+/* Modern Buttons - Smaller and Sleeker */
+.button-modern {
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: none;
+	padding: 7px 14px;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 500;
+	transition: all 0.2s ease;
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+	letter-spacing: 0.2px;
+	text-transform: capitalize;
+	white-space: nowrap;
+}
+
+.button-modern:hover {
+	background: var(--vscode-button-hoverBackground);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.button-modern:active {
+	transform: translateY(0);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Danger Button (Delete Team) - Modern Style */
+.button-modern.danger {
+	background: var(--vscode-inputValidation-errorBackground, #f14c4c);
+	color: #ffffff;
+}
+
+.button-modern.danger:hover {
+	background: var(--vscode-errorForeground, #d93939);
+	transform: translateY(-1px);
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Broadcast Button - Full Width */
+.button-broadcast {
+	background: #ff8c42;
+	color: #ffffff;
+	border: none;
+	padding: 8px 16px;
+	border-radius: 6px;
+	cursor: pointer;
+	font-size: 11px;
+	font-weight: 600;
+	transition: all 0.2s ease;
+	box-shadow: 0 2px 4px rgba(255, 140, 66, 0.3);
+	letter-spacing: 0.3px;
+	text-transform: uppercase;
+	width: auto;
+	flex: 1;
+	max-width: 100%;
+	text-align: center;
+}
+
+.button-broadcast:hover {
+	background: #ff9d5c;
+	transform: translateY(-1px);
+	box-shadow: 0 3px 8px rgba(255, 140, 66, 0.4);
+}
+
+.button-broadcast:active {
+	transform: translateY(0);
+	box-shadow: 0 1px 3px rgba(255, 140, 66, 0.3);
+}
+
+/* Legacy button styles for backward compatibility */
 .button {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
@@ -754,6 +845,8 @@
 	border-radius: 8px;
 	margin-top: 4px;
 	transition: all 0.2s ease;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 #projectStatus:hover {
@@ -779,6 +872,8 @@
 	border-radius: 8px;
 	border-left: 3px solid var(--vscode-charts-purple);
 	transition: all 0.2s ease;
+	width: 100%;
+	box-sizing: border-box;
 }
 
 #teamMembersSection:hover {

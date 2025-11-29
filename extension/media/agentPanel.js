@@ -417,9 +417,18 @@
 
               // Format name - Priority: displayName > full_name > email > userId
               let displayName = member.displayName;
+              let hasCustomName = false;
+
               if (!displayName && (member.firstName || member.lastName)) {
                 displayName = [member.firstName, member.lastName].filter(Boolean).join(' ');
+                hasCustomName = true;
               }
+
+              // Check if user has set a custom display name (not just email/userId)
+              if (displayName && displayName !== member.email && displayName !== member.userId) {
+                hasCustomName = true;
+              }
+
               if (!displayName) {
                 displayName = member.email;
               }
@@ -444,11 +453,14 @@
                 skillsHtml = '<div class="member-skills"><span class="skill-tag no-skills">Skills: None</span></div>';
               }
 
+              // Only show email/userId if user hasn't set a custom name
+              const emailHtml = hasCustomName ? '' : `<div class="member-email">${member.email}</div>`;
+
               memberItem.innerHTML = `
                 <span class="member-role-badge ${member.role}">${member.role}</span>
                 <div class="member-info">
                   <div class="member-name">${displayName}</div>
-                  <div class="member-email">${member.email}</div>
+                  ${emailHtml}
                   ${skillsHtml}
                 </div>
                 <div class="member-joined">Joined ${formattedDate}</div>
