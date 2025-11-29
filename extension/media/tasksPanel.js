@@ -656,14 +656,24 @@
             }
         });
         
-        // Close when clicking outside
+        // Close when clicking outside or scrolling
         setTimeout(function() {
-            document.addEventListener('click', function closeEditor(e) {
+            function closeEditor(e) {
                 if (!editor.contains(e.target) && e.target !== badgeElement) {
                     editor.remove();
                     document.removeEventListener('click', closeEditor);
+                    document.removeEventListener('scroll', onScroll, true);
                 }
-            });
+            }
+            
+            function onScroll() {
+                editor.remove();
+                document.removeEventListener('click', closeEditor);
+                document.removeEventListener('scroll', onScroll, true);
+            }
+            
+            document.addEventListener('click', closeEditor);
+            document.addEventListener('scroll', onScroll, true);
         }, 100);
     }
 
@@ -700,10 +710,9 @@
         
         dropdown.innerHTML = dropdownHtml;
         
-        // Position dropdown near button
+        // Position dropdown near button using fixed positioning
         const rect = buttonElement.getBoundingClientRect();
-        dropdown.style.position = 'absolute';
-        dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+        dropdown.style.top = rect.bottom + 'px';
         dropdown.style.left = rect.left + 'px';
         
         document.body.appendChild(dropdown);
@@ -721,14 +730,24 @@
             });
         });
         
-        // Close dropdown when clicking outside
+        // Close dropdown when clicking outside or scrolling
         setTimeout(function() {
-            document.addEventListener('click', function closeDropdown(e) {
+            function closeDropdown(e) {
                 if (!dropdown.contains(e.target) && e.target !== buttonElement) {
                     dropdown.remove();
                     document.removeEventListener('click', closeDropdown);
+                    document.removeEventListener('scroll', onScroll, true);
                 }
-            });
+            }
+            
+            function onScroll() {
+                dropdown.remove();
+                document.removeEventListener('click', closeDropdown);
+                document.removeEventListener('scroll', onScroll, true);
+            }
+            
+            document.addEventListener('click', closeDropdown);
+            document.addEventListener('scroll', onScroll, true);
         }, 100);
     }
 
@@ -761,10 +780,9 @@
         
         dropdown.innerHTML = dropdownHtml;
         
-        // Position dropdown near badge
+        // Position dropdown near badge using fixed positioning
         const rect = badgeElement.getBoundingClientRect();
-        dropdown.style.position = 'absolute';
-        dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+        dropdown.style.top = rect.bottom + 'px';
         dropdown.style.left = rect.left + 'px';
         
         document.body.appendChild(dropdown);
@@ -782,14 +800,24 @@
             });
         });
         
-        // Close dropdown when clicking outside
+        // Close dropdown when clicking outside or scrolling
         setTimeout(function() {
-            document.addEventListener('click', function closeDropdown(e) {
+            function closeDropdown(e) {
                 if (!dropdown.contains(e.target) && e.target !== badgeElement) {
                     dropdown.remove();
                     document.removeEventListener('click', closeDropdown);
+                    document.removeEventListener('scroll', onScroll, true);
                 }
-            });
+            }
+            
+            function onScroll() {
+                dropdown.remove();
+                document.removeEventListener('click', closeDropdown);
+                document.removeEventListener('scroll', onScroll, true);
+            }
+            
+            document.addEventListener('click', closeDropdown);
+            document.addEventListener('scroll', onScroll, true);
         }, 100);
     }
 
