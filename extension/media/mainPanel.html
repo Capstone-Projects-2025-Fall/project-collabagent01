@@ -15,9 +15,9 @@
 <div class="tab-header">
     <button class="tab-btn" id="tab-home" data-tab="home" title="Home"><i data-lucide="home" class="tab-icon"></i></button>
     <button class="tab-btn" id="tab-profile" data-tab="profile" title="Profile"><i data-lucide="user" class="tab-icon"></i></button>
-    <button class="tab-btn" id="tab-tasks" data-tab="tasks" title="Tasks"><i data-lucide="check-square" class="tab-icon"></i></button>
     <button class="tab-btn" id="tab-agent" data-tab="agent" title="Teams"><i data-lucide="users" class="tab-icon"></i></button>
     <button class="tab-btn" id="tab-live" data-tab="live" title="Collaborate"><i data-lucide="message-circle" class="tab-icon"></i></button>
+    <button class="tab-btn" id="tab-tasks" data-tab="tasks" title="Tasks"><i data-lucide="check-square" class="tab-icon"></i></button>
 </div>
 <div id="login-tooltip" class="login-tooltip" style="display: none;">Please log in first</div>
 <div id="panel-home" class="tab-panel" style="display:block;">{{HOME_HTML}}</div>
@@ -124,7 +124,7 @@
     });
     liveTab.addEventListener('mouseleave', hideTooltip);
 
-    // Agent Bot tab - requires authentication
+    // Teams tab - requires authentication
     const agentTab = document.getElementById('tab-agent');
     agentTab.addEventListener('click', function(){
         handleTabClick('agent', this);
@@ -168,7 +168,7 @@
 
     // Only restore to agent/live/tasks/profile tabs if authenticated and requirements met
     if (initialTab === 'agent' && !isAuthenticated) {
-        console.log('[MainPanel] Cannot restore agent tab - not authenticated');
+        console.log('[MainPanel] Cannot restore Teams tab - not authenticated');
         showTab('home');
     } else if (initialTab === 'live' && (!isAuthenticated || !liveShareInstalled)) {
         console.log('[MainPanel] Cannot restore live tab - requirements not met');

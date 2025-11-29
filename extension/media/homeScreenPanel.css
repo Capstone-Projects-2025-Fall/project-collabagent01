@@ -1,23 +1,43 @@
-body {
-    font-family: var(--vscode-font-family);
-    color: var(--vscode-foreground);
-    background-color: var(--vscode-sideBar-background);
-    margin: 0;
-    padding: 0;
-}
-
-.panel-content {
-    padding: 16px;
-}
-
-.welcome-section {
+/* Panel Header - Consistent styling across all tabs */
+.panel-header {
     margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
 }
 
-.welcome-section p {
-    margin: 8px 0;
-    line-height: 1.5;
+.panel-header h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
     color: var(--vscode-foreground);
+    letter-spacing: 0.3px;
+    text-align: center;
+}
+
+body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 100vh;
+    background: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
+    padding: 0 0 0 0;
+    font-family: 'Inter', 'Segoe UI', 'Roboto', Arial, sans-serif;
+    box-sizing: border-box;
+    width: 100vw;
+    max-width: 100%;
+}
+.panel-content {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 2vw 0;
 }
 .welcome {
     margin-top: 2.5vw;

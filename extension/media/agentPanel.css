@@ -1,15 +1,19 @@
 
 
-/* Agent Panel Heading */
-.agent-heading {
-	font-size: 24px;
-	font-weight: bold;
-	text-align: center;
-	color: var(--vscode-textLink-foreground);
-	margin-bottom: 20px;
-	padding: 10px 0;
-	letter-spacing: 2px;
-	text-transform: uppercase;
+/* Panel Header - Consistent styling across all tabs */
+.panel-header {
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
+
+.panel-header h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    letter-spacing: 0.3px;
+    text-align: center;
 }
 
 /* Team Management Section */
@@ -312,11 +316,12 @@
 
 .tasks-header h2 {
   margin: 0;
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 600;
   color: var(--vscode-foreground);
   flex: 1;
   letter-spacing: 0.3px;
+  text-align: center;
 }
 
 .tasks-status {

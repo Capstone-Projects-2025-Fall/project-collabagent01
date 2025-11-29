@@ -23,8 +23,8 @@
 
 /* Header Section */
 .profile-header {
-    margin-bottom: 32px;
-    padding-bottom: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 12px;
     border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
 }
 
@@ -33,7 +33,8 @@
     font-size: 22px;
     font-weight: 600;
     color: var(--vscode-foreground);
-    letter-spacing: -0.02em;
+    letter-spacing: 0.3px;
+    text-align: center;
 }
 
 /* Section Header with Info Icon and Clear Button */

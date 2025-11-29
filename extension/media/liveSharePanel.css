@@ -1,13 +1,17 @@
-/* Live Share Panel Specific Styles - Modernized */
+/* Panel Header - Consistent styling across all tabs */
+.panel-header {
+    margin-bottom: 20px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+}
 
-.live-share-heading {
-	font-size: 24px;
-	font-weight: 600;
-	text-align: center;
-	color: var(--vscode-textLink-foreground);
-	margin-bottom: 24px;
-	padding: 12px 0;
-	letter-spacing: 0.5px;
+.panel-header h2 {
+    margin: 0;
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--vscode-foreground);
+    letter-spacing: 0.3px;
+    text-align: center;
 }
 
 /* Layout & Base */
@@ -458,4 +462,3 @@ body {
 		font-size: 12px;
 	}
 }
-

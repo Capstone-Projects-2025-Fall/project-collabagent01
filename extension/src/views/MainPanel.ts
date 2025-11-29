@@ -365,8 +365,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 user_id: user.id,
                 name: profileData.name || '',
                 interests: profileData.interests || [],
-                strengths: profileData.strengths || [],
-                weaknesses: profileData.weaknesses || [],
                 custom_skills: profileData.custom_skills || []
             };
 
