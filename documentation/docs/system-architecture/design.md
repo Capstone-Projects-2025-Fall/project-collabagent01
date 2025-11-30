@@ -2,19 +2,45 @@
 sidebar_position: 1
 ---
 
-### Component Overview
-The AI-Assisted Collaboration assistant project will contain components and technologies, including making use of a VSCode extension ‘Live Share’ for real-time coding  collaboration. We will also be making use of a Database to store information for its users.
+## Component Overview
+
+CollabAgent consists of several coordinated components that work together to provide AI-assisted summaries, Jira task awareness, user skill profiling, team activity timelines, and Live Share session support. The system is built around a VS Code extension that communicates with a Flask backend, a database for persistence, and external services, including an AI provider, Jira, and VS Code Live Share.
+
+The VS Code extension presents multiple tabs:
+
+- **Intro** – Basic information and onboarding content.
+- **User Profile** – View and edit the user’s skill profile and preferences.
+- **Tasks (Jira)** – View and filter Jira issues relevant to the user or project.
+- **Teams** – Create or join teams and view the team activity timeline.
+- **Live Share** – Create or join VS Code Live Share sessions.
+
 <img width="419" height="527" alt="image" src="https://github.com/user-attachments/assets/c139b4ec-5162-4c06-9686-5c7484969137" />
 
 
-**Main Application**
-**VS Code Extension (TypeScript, Node.js)**
- The core of the system is a VS Code extension that enables real-time collaborative editing across teams.
-  * Key Features:
-    - Collaboration Sessions – Users can start or join named sessions with unique invite codes.
-    - Live Editing Sync – Every keystroke, cursor movement, and file open event is synced instantly across all team members.
-    - Colored Cursors & Highlights – Each user gets a unique color to identify their edits.
-    - Session Management – Sidebar shows active members and connected session status.
+### Key Responsibilities
+
+- **Intro Tab**
+  - Displays a general overview of CollabAgent and its capabilities.
+  - Provides guidance for first-time users.
+
+- **User Profile Tab**
+  - Allows users to define and update their skills, experience, and preferences.
+  - Sends profile data to the backend for storage and later use in task recommendations.
+
+- **Tasks (Jira) Tab**
+  - Displays Jira issues such as assigned tasks, in-progress items, or project backlogs.
+  - Sends requests to the backend to fetch Jira data.
+  - Allows users to select tasks for more detailed context.
+
+- **Teams Tab**
+  - Supports creating or joining teams within CollabAgent.
+  - Shows a team activity timeline that includes recent actions and AI summaries.
+  - Requests timeline data from the backend and renders it in a chronological view.
+
+- **Live Share Tab**
+  - Provides controls for starting or joining a VS Code Live Share session.
+  - Integrates with the Live Share extension API to initiate or join sessions.
+  - Optionally notifies the backend so that Live Share events (for example “session started” or “session ended”) can appear in the activity timeline.
 
 **Backend Services**
 **Flask (Python)**
