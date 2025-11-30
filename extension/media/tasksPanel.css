@@ -696,7 +696,7 @@
 
 /* Reassign Dropdown */
 .reassign-dropdown {
-  position: absolute;
+  position: fixed;
   background: var(--vscode-dropdown-background);
   border: 1px solid var(--vscode-dropdown-border);
   border-radius: 8px;
@@ -765,7 +765,7 @@
 
 /* Priority Dropdown */
 .priority-dropdown {
-  position: absolute;
+  position: fixed;
   background: var(--vscode-dropdown-background);
   border: 1px solid var(--vscode-dropdown-border);
   border-radius: 8px;

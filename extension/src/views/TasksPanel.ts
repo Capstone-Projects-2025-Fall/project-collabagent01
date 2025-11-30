@@ -612,6 +612,19 @@ export class TasksPanel {
     }
 
     /**
+     * Gets assignable users from Jira for use in other panels (e.g., timeline).
+     * @returns Array of assignable users with accountId and displayName
+     */
+    public async getAssignableUsersFromJira(): Promise<Array<{accountId: string, displayName: string}>> {
+        if (!this._currentTeamId) {
+            throw new Error('No team selected');
+        }
+
+        const jiraService = JiraService.getInstance();
+        return await jiraService.fetchAssignableUsers(this._currentTeamId);
+    }
+
+    /**
      * Handles creating a new Jira task.
      */
     public async handleCreateTask(taskData: any) {
