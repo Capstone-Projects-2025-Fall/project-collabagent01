@@ -23,17 +23,21 @@
 
 /* Header Section */
 .profile-header {
-    margin-bottom: 32px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
     padding-bottom: 16px;
-    border-bottom: 1px solid var(--vscode-widget-border, var(--vscode-panel-border));
+    border-bottom: 2px solid var(--vscode-panel-border);
 }
 
 .profile-header h2 {
     margin: 0;
-    font-size: 22px;
+    font-size: 18px;
     font-weight: 600;
-    color: var(--vscode-foreground);
-    letter-spacing: -0.02em;
+    color: #ffffff;
+    letter-spacing: 0.5px;
+    text-align: center;
 }
 
 /* Section Header with Info Icon and Clear Button */
