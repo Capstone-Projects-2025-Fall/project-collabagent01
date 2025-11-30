@@ -495,12 +495,12 @@
 			} else {
 				const linkSection = effectiveLink ? `
 				<div class=\"session-link\" data-collab-link>Link: <code>${effectiveLink}</code>
-					<button class=\"button small\" onclick=\"copyManualLink()\">Copy</button>
+					<button class=\"button-modern\" onclick=\"copyManualLink()\">Copy</button>
 				</div>` : `
 				<div class=\"session-link manual-entry\" data-collab-link>
 					<div style=\"margin-bottom:4px; font-size:11px; opacity:0.8;\">Click to capture the current Live Share invite link from your clipboard.</div>
 					<div style=\"display:flex; gap:4px;\">
-						<button class=\"button small\" onclick=\"pasteManualLink()\">Capture From Clipboard</button>
+						<button class=\"button-modern\" onclick=\"pasteManualLink()\">Capture From Clipboard</button>
 					</div>
 					<div id=\"manualLinkFeedback\" style=\"margin-top:4px; font-size:11px; color: var(--vscode-descriptionForeground);\"></div>
 				</div>`;
@@ -512,7 +512,7 @@
 							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
 							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
 							${linkSection}
-							<button class=\"button end-session-btn\" onclick=\"endSession()\">End Session</button>
+							<button class=\"button-modern end-session-btn\" onclick=\"endSession()\">End Session</button>
 						</div>
 					</div>`;
 			}
@@ -536,7 +536,7 @@
 							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
 							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
 							<div>Role: Guest</div>
-							<button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button>
+							<button class="button-modern leave-session-btn" onclick="leaveSession()">Leave Session</button>
 						</div>
 					</div>`;
 			}

@@ -194,15 +194,18 @@
 	background: #3c3c3c !important;
 	color: #cccccc !important;
 	border: 1px solid #555555;
-	padding: 4px 10px !important;
+	padding: 4px 8px !important;
 	margin: 0 !important;
 	border-radius: 6px;
 	cursor: pointer;
-	font-size: 11px !important;
+	font-size: 10px !important;
 	font-weight: 500;
 	transition: all 0.2s ease;
 	text-transform: uppercase;
-	letter-spacing: 0.5px;
+	letter-spacing: 0.3px;
+	white-space: nowrap;
+	min-width: auto;
+	max-width: fit-content;
 }
 
 #copyJoinCodeBtn:hover {
@@ -729,12 +732,14 @@
 }
 
 /* Danger Button (Delete Team) - Modern Style */
-.button-modern.danger {
+.button-modern.danger,
+#leaveTeamBtn {
 	background: var(--vscode-inputValidation-errorBackground, #f14c4c);
 	color: #ffffff;
 }
 
-.button-modern.danger:hover {
+.button-modern.danger:hover,
+#leaveTeamBtn:hover {
 	background: var(--vscode-errorForeground, #d93939);
 	transform: translateY(-1px);
 	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
@@ -1041,55 +1046,197 @@
 	background: var(--vscode-scrollbarSlider-hoverBackground);
 }
 
-/* ========================================
-   RESPONSIVE DESIGN
-   ======================================== */
-
-@media (max-width: 600px) {
+/* Medium screens (400px - 600px) */
+@media (max-width: 800px) and (min-width: 601px) {
 	.section {
-		padding: 16px;
-		border-radius: 10px;
+		padding: 14px;
 	}
 
 	.section-title {
 		font-size: 16px;
 	}
 
-	.activity-timeline-title {
-		font-size: 16px;
+	#teamProduct {
+		gap: 10px;
 	}
 
-	#teamProduct > div:first-child,
-	#teamProduct > div:nth-child(2) {
-		font-size: 13px;
-		padding: 6px 10px;
-	}
-
-	#teamName, #teamRole {
-		font-size: 14px;
-		padding: 2px 6px;
-	}
-
-	.button {
+	.button-modern {
 		padding: 6px 12px;
 		font-size: 11px;
 	}
 
+	.button-broadcast {
+		padding: 7px 14px;
+		font-size: 10.5px;
+	}
+
+	.button-row-main {
+		gap: 7px;
+	}
+
+	#copyJoinCodeBtn {
+		padding: 4px 9px !important;
+		font-size: 10px !important;
+	}
+}
+
+/* Small screens (below 600px) */
+@media (max-width: 600px) {
+	.section {
+		padding: 12px;
+		border-radius: 8px;
+		margin-bottom: 16px;
+	}
+
+	.section-title {
+		font-size: 14px;
+	}
+
+	.activity-timeline-title {
+		font-size: 14px;
+	}
+
+	#teamProduct {
+		gap: 8px;
+	}
+
+	#teamProduct > div:first-child,
+	#teamProduct > div:nth-child(2) {
+		font-size: 12px;
+		padding: 6px 8px;
+	}
+
+	#teamName, #teamRole {
+		font-size: 12px;
+		padding: 2px 4px;
+	}
+
+	/* Modern buttons responsive */
+	.button-modern {
+		padding: 5px 10px;
+		font-size: 10px;
+		letter-spacing: 0.1px;
+	}
+
+	/* Broadcast button responsive */
+	.button-broadcast {
+		padding: 6px 12px;
+		font-size: 10px;
+		letter-spacing: 0.2px;
+	}
+
+	/* Legacy button */
+	.button {
+		padding: 6px 10px;
+		font-size: 10px;
+	}
+
+	/* Button rows */
+	.button-row-main {
+		gap: 6px;
+		margin-top: 8px;
+	}
+
+	.button-row-broadcast {
+		margin-top: 8px;
+	}
+
+	/* Join code section */
 	#joinCodeSection {
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 6px;
+		padding: 8px 10px;
+		font-size: 12px;
+	}
+
+	#teamJoinCode {
+		font-size: 11px;
+		padding: 2px 4px;
 	}
 
 	#copyJoinCodeBtn {
 		width: 100%;
 		text-align: center;
+		padding: 4px 8px !important;
+		font-size: 9px !important;
+		white-space: nowrap;
 	}
 
-	/* Adjust tooltip for mobile */
-	.info-icon .tooltip {
-		width: 220px;
+	/* Team members section */
+	#teamMembersSection {
+		padding: 8px 10px;
+		margin-top: 6px;
+	}
+
+	.team-members-header {
+		font-size: 12px;
+		padding: 4px 0;
+	}
+
+	.member-count {
+		font-size: 10px;
+		padding: 2px 6px;
+	}
+
+	.members-toggle-icon {
+		font-size: 10px;
+	}
+
+	.member-item {
+		padding: 8px;
+		gap: 6px;
+	}
+
+	.member-role-badge {
+		font-size: 9px;
+		padding: 2px 6px;
+		min-width: 45px;
+	}
+
+	.member-name {
 		font-size: 11px;
-		padding: 10px 12px;
+	}
+
+	.member-email {
+		font-size: 10px;
+	}
+
+	.member-joined {
+		font-size: 9px;
+	}
+
+	.member-skills {
+		gap: 3px;
+		margin-top: 3px;
+	}
+
+	.skill-tag {
+		font-size: 9px;
+		padding: 2px 5px;
+	}
+
+	/* Project status */
+	#projectStatus {
+		padding: 8px 10px;
+		font-size: 12px;
+	}
+
+	/* Section header */
+	.section-header {
+		margin-bottom: 16px;
+	}
+
+	.info-icon {
+		width: 16px;
+		height: 16px;
+	}
+}
+
+/* Extra small screens (below 400px) */
+@media (max-width: 400px) {
+	#copyJoinCodeBtn {
+		padding: 3px 6px !important;
+		font-size: 8px !important;
 	}
 }
