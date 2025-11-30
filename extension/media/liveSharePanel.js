@@ -270,10 +270,8 @@
 				}
 				break;
 			case 'taskAssignedFromTimeline':
-				if (message.success) {
-					showActivityFeedback('✅ Task assigned successfully!');
-					setTimeout(() => showActivityFeedback(''), 3000);
-				} else {
+				// Only show error messages, success is already shown via VSCode notification
+				if (!message.success) {
 					showActivityFeedback('❌ Failed to assign task: ' + (message.error || 'Unknown error'));
 				}
 				break;
@@ -936,9 +934,20 @@
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';
 				// Show View Reason button and Assign Task button
 				const taskKey = it.file_path || '';  // Task key is stored in file_path
+
+				// Check if task is already assigned
+				const assignedUser = assignedTasksMap[taskKey];
+				const isAssigned = !!assignedUser;
+				const assignButtonText = isAssigned ? `Assigned to ${escapeHtml(assignedUser)}` : 'Assign Task';
+				const assignButtonClass = isAssigned ? 'timeline-assign-btn assigned' : 'timeline-assign-btn';
+				const assignButtonStyle = isAssigned
+					? 'background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); opacity: 0.6; cursor: not-allowed;'
+					: 'background-color: var(--vscode-button-background); color: var(--vscode-button-foreground);';
+				const assignButtonDisabled = isAssigned ? 'disabled' : '';
+
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewTaskReason('${it.id}')" title="View AI's reasoning for this recommendation">View Reason</button>
-					${taskKey ? `<button class="button small timeline-assign-btn" data-task-key="${escapeHtml(taskKey)}" style="background-color: var(--vscode-button-background); color: var(--vscode-button-foreground);" title="Assign this task to a team member">Assign Task</button>` : ''}
+					${taskKey ? `<button class="button small ${assignButtonClass}" data-task-key="${escapeHtml(taskKey)}" ${assignButtonDisabled} style="${assignButtonStyle}" title="${isAssigned ? 'Task already assigned' : 'Assign this task to a team member'}">${assignButtonText}</button>` : ''}
 				`;
 			} else if (activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges)) {
 				// INITIAL SNAPSHOT: Has full snapshot, no changes
@@ -994,14 +1003,40 @@
 	// Store assignable users for task assignment
 	let assignableUsersForTimeline = [];
 
+	// Track assigned tasks - maps task key to user display name
+	let assignedTasksMap = {};
+
+	// Load assigned tasks from persistent state
+	function loadAssignedTasks() {
+		const state = getState();
+		if (state.assignedTasksMap) {
+			assignedTasksMap = state.assignedTasksMap;
+		}
+	}
+
+	// Save assigned tasks to persistent state
+	function saveAssignedTasks() {
+		const prev = getState();
+		vscode.setState({ ...prev, assignedTasksMap });
+	}
+
+	// Initialize assigned tasks on load
+	loadAssignedTasks();
+
 	// Attach event listeners to assign task buttons
 	function attachAssignTaskListeners() {
 		const assignButtons = document.querySelectorAll('.timeline-assign-btn');
 		assignButtons.forEach(function(btn) {
 			btn.addEventListener('click', function(e) {
 				e.stopPropagation();  // Prevent triggering activity item toggle
+
+				// Don't allow clicks on disabled/assigned buttons
+				if (this.disabled || this.classList.contains('assigned')) {
+					return;
+				}
+
 				const taskKey = this.getAttribute('data-task-key');
-				
+
 				// If no users loaded yet, fetch them first
 				if (assignableUsersForTimeline.length === 0) {
 					post('getAssignableUsersForTimeline', { taskKey: taskKey });
@@ -1047,10 +1082,23 @@
 			option.addEventListener('click', function() {
 				const accountId = this.getAttribute('data-account-id');
 				const taskKeyToAssign = this.getAttribute('data-task-key');
+				const userName = this.querySelector('.assignee-name').textContent;
+
+				// Store the assignment
+				assignedTasksMap[taskKeyToAssign] = userName;
+
+				// Persist the assignment to state
+				saveAssignedTasks();
+
+				// Send the assignment to backend
 				post('assignTaskFromTimeline', {
 					issueKey: taskKeyToAssign,
 					accountId: accountId
 				});
+
+				// Update the button immediately
+				updateAssignButtonState(taskKeyToAssign, userName);
+
 				dropdown.remove();
 			});
 		});
@@ -1076,6 +1124,29 @@
 		}, 100);
 	}
 
+	// Function to update the assign button state after assignment
+	function updateAssignButtonState(taskKey, userName) {
+		const assignButtons = document.querySelectorAll('.timeline-assign-btn');
+		assignButtons.forEach(function(btn) {
+			if (btn.getAttribute('data-task-key') === taskKey) {
+				// Update button text
+				btn.textContent = `Assigned to ${userName}`;
+
+				// Add assigned class
+				btn.classList.add('assigned');
+
+				// Update styling to grayed out
+				btn.style.backgroundColor = 'var(--vscode-button-secondaryBackground)';
+				btn.style.color = 'var(--vscode-descriptionForeground)';
+				btn.style.opacity = '0.6';
+				btn.style.cursor = 'not-allowed';
+
+				// Disable the button
+				btn.disabled = true;
+				btn.title = 'Task already assigned';
+			}
+		});
+	}
 
 	// Toggle details visibility for activity items
 	window.toggleActivityDetails = function(detailsId) {

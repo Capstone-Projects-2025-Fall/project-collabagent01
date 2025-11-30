@@ -598,3 +598,17 @@ body {
 	font-size: 13px;
 }
 
+/* Styles for assigned/disabled assign button */
+.timeline-assign-btn.assigned,
+.timeline-assign-btn:disabled {
+	opacity: 0.6;
+	cursor: not-allowed !important;
+	pointer-events: none;
+}
+
+.timeline-assign-btn.assigned:hover,
+.timeline-assign-btn:disabled:hover {
+	opacity: 0.6;
+	transform: none;
+}
+
