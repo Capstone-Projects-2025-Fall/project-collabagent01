@@ -4,6 +4,7 @@ import { AgentPanelProvider } from './AgentPanel';
 import { HomeScreenPanel } from './HomeScreenPanel';
 import { TasksPanel } from './TasksPanel';
 import { ProfilePanel } from './ProfilePanel';
+import { JiraService } from '../services/jira-service';
 
 /**
  * Main orchestrator panel that manages and displays five sub-panels:
@@ -163,7 +164,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             // 'generateSummary' removed - edge function now handles automatic summarization
             'loadActivityFeed',
             'broadcastSnapshot',
-            'broadcastBlockedBySession'
+            'broadcastBlockedBySession',
+            'getAssignableUsersForTimeline',
+            'assignTaskFromTimeline'
         ].includes(command);
     }
 
@@ -279,6 +282,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'broadcastBlockedBySession':
                 vscode.window.showWarningMessage('Cannot broadcast changes while in an active Live Share session. Please end the session first.');
+                break;
+            case 'getAssignableUsersForTimeline':
+                await this.handleGetAssignableUsersForTimeline(message.taskKey);
+                break;
+            case 'assignTaskFromTimeline':
+                await this.handleAssignTaskFromTimeline(message.issueKey, message.accountId);
                 break;
             default:
                 console.log('Unknown agent command:', message.command);
@@ -667,10 +676,81 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         
         this._view = undefined;
     }
-    
+
+    /** Get assignable users for timeline task assignment */
+    private async handleGetAssignableUsersForTimeline(pendingTaskKey?: string) {
+        try {
+            // Get the current team ID from globalState (same key as AgentPanel uses)
+            const teamId = this._context.globalState.get<string>('collabAgent.currentTeam');
+
+            if (!teamId) {
+                throw new Error('No team selected');
+            }
+
+            // Fetch all tasks to extract assignees
+            const jiraService = JiraService.getInstance();
+            const tasks = await jiraService.fetchTeamIssues(teamId);
+
+            // Extract unique users from tasks (only users who are assigned to tasks)
+            const usersMap = new Map<string, {accountId: string, displayName: string}>();
+
+            tasks.forEach((task: any) => {
+                if (task.fields.assignee) {
+                    const assignee = task.fields.assignee;
+                    if (!usersMap.has(assignee.accountId)) {
+                        usersMap.set(assignee.accountId, {
+                            accountId: assignee.accountId,
+                            displayName: assignee.displayName
+                        });
+                    }
+                }
+            });
+
+            // Convert to array and sort by display name
+            const users = Array.from(usersMap.values()).sort((a, b) =>
+                a.displayName.localeCompare(b.displayName)
+            );
+
+            // Send users back to webview
+            this._view?.webview.postMessage({
+                command: 'assignableUsersForTimeline',
+                users: users,
+                pendingTaskKey: pendingTaskKey
+            });
+        } catch (error) {
+            console.error('Failed to get assignable users for timeline:', error);
+            vscode.window.showErrorMessage(
+                `Failed to get assignable users: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /** Handle assigning a task from the timeline */
+    private async handleAssignTaskFromTimeline(issueKey: string, accountId: string) {
+        try {
+            // Use the TasksPanel's reassign method
+            await this._tasksPanel.handleReassignIssue(issueKey, accountId);
+
+            // Send success message
+            this._view?.webview.postMessage({
+                command: 'taskAssignedFromTimeline',
+                success: true
+            });
+        } catch (error) {
+            console.error('Failed to assign task from timeline:', error);
+
+            // Send error message
+            this._view?.webview.postMessage({
+                command: 'taskAssignedFromTimeline',
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error'
+            });
+        }
+    }
+
     /**
      * Generates the HTML content for the webview panel.
-     * 
+
      * @param webview - The webview instance for generating resource URIs
      * @returns The complete HTML string for the panel
      */

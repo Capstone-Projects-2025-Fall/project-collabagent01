@@ -235,6 +235,26 @@
 			case 'activityError':
 				showActivityFeedback(message.error || 'Failed to load activity.');
 				break;
+			case 'assignableUsersForTimeline':
+				assignableUsersForTimeline = message.users || [];
+				if (message.pendingTaskKey && assignableUsersForTimeline.length > 0) {
+					const assignButtons = document.querySelectorAll('.timeline-assign-btn');
+					for (let btn of assignButtons) {
+						if (btn.getAttribute('data-task-key') === message.pendingTaskKey) {
+							showAssignDropdown(message.pendingTaskKey, btn);
+							break;
+						}
+					}
+				}
+				break;
+			case 'taskAssignedFromTimeline':
+				if (message.success) {
+					showActivityFeedback('✅ Task assigned successfully!');
+					setTimeout(() => showActivityFeedback(''), 3000);
+				} else {
+					showActivityFeedback('❌ Failed to assign task: ' + (message.error || 'Unknown error'));
+				}
+				break;
 			case 'updateAuthState':
 				if (!message.authenticated) {
 					persistFsIds({ userId: '', teamId: getState().teamId || '' });
@@ -911,9 +931,11 @@
 			} else if (activityType === 'ai_task_recommendation') {
 				// Purple badge for AI task recommendations
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';
-				// Show View Reason button
+				// Show View Reason button and Assign Task button
+				const taskKey = it.file_path || '';  // Task key is stored in file_path
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewTaskReason('${it.id}')" title="View AI's reasoning for this recommendation">View Reason</button>
+					${taskKey ? `<button class="button small timeline-assign-btn" data-task-key="${escapeHtml(taskKey)}" style="background-color: var(--vscode-button-background); color: var(--vscode-button-foreground);" title="Assign this task to a team member">Assign Task</button>` : ''}
 				`;
 			} else if (activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges)) {
 				// INITIAL SNAPSHOT: Has full snapshot, no changes
@@ -966,6 +988,9 @@
 		}).join('');
 		list.innerHTML = html;
 		showActivityFeedback('');
+
+		// Add event listeners for assign task buttons
+		attachAssignTaskListeners();
 	}
 
 	// Toggle details visibility for activity items
@@ -975,6 +1000,91 @@
 			details.style.display = details.style.display === 'none' ? 'block' : 'none';
 		}
 	};
+
+	// Store assignable users for task assignment
+	let assignableUsersForTimeline = [];
+
+	// Attach event listeners to assign task buttons
+	function attachAssignTaskListeners() {
+		const assignButtons = document.querySelectorAll('.timeline-assign-btn');
+		assignButtons.forEach(function(btn) {
+			btn.addEventListener('click', function(e) {
+				e.stopPropagation();  // Prevent triggering activity item toggle
+				const taskKey = this.getAttribute('data-task-key');
+
+				// If no users loaded yet, fetch them first
+				if (assignableUsersForTimeline.length === 0) {
+					post('getAssignableUsersForTimeline', { taskKey: taskKey });
+				} else {
+					showAssignDropdown(taskKey, this);
+				}
+			});
+		});
+	}
+
+	// Function to display the assign dropdown
+	function showAssignDropdown(taskKey, buttonElement) {
+		const existingDropdown = document.querySelector('.timeline-assign-dropdown');
+		if (existingDropdown) {
+			existingDropdown.remove();
+		}
+
+		// Create the dropdown
+		const dropdown = document.createElement('div');
+		dropdown.className = 'timeline-assign-dropdown';
+
+		let dropdownHtml = '<div class="timeline-assign-dropdown-header">Assign to:</div>';
+
+		// Add user options
+		assignableUsersForTimeline.forEach(function(user) {
+			dropdownHtml += '<div class="timeline-assign-option" data-account-id="' + user.accountId + '" data-task-key="' + escapeHtml(taskKey) + '">' +
+				'<span class="assignee-icon">👤</span>' +
+				'<span class="assignee-name">' + escapeHtml(user.displayName) + '</span>' +
+			'</div>';
+		});
+
+		dropdown.innerHTML = dropdownHtml;
+
+		// Position dropdown near button using fixed positioning
+		const rect = buttonElement.getBoundingClientRect();
+		dropdown.style.top = rect.bottom + 'px';
+		dropdown.style.left = rect.left + 'px';
+
+		document.body.appendChild(dropdown);
+
+		// Add click handlers to options
+		dropdown.querySelectorAll('.timeline-assign-option').forEach(function(option) {
+			option.addEventListener('click', function() {
+				const accountId = this.getAttribute('data-account-id');
+				const taskKeyToAssign = this.getAttribute('data-task-key');
+				post('assignTaskFromTimeline', {
+					issueKey: taskKeyToAssign,
+					accountId: accountId
+				});
+				dropdown.remove();
+			});
+		});
+
+		// Close dropdown when clicking outside or scrolling
+		setTimeout(function() {
+			function closeDropdown(e) {
+				if (!dropdown.contains(e.target) && e.target !== buttonElement) {
+					dropdown.remove();
+					document.removeEventListener('click', closeDropdown);
+					document.removeEventListener('scroll', onScroll, true);
+				}
+			}
+
+			function onScroll() {
+				dropdown.remove();
+				document.removeEventListener('click', closeDropdown);
+				document.removeEventListener('scroll', onScroll, true);
+			}
+
+			document.addEventListener('click', closeDropdown);
+			document.addEventListener('scroll', onScroll, true);
+		}, 100);
+	}
 
 	// Store activity items for later reference
 	let currentActivityItems = [];
