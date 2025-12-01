@@ -7,38 +7,21 @@
 	justify-content: center; 
 }
 
-.tab-btn {
-	padding: 8px 12px;
-	border: none;
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	border-radius: 6px 6px 0 0;
-	cursor: pointer;
-	font-weight: 500;
-	font-size: 14px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 40px;
-	transition: all 0.2s ease;
+.tab-btn { 
+	padding: 6px 18px; 
+	border: none; 
+	background: var(--vscode-button-background); 
+	color: var(--vscode-button-foreground); 
+	border-radius: 6px 6px 0 0; 
+	cursor: pointer; 
+	font-weight: 500; 
+	font-size: 15px; 
 }
 
-/* Tab icon styles */
-.tab-icon {
-	width: 18px;
-	height: 18px;
-	stroke-width: 2;
-}
-
-.tab-btn.active {
-	background: var(--vscode-editor-background);
-	color: var(--vscode-editor-foreground);
-	border-bottom: 2px solid var(--vscode-tab-activeBorder);
-}
-
-/* Hover effect */
-.tab-btn:hover:not(.disabled) {
-	background: var(--vscode-button-hoverBackground);
+.tab-btn.active { 
+	background: var(--vscode-editor-background); 
+	color: var(--vscode-editor-foreground); 
+	border-bottom: 2px solid var(--vscode-tab-activeBorder); 
 }
 
 .tab-panel { 

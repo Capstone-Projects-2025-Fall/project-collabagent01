@@ -9,15 +9,14 @@
 <link href="{{AGENT_STYLE_URI}}" rel="stylesheet" />
 <link href="{{TASKS_STYLE_URI}}" rel="stylesheet" />
 <link href="{{PROFILE_STYLE_URI}}" rel="stylesheet" />
-<script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
 </head>
 <body>
 <div class="tab-header">
-    <button class="tab-btn" id="tab-home" data-tab="home" title="Home"><i data-lucide="home" class="tab-icon"></i></button>
-    <button class="tab-btn" id="tab-profile" data-tab="profile" title="Profile"><i data-lucide="user" class="tab-icon"></i></button>
-    <button class="tab-btn" id="tab-tasks" data-tab="tasks" title="Tasks"><i data-lucide="check-square" class="tab-icon"></i></button>
-    <button class="tab-btn" id="tab-agent" data-tab="agent" title="Teams"><i data-lucide="users" class="tab-icon"></i></button>
-    <button class="tab-btn" id="tab-live" data-tab="live" title="Collaborate"><i data-lucide="message-circle" class="tab-icon"></i></button>
+    <button class="tab-btn" id="tab-home" data-tab="home">Home</button>
+    <button class="tab-btn" id="tab-profile" data-tab="profile" title="">Profile</button>
+    <button class="tab-btn" id="tab-tasks" data-tab="tasks" title="">Tasks</button>
+    <button class="tab-btn" id="tab-agent" data-tab="agent" title="">Team</button>
+    <button class="tab-btn" id="tab-live" data-tab="live" title="">Collaborate</button>
 </div>
 <div id="login-tooltip" class="login-tooltip" style="display: none;">Please log in first</div>
 <div id="panel-home" class="tab-panel" style="display:block;">{{HOME_HTML}}</div>
@@ -225,11 +224,6 @@
     }
     if (!isAuthenticated || !liveShareInstalled) {
         document.getElementById('tab-live').classList.add('disabled');
-    }
-
-    // Initialize Lucide icons
-    if (typeof lucide !== 'undefined') {
-        lucide.createIcons();
     }
 })();
 </script>
