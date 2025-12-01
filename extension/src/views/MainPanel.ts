@@ -676,13 +676,13 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         
         this._view = undefined;
     }
-    
-    /** Handle getting assignable users for timeline task assignment */
+
+    /** Get assignable users for timeline task assignment */
     private async handleGetAssignableUsersForTimeline(pendingTaskKey?: string) {
         try {
             // Get the current team ID from globalState (same key as AgentPanel uses)
             const teamId = this._context.globalState.get<string>('collabAgent.currentTeam');
-            
+
             if (!teamId) {
                 throw new Error('No team selected');
             }
@@ -690,10 +690,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             // Fetch all tasks to extract assignees
             const jiraService = JiraService.getInstance();
             const tasks = await jiraService.fetchTeamIssues(teamId);
-            
+
             // Extract unique users from tasks (only users who are assigned to tasks)
             const usersMap = new Map<string, {accountId: string, displayName: string}>();
-            
+
             tasks.forEach((task: any) => {
                 if (task.fields.assignee) {
                     const assignee = task.fields.assignee;
@@ -705,12 +705,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                     }
                 }
             });
-            
+
             // Convert to array and sort by display name
-            const users = Array.from(usersMap.values()).sort((a, b) => 
+            const users = Array.from(usersMap.values()).sort((a, b) =>
                 a.displayName.localeCompare(b.displayName)
             );
-            
+
             // Send users back to webview
             this._view?.webview.postMessage({
                 command: 'assignableUsersForTimeline',
@@ -730,7 +730,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         try {
             // Use the TasksPanel's reassign method
             await this._tasksPanel.handleReassignIssue(issueKey, accountId);
-            
+
             // Send success message
             this._view?.webview.postMessage({
                 command: 'taskAssignedFromTimeline',
@@ -738,7 +738,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             });
         } catch (error) {
             console.error('Failed to assign task from timeline:', error);
-            
+
             // Send error message
             this._view?.webview.postMessage({
                 command: 'taskAssignedFromTimeline',
@@ -747,10 +747,10 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             });
         }
     }
-    
+
     /**
      * Generates the HTML content for the webview panel.
-     * 
+
      * @param webview - The webview instance for generating resource URIs
      * @returns The complete HTML string for the panel
      */

@@ -16,14 +16,12 @@ from .routes.api_route import ai_bp
 from .routes.jira_route import jira_bp
 from .routes.profile_route import profile_bp
 from .routes.user_route import user_bp
-from .routes.account_route import account_bp
 
 app.register_blueprint(notes_bp)
 app.register_blueprint(ai_bp)
 app.register_blueprint(jira_bp)
 app.register_blueprint(profile_bp)
 app.register_blueprint(user_bp)
-app.register_blueprint(account_bp)
 
 # Health check endpoint for UptimeRobot
 @app.route('/health', methods=['GET'])

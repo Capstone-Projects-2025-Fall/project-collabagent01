@@ -13,19 +13,6 @@
 	window.startLiveShare = () => post('startLiveShare');
 	window.joinLiveShare = () => post('joinLiveShare');
 
-	// Track current session status for broadcast button
-	let currentSessionStatus = null; // Track current session status (null, 'hosting', 'joined')
-	
-	window.broadcastSnapshot = () => {
-		// Check if user is in an active Live Share session
-		if (currentSessionStatus === 'hosting' || currentSessionStatus === 'joined') {
-			// Show warning message via vscode
-			post('broadcastBlockedBySession');
-			return;
-		}
-		post('broadcastSnapshot');
-	};
-
 	// Home tab: Install Live Share and Login buttons
 	function setupHomePanelButtons() {
 		const installBtn = document.getElementById('installLiveShareBtn');
@@ -146,32 +133,12 @@
 		}
 	}
 
-	function updateBroadcastButtonState() {
-		const broadcastBtn = document.getElementById('broadcastBtn');
-		if (!broadcastBtn) return;
-
-		const inSession = currentSessionStatus === 'hosting' || currentSessionStatus === 'joined';
-
-		if (inSession) {
-			broadcastBtn.disabled = true;
-			broadcastBtn.style.opacity = '0.5';
-			broadcastBtn.style.cursor = 'not-allowed';
-			broadcastBtn.title = 'Cannot broadcast while in an active Live Share session';
-		} else {
-			broadcastBtn.disabled = false;
-			broadcastBtn.style.opacity = '1';
-			broadcastBtn.style.cursor = 'pointer';
-			broadcastBtn.title = 'Broadcast your changes to the team';
-		}
-	}
-
 	function setupAllButtons() {
 		setupHomePanelButtons();
 		setupAgentPanelButtons();
 		setupSnapshotForm();
 		setupActivityFeed();
 		setupProfilePanel();
-		updateBroadcastButtonState(); // Initialize broadcast button state
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -270,7 +237,7 @@
 				}
 				break;
 			case 'taskAssignedFromTimeline':
-				// Only show error messages, success is already shown via VSCode notification
+				// Only show error messages, success is already shown via button state change
 				if (!message.success) {
 					showActivityFeedback('❌ Failed to assign task: ' + (message.error || 'Unknown error'));
 				}
@@ -406,17 +373,6 @@
 		if (fsTeamId) fsTeamId.value = team?.id || '';
 		if (fsUserId && userId) fsUserId.value = userId;
 		persistFsIds({ userId: (fsUserId && fsUserId.value) || '', teamId: (fsTeamId && fsTeamId.value) || '' });
-
-		// Refresh the activity feed when team context changes
-		try {
-			if (team?.id) {
-				requestActivityFeed();
-			} else {
-				// Clear list when no team
-				const list = document.getElementById('activityList');
-				if (list) list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No active team.</div>';
-			}
-		} catch (e) {}
 	}
 
 	// Toggle team members list
@@ -463,10 +419,6 @@
 		const btns = document.getElementById('sessionButtons');
 		const chatInput = document.getElementById('chatInput');
 		if (!statusDiv) return;
-
-		// Update current session status and broadcast button state
-		currentSessionStatus = status;
-		updateBroadcastButtonState();
 
 		const participantCount = participants || 1;
 		const sessionDuration = duration || '0m';
@@ -516,12 +468,12 @@
 			} else {
 				const linkSection = effectiveLink ? `
 				<div class=\"session-link\" data-collab-link>Link: <code>${effectiveLink}</code>
-					<button class=\"button-modern\" onclick=\"copyManualLink()\">Copy</button>
+					<button class=\"button small\" onclick=\"copyManualLink()\">Copy</button>
 				</div>` : `
 				<div class=\"session-link manual-entry\" data-collab-link>
 					<div style=\"margin-bottom:4px; font-size:11px; opacity:0.8;\">Click to capture the current Live Share invite link from your clipboard.</div>
 					<div style=\"display:flex; gap:4px;\">
-						<button class=\"button-modern\" onclick=\"pasteManualLink()\">Capture From Clipboard</button>
+						<button class=\"button small\" onclick=\"pasteManualLink()\">Capture From Clipboard</button>
 					</div>
 					<div id=\"manualLinkFeedback\" style=\"margin-top:4px; font-size:11px; color: var(--vscode-descriptionForeground);\"></div>
 				</div>`;
@@ -533,7 +485,7 @@
 							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
 							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
 							${linkSection}
-							<button class=\"button-modern end-session-btn\" onclick=\"endSession()\">End Session</button>
+							<button class=\"button end-session-btn\" onclick=\"endSession()\">End Session</button>
 						</div>
 					</div>`;
 			}
@@ -557,7 +509,7 @@
 							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
 							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
 							<div>Role: Guest</div>
-							<button class="button-modern leave-session-btn" onclick="leaveSession()">Leave Session</button>
+							<button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button>
 						</div>
 					</div>`;
 			}
@@ -773,22 +725,19 @@
 					</div>
 				</div>
 			</div>
-			<div class="activity-feed-container">
-				<div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
-					<button class="button-modern" id="activityRefreshBtn" title="Reload feed">Refresh</button>
-					<select id="activityFilterDropdown" class="filter-dropdown" title="Filter events by type">
-						<option value="all">All</option>
-						<option value="ai_task_recommendation">Task Delegation</option>
-						<option value="initial_snapshot">Initial Snapshot</option>
-						<option value="changes">Changes</option>
-						<option value="live_share_started">Started Live Share</option>
-						<option value="live_share_ended">Ended Live Share</option>
-						<option value="participant_status">Participant Status</option>
-					</select>
-					<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
-				</div>
-				<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
+				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
+				<select id="activityFilterDropdown" class="dropdown" title="Filter events by type" style="padding:4px 8px; font-size:12px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); border-radius:4px; cursor:pointer;">
+					<option value="all">All</option>
+					<option value="ai_task_recommendation">Task Delegation</option>
+					<option value="initial_snapshot">Initial Snapshot</option>
+					<option value="changes">Changes</option>
+					<option value="live_share_started">Started Live Share</option>
+					<option value="live_share_ended">Ended Live Share</option>
+				</select>
+				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
 			</div>
+			<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
 		`;
 		anchor.insertAdjacentElement('afterend', section);
 
@@ -860,8 +809,6 @@
 					return activityType === 'live_share_started';
 				} else if (filterValue === 'live_share_ended') {
 					return activityType === 'live_share_ended';
-				} else if (filterValue === 'participant_status') {
-					return activityType === 'participant_status';
 				}
 				return true;
 			});
@@ -894,27 +841,9 @@
 			if (activityType === 'live_share_started') {
 				// Bright green tag for session start
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; background-color:#4caf50; color:#ffffff; border-radius:4px; margin-right:6px;">Started Live Share</span>';
-				// Show View Initial Snapshot button and Join Session button (if session link available)
-				const sessionLink = summary;  // Session link is stored in summary field for started events
-
-				// Check if this session has ended by looking for a corresponding ended event
-				const sessionId = it.file_path ? it.file_path.replace('session:', '') : null;
-				const hasEnded = sessionId && filteredItems.some(item =>
-					item.activity_type === 'live_share_ended' &&
-					item.file_path === `session:${sessionId}`
-				);
-
-				// Disable join button if session has ended
-				const joinButtonDisabled = hasEnded;
-				const joinButtonStyle = joinButtonDisabled
-					? 'background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); opacity: 0.5; cursor: not-allowed;'
-					: 'background-color: var(--vscode-button-background); color: var(--vscode-button-foreground);';
-				const joinButtonOnClick = joinButtonDisabled ? '' : `onclick="joinSessionFromActivity('${escapeHtml(sessionLink)}')"`;
-				const joinButtonTitle = joinButtonDisabled ? 'This session has ended' : 'Join this Live Share session';
-
+				// Show View Initial Snapshot button for started events
 				buttons = `
-					${hasSnapshot ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>` : ''}
-					${sessionLink ? `<button class="button small" style="${joinButtonStyle}" ${joinButtonOnClick} title="${joinButtonTitle}" ${joinButtonDisabled ? 'disabled' : ''}>Join Session</button>` : ''}
+					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
 				`;
 			} else if (activityType === 'live_share_ended') {
 				// Red tag for session end
@@ -924,11 +853,6 @@
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
 					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
 				`;
-			} else if (activityType === 'participant_status') {
-				// Participant Status: membership changes (non-clickable informational event)
-				// Styled similar to Initial Snapshot (bordered) but using white instead of green
-				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #ffffff; color:#ffffff; border-radius:4px; margin-right:6px;">Participant Status</span>';
-				// No buttons => non-clickable
 			} else if (activityType === 'ai_task_recommendation') {
 				// Purple badge for AI task recommendations
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';
@@ -995,10 +919,18 @@
 		}).join('');
 		list.innerHTML = html;
 		showActivityFeedback('');
-		
+
 		// Add event listeners for assign task buttons
 		attachAssignTaskListeners();
 	}
+
+	// Toggle details visibility for activity items
+	window.toggleActivityDetails = function(detailsId) {
+		const details = document.getElementById(detailsId);
+		if (details) {
+			details.style.display = details.style.display === 'none' ? 'block' : 'none';
+		}
+	};
 
 	// Store assignable users for task assignment
 	let assignableUsersForTimeline = [];
@@ -1057,9 +989,9 @@
 		// Create the dropdown
 		const dropdown = document.createElement('div');
 		dropdown.className = 'timeline-assign-dropdown';
-		
+
 		let dropdownHtml = '<div class="timeline-assign-dropdown-header">Assign to:</div>';
-		
+
 		// Add user options
 		assignableUsersForTimeline.forEach(function(user) {
 			dropdownHtml += '<div class="timeline-assign-option" data-account-id="' + user.accountId + '" data-task-key="' + escapeHtml(taskKey) + '">' +
@@ -1067,16 +999,16 @@
 				'<span class="assignee-name">' + escapeHtml(user.displayName) + '</span>' +
 			'</div>';
 		});
-		
+
 		dropdown.innerHTML = dropdownHtml;
-		
+
 		// Position dropdown near button using fixed positioning
 		const rect = buttonElement.getBoundingClientRect();
 		dropdown.style.top = rect.bottom + 'px';
 		dropdown.style.left = rect.left + 'px';
-		
+
 		document.body.appendChild(dropdown);
-		
+
 		// Add click handlers to options
 		dropdown.querySelectorAll('.timeline-assign-option').forEach(function(option) {
 			option.addEventListener('click', function() {
@@ -1102,7 +1034,7 @@
 				dropdown.remove();
 			});
 		});
-		
+
 		// Close dropdown when clicking outside or scrolling
 		setTimeout(function() {
 			function closeDropdown(e) {
@@ -1112,13 +1044,13 @@
 					document.removeEventListener('scroll', onScroll, true);
 				}
 			}
-			
+
 			function onScroll() {
 				dropdown.remove();
 				document.removeEventListener('click', closeDropdown);
 				document.removeEventListener('scroll', onScroll, true);
 			}
-			
+
 			document.addEventListener('click', closeDropdown);
 			document.addEventListener('scroll', onScroll, true);
 		}, 100);
@@ -1147,14 +1079,6 @@
 			}
 		});
 	}
-
-	// Toggle details visibility for activity items
-	window.toggleActivityDetails = function(detailsId) {
-		const details = document.getElementById(detailsId);
-		if (details) {
-			details.style.display = details.style.display === 'none' ? 'block' : 'none';
-		}
-	};
 
 	// Store activity items for later reference
 	let currentActivityItems = [];
@@ -1470,268 +1394,6 @@
 			return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[s]);
 		});
 	}
-
-	/**
-	 * Formats git diff content with proper line breaks and syntax highlighting
-	 * Converts escape sequences to actual whitespace and adds GitHub-style colors
-	 */
-	function formatGitDiff(diffContent) {
-		if (!diffContent || typeof diffContent !== 'string') {
-			return '<div style="color: var(--vscode-descriptionForeground);">No changes available</div>';
-		}
-
-		// Step 1: Decode escape sequences
-		// Handle various escape sequence formats that might be in the database
-		let decoded = diffContent
-			.replace(/\\r\\n/g, '\n')  // \r\n → newline
-			.replace(/\\n/g, '\n')      // \n → newline
-			.replace(/\\r/g, '\n')      // \r → newline
-			.replace(/\\t/g, '\t');     // \t → tab
-
-		// Step 2: Split into lines
-		const lines = decoded.split('\n');
-
-		// Step 3: Format each line with appropriate styling
-		const formattedLines = lines.map(line => {
-			const escapedLine = escapeHtml(line);
-
-			// File headers (diff --git, index, +++, ---)
-			if (line.startsWith('diff --git') || line.startsWith('index ') ||
-				line.startsWith('---') || line.startsWith('+++')) {
-				return `<div style="color: var(--vscode-descriptionForeground); font-weight: bold;">${escapedLine}</div>`;
-			}
-			// Hunk headers (@@ ... @@)
-			else if (line.startsWith('@@')) {
-				return `<div style="color: var(--vscode-textPreformat-foreground); background: var(--vscode-textBlockQuote-background); padding: 2px 4px; margin: 4px 0;">${escapedLine}</div>`;
-			}
-			// Added lines (green)
-			else if (line.startsWith('+')) {
-				return `<div style="background: rgba(46, 160, 67, 0.2); color: var(--vscode-gitDecoration-addedResourceForeground, #46a043); padding: 1px 4px;">${escapedLine}</div>`;
-			}
-			// Deleted lines (red)
-			else if (line.startsWith('-')) {
-				return `<div style="background: rgba(248, 81, 73, 0.2); color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); padding: 1px 4px;">${escapedLine}</div>`;
-			}
-			// Context lines (unchanged)
-			else {
-				return `<div style="color: var(--vscode-editor-foreground); padding: 1px 4px;">${escapedLine}</div>`;
-			}
-		});
-
-		return formattedLines.join('');
-	}
-
-	/**
-	 * Builds a hierarchical tree structure from flat file paths
-	 * @param {Object} snapshot - Object with file paths as keys and content as values
-	 * @returns {Object} Tree structure
-	 */
-	function buildFileTree(snapshot) {
-		const tree = {};
-		const filePaths = Object.keys(snapshot).sort();
-
-		filePaths.forEach(filePath => {
-			// Normalize path separators (handle both / and \)
-			const normalizedPath = filePath.replace(/\\/g, '/');
-			const parts = normalizedPath.split('/');
-			let current = tree;
-
-			parts.forEach((part, index) => {
-				const isFile = index === parts.length - 1;
-
-				if (isFile) {
-					// This is a file
-					if (!current.__files) current.__files = [];
-					current.__files.push({
-						name: part,
-						fullPath: filePath,
-						content: snapshot[filePath]
-					});
-				} else {
-					// This is a folder
-					if (!current[part]) {
-						current[part] = {};
-					}
-					current = current[part];
-				}
-			});
-		});
-
-		return tree;
-	}
-
-	/**
-	 * Counts total files in a tree (recursively)
-	 */
-	function countFilesInTree(tree) {
-		let count = 0;
-
-		if (tree.__files) {
-			count += tree.__files.length;
-		}
-
-		Object.keys(tree).forEach(key => {
-			if (key !== '__files') {
-				count += countFilesInTree(tree[key]);
-			}
-		});
-
-		return count;
-	}
-
-	/**
-	 * Renders a file tree recursively
-	 * @param {Object} tree - Tree structure from buildFileTree
-	 * @param {Number} level - Indentation level
-	 * @param {String} path - Current path (for unique IDs)
-	 * @returns {String} HTML string
-	 */
-	function renderFileTree(tree, level, path) {
-		level = level || 0;
-		path = path || '';
-		let html = '';
-		const indent = level * 20;
-		let itemIndex = 0;
-
-		// Render folders first
-		const folders = Object.keys(tree).filter(key => key !== '__files').sort();
-
-		folders.forEach(folderName => {
-			const folderId = 'folder-' + path + '-' + itemIndex++;
-			const folderPath = path ? path + '/' + folderName : folderName;
-
-			// Count files in this folder (recursively)
-			const fileCount = countFilesInTree(tree[folderName]);
-
-			html += '<div style="margin-bottom: 4px;">';
-			html += '<div style="padding: 6px 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; padding-left: ' + (indent + 8) + 'px; border-radius: 4px; transition: background 0.1s;" ';
-			html += 'onmouseover="this.style.background=\'var(--vscode-list-hoverBackground)\'" ';
-			html += 'onmouseout="this.style.background=\'transparent\'" ';
-			html += 'onclick="toggleFolder(\'' + folderId + '\')">';
-			html += '<span id="' + folderId + '-icon" style="color: var(--vscode-descriptionForeground); font-size: 10px;">▶</span>';
-			html += '<span style="color: var(--vscode-icon-foreground); margin-right: 4px;">📁</span>';
-			html += '<strong style="color: var(--vscode-foreground);">' + escapeHtml(folderName) + '/</strong>';
-			html += '<span style="color: var(--vscode-descriptionForeground); font-size: 11px; margin-left: auto;">(' + fileCount + ' file' + (fileCount !== 1 ? 's' : '') + ')</span>';
-			html += '</div>';
-			html += '<div id="' + folderId + '" style="display: none;">';
-			html += renderFileTree(tree[folderName], level + 1, folderPath);
-			html += '</div>';
-			html += '</div>';
-		});
-
-		// Render files
-		const files = tree.__files || [];
-		files.forEach(function(file) {
-			const fileId = 'file-' + path + '-' + itemIndex++;
-
-			// Decode escape sequences in file content
-			const decodedContent = (file.content || '')
-				.replace(/\\r\\n/g, '\n')
-				.replace(/\\n/g, '\n')
-				.replace(/\\r/g, '\n')
-				.replace(/\\t/g, '\t');
-
-			const lineCount = decodedContent.split('\n').length;
-
-			html += '<div style="margin-bottom: 8px; border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; overflow: hidden; margin-left: ' + indent + 'px;">';
-			html += '<div style="background: var(--vscode-textBlockQuote-background); padding: 6px 10px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--vscode-editorWidget-border);" onclick="toggleFile(\'' + fileId + '\')">';
-			html += '<div style="display: flex; align-items: center; gap: 8px;">';
-			html += '<span id="' + fileId + '-icon" style="color: var(--vscode-descriptionForeground); font-size: 10px;">▶</span>';
-			html += '<span style="color: var(--vscode-icon-foreground); margin-right: 4px;">📄</span>';
-			html += '<strong style="color: var(--vscode-textLink-foreground); font-family: var(--vscode-editor-font-family, monospace);">' + escapeHtml(file.name) + '</strong>';
-			html += '</div>';
-			html += '<span style="color: var(--vscode-descriptionForeground); font-size: 11px;">' + lineCount + ' lines</span>';
-			html += '</div>';
-			html += '<div id="' + fileId + '" style="display: none; padding: 0; background: var(--vscode-editor-background);">';
-			html += '<pre style="margin: 0; padding: 12px; overflow-x: auto; color: var(--vscode-editor-foreground); font-size: 13px; line-height: 1.6; font-family: var(--vscode-editor-font-family, \'Courier New\', monospace);">' + escapeHtml(decodedContent) + '</pre>';
-			html += '</div>';
-			html += '</div>';
-		});
-
-		return html;
-	}
-
-	/**
-	 * Formats snapshot content (initial workspace snapshot) with proper formatting
-	 * Displays files in a hierarchical folder tree with syntax-highlighted content
-	 */
-	function formatSnapshot(snapshotContent) {
-		// Handle different snapshot formats
-		let snapshot = snapshotContent;
-
-		// If it's a string, try to parse as JSON
-		if (typeof snapshotContent === 'string') {
-			try {
-				snapshot = JSON.parse(snapshotContent);
-			} catch (e) {
-				// If parsing fails, treat as raw text and decode escape sequences
-				const decoded = snapshotContent
-					.replace(/\\r\\n/g, '\n')
-					.replace(/\\n/g, '\n')
-					.replace(/\\r/g, '\n')
-					.replace(/\\t/g, '\t');
-
-				return '<pre style="margin: 0; color: var(--vscode-editor-foreground);">' + escapeHtml(decoded) + '</pre>';
-			}
-		}
-
-		// If snapshot is not an object, return error
-		if (!snapshot || typeof snapshot !== 'object') {
-			return '<div style="color: var(--vscode-descriptionForeground);">No snapshot available</div>';
-		}
-
-		// Get all file paths
-		const filePaths = Object.keys(snapshot);
-
-		if (filePaths.length === 0) {
-			return '<div style="color: var(--vscode-descriptionForeground);">Empty snapshot</div>';
-		}
-
-		// Build hierarchical tree structure
-		const tree = buildFileTree(snapshot);
-
-		// Add file count header
-		let html = '<div style="padding: 8px; background: var(--vscode-textBlockQuote-background); border-radius: 4px; margin-bottom: 12px; color: var(--vscode-descriptionForeground);">';
-		html += '<strong>' + filePaths.length + '</strong> file' + (filePaths.length !== 1 ? 's' : '') + ' captured';
-		html += '</div>';
-
-		// Render the tree
-		html += renderFileTree(tree, 0, '');
-
-		return html;
-	}
-
-	// Add toggle function to global scope for file expansion
-	window.toggleFile = function(fileId) {
-		const content = document.getElementById(fileId);
-		const icon = document.getElementById(fileId + '-icon');
-
-		if (content && icon) {
-			if (content.style.display === 'none') {
-				content.style.display = 'block';
-				icon.textContent = '▼';
-			} else {
-				content.style.display = 'none';
-				icon.textContent = '▶';
-			}
-		}
-	};
-
-	// Add toggle function for folders
-	window.toggleFolder = function(folderId) {
-		const content = document.getElementById(folderId);
-		const icon = document.getElementById(folderId + '-icon');
-
-		if (content && icon) {
-			if (content.style.display === 'none') {
-				content.style.display = 'block';
-				icon.textContent = '▼';
-			} else {
-				content.style.display = 'none';
-				icon.textContent = '▶';
-			}
-		}
-	};
 
 	function collectSnapshotPayload(){
 		const id = document.getElementById('fs-id')?.value?.trim();

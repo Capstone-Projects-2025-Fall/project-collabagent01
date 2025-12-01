@@ -198,23 +198,16 @@
 
         // Handle account deletion
         modalConfirmBtn.addEventListener('click', function() {
-            console.log('[DELETE ACCOUNT] Button clicked');
             const inputValue = deleteInput.value.trim();
-            console.log('[DELETE ACCOUNT] Input value:', inputValue);
 
             if (inputValue === 'DELETE') {
-                console.log('[DELETE ACCOUNT] Validation passed, sending message');
                 // Send message to extension to delete account
-                const vscode = window.vscode || acquireVsCodeApi();
-                console.log('[DELETE ACCOUNT] vscode API:', vscode);
-                modalConfirmBtn.disabled = true;
-                modalConfirmBtn.textContent = 'Deleting...';
+                const vscode = acquireVsCodeApi();
                 vscode.postMessage({
                     command: 'deleteAccount'
                 });
-                console.log('[DELETE ACCOUNT] Message sent');
+                closeModal();
             } else {
-                console.log('[DELETE ACCOUNT] Validation failed');
                 deleteError.style.display = 'block';
             }
         });
@@ -223,22 +216,6 @@
         deleteInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter' && this.value.trim() === 'DELETE') {
                 modalConfirmBtn.click();
-            }
-        });
-
-        // Listen for response from extension
-        window.addEventListener('message', event => {
-            const message = event.data;
-            if (message.command === 'accountDeleted') {
-                if (message.success) {
-                    closeModal();
-                    modalConfirmBtn.disabled = false;
-                    modalConfirmBtn.textContent = 'Delete My Account';
-                } else {
-                    alert('Error: ' + (message.error || 'Failed to delete account'));
-                    modalConfirmBtn.disabled = false;
-                    modalConfirmBtn.textContent = 'Delete My Account';
-                }
             }
         });
     </script>

@@ -665,13 +665,13 @@
                     document.removeEventListener('scroll', onScroll, true);
                 }
             }
-            
+
             function onScroll() {
                 editor.remove();
                 document.removeEventListener('click', closeEditor);
                 document.removeEventListener('scroll', onScroll, true);
             }
-            
+
             document.addEventListener('click', closeEditor);
             document.addEventListener('scroll', onScroll, true);
         }, 100);
@@ -710,9 +710,10 @@
         
         dropdown.innerHTML = dropdownHtml;
         
-        // Position dropdown near button using fixed positioning
+        // Position dropdown near button
         const rect = buttonElement.getBoundingClientRect();
-        dropdown.style.top = rect.bottom + 'px';
+        dropdown.style.position = 'absolute';
+        dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
         dropdown.style.left = rect.left + 'px';
         
         document.body.appendChild(dropdown);
@@ -739,13 +740,13 @@
                     document.removeEventListener('scroll', onScroll, true);
                 }
             }
-            
+
             function onScroll() {
                 dropdown.remove();
                 document.removeEventListener('click', closeDropdown);
                 document.removeEventListener('scroll', onScroll, true);
             }
-            
+
             document.addEventListener('click', closeDropdown);
             document.addEventListener('scroll', onScroll, true);
         }, 100);
@@ -780,9 +781,10 @@
         
         dropdown.innerHTML = dropdownHtml;
         
-        // Position dropdown near badge using fixed positioning
+        // Position dropdown near badge
         const rect = badgeElement.getBoundingClientRect();
-        dropdown.style.top = rect.bottom + 'px';
+        dropdown.style.position = 'absolute';
+        dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
         dropdown.style.left = rect.left + 'px';
         
         document.body.appendChild(dropdown);
@@ -809,13 +811,13 @@
                     document.removeEventListener('scroll', onScroll, true);
                 }
             }
-            
+
             function onScroll() {
                 dropdown.remove();
                 document.removeEventListener('click', closeDropdown);
                 document.removeEventListener('scroll', onScroll, true);
             }
-            
+
             document.addEventListener('click', closeDropdown);
             document.addEventListener('scroll', onScroll, true);
         }, 100);

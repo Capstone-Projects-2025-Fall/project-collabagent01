@@ -38,7 +38,6 @@ export async function fetchTeamActivity(teamId: string, limit = 25): Promise<{ s
  * @param displayName - The display name of the user
  * @param sessionId - Optional session ID for reference
  * @param snapshotId - Optional snapshot ID for the initial workspace snapshot (used for started events)
- * @param sessionLink - Optional session invite link for joining the session
  * @returns Promise with success status
  */
 export async function insertLiveShareActivity(
@@ -47,8 +46,7 @@ export async function insertLiveShareActivity(
   eventType: 'live_share_started' | 'live_share_joined',
   displayName: string,
   sessionId?: string,
-  snapshotId?: string,
-  sessionLink?: string
+  snapshotId?: string
 ): Promise<{ success: boolean; error?: string; summary?: string }> {
   try {
     const url = new URL(`${BASE_URL}/api/ai/live_share_event`);
@@ -59,8 +57,7 @@ export async function insertLiveShareActivity(
       team_id: teamId,
       user_id: userId,
       display_name: displayName,
-      snapshot_id: snapshotId,  // Include snapshot ID for linking to initial snapshot
-      session_link: sessionLink  // Include session invite link
+      snapshot_id: snapshotId  // Include snapshot ID for linking to initial snapshot
     };
 
     console.log('[TeamActivityService] Sending Live Share event to backend:', payload);
@@ -84,94 +81,6 @@ export async function insertLiveShareActivity(
     return { success: true, summary: data.summary };
   } catch (err: any) {
     console.error('[TeamActivityService] Exception inserting Live Share activity:', err);
-    return { success: false, error: err?.message || String(err) };
-  }
-}
-
-/**
- * Updates an existing Live Share Started event with the session invite link
- * @param teamId - The team ID
- * @param sessionId - The session ID
- * @param sessionLink - The session invite link to add
- * @returns Promise with success status
- */
-export async function updateLiveShareActivityLink(
-  teamId: string,
-  sessionId: string,
-  sessionLink: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const url = new URL(`${BASE_URL}/api/ai/live_share_update_link`);
-
-    const payload = {
-      team_id: teamId,
-      session_id: sessionId,
-      session_link: sessionLink
-    };
-
-    console.log('[TeamActivityService] Updating Live Share event with session link:', payload);
-
-    const res = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('[TeamActivityService] Error from backend:', txt);
-      return { success: false, error: `HTTP ${res.status}: ${txt}` };
-    }
-
-    const data = await res.json();
-    console.log('[TeamActivityService] Live Share activity link updated:', data);
-    return { success: true };
-  } catch (err: any) {
-    console.error('[TeamActivityService] Exception updating Live Share activity link:', err);
-    return { success: false, error: err?.message || String(err) };
-  }
-}
-
-/**
- * Cleans up orphaned pinned Live Share Started events
- * Unpins all pinned "Live Share Started" events for a team
- * This is called when the extension initializes with no active session
- * @param teamId - The team ID
- * @returns Promise with success status
- */
-export async function cleanupOrphanedPinnedEvents(
-  teamId: string
-): Promise<{ success: boolean; error?: string }> {
-  try {
-    const url = new URL(`${BASE_URL}/api/ai/cleanup_orphaned_pins`);
-
-    const payload = {
-      team_id: teamId
-    };
-
-    console.log('[TeamActivityService] Cleaning up orphaned pinned events for team:', teamId);
-
-    const res = await fetch(url.toString(), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      console.error('[TeamActivityService] Error from backend:', txt);
-      return { success: false, error: `HTTP ${res.status}: ${txt}` };
-    }
-
-    const data = await res.json();
-    console.log('[TeamActivityService] Orphaned events cleaned up:', data);
-    return { success: true };
-  } catch (err: any) {
-    console.error('[TeamActivityService] Exception cleaning up orphaned events:', err);
     return { success: false, error: err?.message || String(err) };
   }
 }
@@ -283,91 +192,3 @@ export async function insertLiveShareSummary(
     return { success: false, error: err?.message || String(err) };
   }
 }
-
-  /**
-   * Inserts a Participant Status event (users joined or left) into the team activity feed.
-   * Non-clickable informational event used to broadcast membership changes.
-   * @param teamId Team identifier
-   * @param initiatorUserId User performing the action (or the user who joined/left)
-   * @param joinedUserIds Array of user IDs that just joined (optional)
-   * @param leftUserIds Array of user IDs that just left (optional)
-   */
-  export async function insertParticipantStatusEvent(
-    teamId: string,
-    initiatorUserId: string,
-    joinedUserIds: string[] = [],
-    leftUserIds: string[] = []
-  ): Promise<{ success: boolean; error?: string }> {
-    try {
-      const url = new URL(`${BASE_URL}/api/ai/participant_status_event`);
-      const payload = {
-        team_id: teamId,
-        user_id: initiatorUserId,
-        joined: joinedUserIds,
-        left: leftUserIds
-      };
-
-      const res = await fetch(url.toString(), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
-      if (res.ok) {
-        return { success: true };
-      }
-
-      // Fallback: insert directly via Supabase if backend route not available in deployment
-      const txt = await res.text();
-      console.warn('[TeamActivityService] Backend insert failed, trying Supabase fallback:', `HTTP ${res.status}: ${txt}`);
-
-      // Lazy import to avoid circular deps in webview bundle
-      const { getSupabase } = require('../auth/supabaseClient');
-      const { getOrInitDisplayName } = require('./profile-service');
-      const supabase = getSupabase();
-
-      // Compose simple header using initiator's display name (self-join/leave)
-      let headerParts: string[] = [];
-      if (joinedUserIds && joinedUserIds.length > 0) {
-        try {
-          const dn = await getOrInitDisplayName(true);
-          headerParts.push(`${dn.displayName} has joined the team`);
-        } catch {
-          headerParts.push('Joined: 1 member');
-        }
-      }
-      if (leftUserIds && leftUserIds.length > 0) {
-        try {
-          const dn = await getOrInitDisplayName(true);
-          headerParts.push(`${dn.displayName} has left the team`);
-        } catch {
-          headerParts.push('Left: 1 member');
-        }
-      }
-
-      const event_header = headerParts.join(' ; ');
-      const feed_row = {
-        team_id: teamId,
-        user_id: initiatorUserId,
-        event_header,
-        summary: null,
-        file_path: null,
-        source_snapshot_id: null,
-        activity_type: 'participant_status'
-      } as const;
-
-      const { error: insertErr } = await supabase
-        .from('team_activity_feed')
-        .insert(feed_row);
-
-      if (insertErr) {
-        console.error('[TeamActivityService] Supabase fallback insert failed:', insertErr);
-        return { success: false, error: insertErr.message };
-      }
-
-      return { success: true };
-    } catch (err: any) {
-      console.error('[TeamActivityService] Exception inserting participant status:', err);
-      return { success: false, error: err?.message || String(err) };
-    }
-  }
