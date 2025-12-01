@@ -28,8 +28,6 @@ body {
 	justify-content: flex-start;
 	box-sizing: border-box;
 	padding: 0;
-	overflow-x: hidden;
-	overflow-y: auto;
 }
 
 .panel-content {
@@ -42,7 +40,6 @@ body {
 	height: 100%;
 	box-sizing: border-box;
 	padding: 2vw 0;
-	overflow: visible;
 }
 
 @media (max-width: 600px) {
@@ -60,10 +57,6 @@ body {
 	background: var(--vscode-editor-background);
 	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 	transition: all 0.3s ease;
-	overflow: visible;
-	max-width: 600px;
-	margin-left: auto;
-	margin-right: auto;
 }
 
 .section:hover {
@@ -71,43 +64,19 @@ body {
 	border-color: var(--vscode-focusBorder);
 }
 
-/* Session Buttons Container */
-.session-buttons-container {
-	display: flex;
-	gap: 8px;
-	margin-bottom: 24px;
-	margin-top: 20px;
-	flex-wrap: wrap;
-}
-
-/* Session Status */
-.session-status {
-	margin-top: 20px;
-}
-
-/* Team Activity Container */
-.team-activity-container {
-	margin-top: 20px;
-}
-
 /* Section Header with Info Icon */
 .section-header {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	margin-bottom: 24px;
-	position: relative;
-	overflow: visible;
+	margin-bottom: 16px;
 }
 
 .section-title {
 	font-weight: 600;
-	font-size: 18px;
-	color: #ffffff;
+	font-size: 16px;
+	color: var(--vscode-foreground);
 	margin: 0;
-	letter-spacing: 0.5px;
-	text-align: center;
-	flex: 1;
 }
 
 /* Info Icon and Tooltip */
@@ -135,11 +104,9 @@ body {
 .tooltip {
 	position: absolute;
 	top: calc(100% + 8px);
-	left: auto;
-	right: auto;
-	width: max-content;
-	min-width: 200px;
-	max-width: min(320px, calc(100vw - 40px));
+	right: 0;
+	min-width: 250px;
+	max-width: 320px;
 	padding: 12px 16px;
 	background: var(--vscode-editorHoverWidget-background);
 	border: 1px solid var(--vscode-editorHoverWidget-border);
@@ -150,18 +117,16 @@ body {
 	line-height: 1.5;
 	opacity: 0;
 	visibility: hidden;
-	transform: translateX(-50%) translateY(-4px);
+	transform: translateY(-4px);
 	transition: all 0.2s ease;
-	z-index: 10000;
+	z-index: 1000;
 	pointer-events: none;
-	white-space: normal;
-	word-wrap: break-word;
-	overflow-wrap: break-word;
 }
 
 .info-icon-wrapper:hover .tooltip {
 	opacity: 1;
 	visibility: visible;
+	transform: translateY(0);
 }
 
 .tooltip::before {
@@ -392,59 +357,53 @@ body {
 	line-height: 1.6;
 }
 
-/* Modern Session Control Buttons - Danger Red Styling */
+/* Modern Session Control Buttons */
 .end-session-btn {
-	background: var(--vscode-inputValidation-errorBackground, #f14c4c) !important;
-	color: #ffffff !important;
+	background: var(--vscode-errorForeground) !important;
+	color: #fff !important;
 	margin-top: 12px;
-	font-size: 12px;
+	font-size: 13px;
 	font-weight: 500;
-	padding: 7px 14px;
+	padding: 10px 18px;
 	border: none !important;
-	border-radius: 6px;
+	border-radius: 8px;
 	cursor: pointer;
 	transition: all 0.2s ease;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-	letter-spacing: 0.2px;
-	text-transform: capitalize;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .end-session-btn:hover {
-	background: var(--vscode-errorForeground, #d93939) !important;
+	opacity: 0.9;
 	transform: translateY(-1px);
-	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .end-session-btn:active {
 	transform: translateY(0);
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .leave-session-btn {
-	background: var(--vscode-inputValidation-errorBackground, #f14c4c) !important;
-	color: #ffffff !important;
+	background: var(--vscode-charts-orange) !important;
+	color: #fff !important;
 	margin-top: 12px;
-	font-size: 12px;
+	font-size: 13px;
 	font-weight: 500;
-	padding: 7px 14px;
+	padding: 10px 18px;
 	border: none !important;
-	border-radius: 6px;
+	border-radius: 8px;
 	cursor: pointer;
 	transition: all 0.2s ease;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-	letter-spacing: 0.2px;
-	text-transform: capitalize;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
 .leave-session-btn:hover {
-	background: var(--vscode-errorForeground, #d93939) !important;
+	opacity: 0.9;
 	transform: translateY(-1px);
-	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+	box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
 .leave-session-btn:active {
 	transform: translateY(0);
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .end-session-btn:disabled,
@@ -453,37 +412,6 @@ body {
 	cursor: not-allowed !important;
 	transform: none !important;
 	box-shadow: none !important;
-}
-
-/* Activity Feed Container - Prevent horizontal stretching */
-.activity-feed-container {
-	max-width: 600px;
-	margin: 0 auto;
-	width: 100%;
-}
-
-/* Filter Dropdown*/
-.filter-dropdown {
-	padding: 7px 14px;
-	font-size: 12px;
-	border: 1px solid var(--vscode-input-border);
-	background: var(--vscode-input-background);
-	color: var(--vscode-input-foreground);
-	border-radius: 6px;
-	cursor: pointer;
-	font-weight: 500;
-	transition: all 0.2s ease;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
-}
-
-.filter-dropdown:hover {
-	border-color: var(--vscode-focusBorder);
-}
-
-.filter-dropdown:focus {
-	outline: none;
-	border-color: var(--vscode-focusBorder);
-	box-shadow: 0 0 0 1px var(--vscode-focusBorder);
 }
 
 /* Modern Activity */
@@ -495,8 +423,6 @@ body {
 	border-left: 4px solid var(--vscode-textLink-foreground);
 	transition: all 0.2s ease;
 	font-size: 13px;
-	width: 100%;
-	box-sizing: border-box;
 }
 
 .activity-item:hover {
@@ -531,84 +457,5 @@ body {
 		max-width: 280px;
 		font-size: 12px;
 	}
-}
-
-/* Timeline Assign Task Dropdown */
-.timeline-assign-dropdown {
-	position: fixed;
-	background: var(--vscode-dropdown-background);
-	border: 1px solid var(--vscode-dropdown-border);
-	border-radius: 8px;
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-	z-index: 1000;
-	min-width: 220px;
-	max-height: 300px;
-	overflow-y: auto;
-	animation: dropdownFadeIn 0.2s ease;
-}
-
-@keyframes dropdownFadeIn {
-	from {
-		opacity: 0;
-		transform: translateY(-10px);
-	}
-	to {
-		opacity: 1;
-		transform: translateY(0);
-	}
-}
-
-.timeline-assign-dropdown-header {
-	padding: 10px 14px;
-	font-size: 11px;
-	font-weight: 700;
-	text-transform: uppercase;
-	letter-spacing: 0.5px;
-	color: var(--vscode-descriptionForeground);
-	border-bottom: 1px solid var(--vscode-dropdown-border);
-	background: var(--vscode-dropdown-listBackground);
-}
-
-.timeline-assign-option {
-	display: flex;
-	align-items: center;
-	gap: 10px;
-	padding: 10px 14px;
-	cursor: pointer;
-	transition: all 0.2s ease;
-	border-bottom: 1px solid rgba(128, 128, 128, 0.1);
-}
-
-.timeline-assign-option:last-child {
-	border-bottom: none;
-}
-
-.timeline-assign-option:hover {
-	background: var(--vscode-list-hoverBackground);
-	transform: translateX(2px);
-}
-
-.timeline-assign-option .assignee-icon {
-	font-size: 16px;
-	opacity: 0.8;
-}
-
-.timeline-assign-option .assignee-name {
-	flex: 1;
-	font-size: 13px;
-}
-
-/* Styles for assigned/disabled assign button */
-.timeline-assign-btn.assigned,
-.timeline-assign-btn:disabled {
-	opacity: 0.6;
-	cursor: not-allowed !important;
-	pointer-events: none;
-}
-
-.timeline-assign-btn.assigned:hover,
-.timeline-assign-btn:disabled:hover {
-	opacity: 0.6;
-	transform: none;
 }
 

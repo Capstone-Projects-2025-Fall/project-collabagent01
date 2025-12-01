@@ -14,11 +14,6 @@ export class TasksPanel {
     private _currentUserRole?: string | null;
     private _jiraConfigured: boolean = false;
 
-    // Rate limiting for AI Suggestions
-    private _lastAISuggestionTime: Map<string, number> = new Map(); // teamId -> timestamp
-    private readonly AI_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes
-    private readonly MAX_TASKS_TO_ANALYZE = 25; // Maximum tasks to send to AI
-
     constructor(context: vscode.ExtensionContext) {
         this._context = context;
     }
@@ -505,126 +500,6 @@ export class TasksPanel {
     }
 
     /**
-     * Handles reassigning a task to a different user.
-     */
-    public async handleReassignIssue(issueKey: string, accountId: string | null) {
-        if (!this._currentTeamId) return;
-
-        try {
-            const jiraService = JiraService.getInstance();
-
-            // Performs the reassignment
-            await jiraService.reassignIssue(this._currentTeamId, issueKey, accountId);
-
-            const message = accountId 
-                ? `✅ ${issueKey} has been reassigned`
-                : `✅ ${issueKey} has been unassigned`;
-            vscode.window.showInformationMessage(message);
-
-            // Refresh the task list to show updated assignee
-            await this.handleRefreshTasks();
-
-        } catch (error) {
-            console.error('Failed to reassign issue:', error);
-            vscode.window.showErrorMessage(
-                `Failed to reassign ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-        }
-    }
-
-    /**
-     * Handles updating story points for an issue.
-     */
-    public async handleUpdateStoryPoints(issueKey: string, storyPoints: number | null) {
-        if (!this._currentTeamId) return;
-
-        try {
-            const jiraService = JiraService.getInstance();
-
-            // Performs the update
-            await jiraService.updateStoryPoints(this._currentTeamId, issueKey, storyPoints);
-
-            const message = storyPoints !== null
-                ? `✅ ${issueKey} story points updated to ${storyPoints}`
-                : `✅ ${issueKey} story points cleared`;
-            vscode.window.showInformationMessage(message);
-
-            // Refresh the task list to show updated story points
-            await this.handleRefreshTasks();
-
-        } catch (error) {
-            console.error('Failed to update story points:', error);
-            vscode.window.showErrorMessage(
-                `Failed to update story points for ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-        }
-    }
-
-    /**
-     * Handles updating priority for an issue.
-     */
-    public async handleUpdatePriority(issueKey: string, priorityName: string) {
-        if (!this._currentTeamId) return;
-
-        try {
-            const jiraService = JiraService.getInstance();
-
-            // Performs the update
-            await jiraService.updatePriority(this._currentTeamId, issueKey, priorityName);
-
-            vscode.window.showInformationMessage(`✅ ${issueKey} priority updated to ${priorityName}`);
-
-            // Refresh the task list to show updated priority
-            await this.handleRefreshTasks();
-
-        } catch (error) {
-            console.error('Failed to update priority:', error);
-            vscode.window.showErrorMessage(
-                `Failed to update priority for ${issueKey}: ${error instanceof Error ? error.message : 'Unknown error'}`
-            );
-        }
-    }
-
-    /**
-     * Handles fetching assignable users for the project.
-     */
-    public async handleFetchAssignableUsers() {
-        if (!this._currentTeamId || !this._view) return;
-
-        try {
-            const jiraService = JiraService.getInstance();
-            const users = await jiraService.fetchAssignableUsers(this._currentTeamId);
-
-            // Send users to webview
-            this._view.webview.postMessage({
-                command: 'assignableUsers',
-                users: users
-            });
-
-        } catch (error) {
-            console.error('Failed to fetch assignable users:', error);
-            this._view?.webview.postMessage({
-                command: 'assignableUsers',
-                users: [],
-                error: error instanceof Error ? error.message : 'Unknown error'
-            });
-        }
-    }
-
-    /**
-     * Gets assignable users from Jira for use in other panels (e.g., timeline).
-     * @returns Array of assignable users with accountId and displayName
-     */
-    public async getAssignableUsersFromJira(): Promise<Array<{accountId: string, displayName: string}>> {
-        if (!this._currentTeamId) {
-            throw new Error('No team selected');
-        }
-
-        const jiraService = JiraService.getInstance();
-        return await jiraService.fetchAssignableUsers(this._currentTeamId);
-    }
-
-    /**
      * Handles creating a new Jira task.
      */
     public async handleCreateTask(taskData: any) {
@@ -664,10 +539,6 @@ export class TasksPanel {
      * Handles AI task recommendations for unassigned tasks.
      * Fetches unassigned tasks, calls AI API to get recommendations,
      * and posts them to the team activity timeline.
-     *
-     * Rate limiting:
-     * - 5-minute cooldown between requests per team
-     * - Maximum 25 tasks analyzed per request
      */
     public async handleGetAISuggestions() {
         if (!this._currentTeamId || !this._view) {
@@ -677,24 +548,6 @@ export class TasksPanel {
         }
 
         try {
-            // Check rate limit: 5-minute cooldown per team
-            const now = Date.now();
-            const lastRequestTime = this._lastAISuggestionTime.get(this._currentTeamId);
-
-            if (lastRequestTime) {
-                const timeSinceLastRequest = now - lastRequestTime;
-                const cooldownRemaining = this.AI_COOLDOWN_MS - timeSinceLastRequest;
-
-                if (cooldownRemaining > 0) {
-                    const minutesRemaining = Math.ceil(cooldownRemaining / 60000);
-                    vscode.window.showWarningMessage(
-                        `⏱️ Please wait ${minutesRemaining} minute${minutesRemaining > 1 ? 's' : ''} before requesting AI suggestions again. This helps us manage API costs.`
-                    );
-                    this._view.webview.postMessage({ command: 'aiSuggestionsFailed' });
-                    return;
-                }
-            }
-
             // Show loading message
             vscode.window.showInformationMessage('Analyzing unassigned tasks...');
 
@@ -712,21 +565,6 @@ export class TasksPanel {
                 return;
             }
 
-            // Enforce task limit to manage API costs
-            if (unassignedTasks.length > this.MAX_TASKS_TO_ANALYZE) {
-                const result = await vscode.window.showWarningMessage(
-                    `⚠️ Found ${unassignedTasks.length} unassigned tasks. To manage API costs, only the first ${this.MAX_TASKS_TO_ANALYZE} tasks will be analyzed. Continue?`,
-                    'Yes, Continue',
-                    'Cancel'
-                );
-
-                if (result !== 'Yes, Continue') {
-                    vscode.window.showInformationMessage('AI analysis cancelled.');
-                    this._view.webview.postMessage({ command: 'aiSuggestionsFailed' });
-                    return;
-                }
-            }
-
             // Get current user ID for the API call
             const { getAuthContext } = require('../services/auth-service');
             const authResult = await getAuthContext();
@@ -736,9 +574,8 @@ export class TasksPanel {
                 throw new Error('Unable to get user authentication context');
             }
 
-            // Prepare task data for AI analysis (limit to MAX_TASKS_TO_ANALYZE)
-            const tasksToAnalyze = unassignedTasks.slice(0, this.MAX_TASKS_TO_ANALYZE);
-            const tasksForAI = tasksToAnalyze.map(task => ({
+            // Prepare task data for AI analysis
+            const tasksForAI = unassignedTasks.map(task => ({
                 key: task.key,
                 summary: task.fields.summary,
                 description: task.fields.description || ''
@@ -766,19 +603,10 @@ export class TasksPanel {
 
             const result = await response.json();
 
-            // Record successful request timestamp for rate limiting
-            this._lastAISuggestionTime.set(this._currentTeamId, now);
-
             // Show success message
             if (result.recommendations_count > 0) {
-                const tasksAnalyzed = tasksForAI.length;
-                const totalUnassigned = unassignedTasks.length;
-                const taskCountMsg = tasksAnalyzed < totalUnassigned
-                    ? ` (analyzed ${tasksAnalyzed} of ${totalUnassigned} tasks)`
-                    : '';
-
                 vscode.window.showInformationMessage(
-                    `✅ AI posted ${result.recommendations_count} task recommendation(s) to the timeline!${taskCountMsg}`
+                    `✅ AI posted ${result.recommendations_count} task recommendation(s) to the timeline!`
                 );
             } else {
                 vscode.window.showInformationMessage(

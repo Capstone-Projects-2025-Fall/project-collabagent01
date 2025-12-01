@@ -46,9 +46,3 @@ def sb_update(table, where_qs, json_body):
     # where_qs example: {"id": "eq.<uuid>"}
     r = requests.patch(f"{REST}/{table}", headers=HEADERS, params=where_qs, json=json_body, timeout=20)
     return _handle(r)
-
-def sb_delete(table, where_qs):
-    _check_config()
-    # where_qs example: {"id": "eq.<uuid>"}
-    r = requests.delete(f"{REST}/{table}", headers=HEADERS, params=where_qs, timeout=20)
-    return _handle(r)

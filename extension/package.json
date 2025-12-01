@@ -3,7 +3,7 @@
   "publisher": "capstone-team-02",
   "displayName": "Collab Agent 01",
   "description": "AI-powered collaboration assistant that integrates with Live Share to analyze team activity, provide real-time notifications about what teammates are working on, and enable intelligent team communication through a side panel interface",
-  "version": "0.6.0",
+  "version": "0.5.1",
   "license": "MIT",
   "keywords": [
     "collaboration",
@@ -186,6 +186,7 @@
     "eslint": "^9.19.0",
     "http-server": "^14.1.1",
     "jest": "^29.7.0",
+    "npx": "^10.2.2",
     "package": "^1.0.1",
     "rimraf": "^6.0.1",
     "ts-jest": "^29.2.6",
@@ -201,9 +202,5 @@
     "jira-client": "^8.2.2",
     "typedoc-theme-hierarchy": "^5.0.4",
     "vsls": "^1.0.4753"
-  },
-  "overrides": {
-    "glob": "^11.1.0",
-    "xml2js": "^0.5.0"
   }
 }
