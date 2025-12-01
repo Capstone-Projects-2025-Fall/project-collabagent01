@@ -29,6 +29,35 @@ export class SnapshotManager {
   /** Workspace root path for relative path conversion */
   private workspaceRoot: string;
 
+  /** Broadcast cooldown tracking */
+  private lastBroadcastTime: number = 0;
+  private BROADCAST_COOLDOWN = 60_000; // 60 seconds cooldown
+
+  /** Track if user has been notified about missing initial snapshot */
+  private hasShownInitialSnapshotWarning: boolean = false;
+
+  /** Track if we're currently taking an initial snapshot */
+  private isTakingInitialSnapshot: boolean = false;
+
+  // ==========================================
+  // GLOBAL RATE LIMITING (AI API Cost Protection)
+  // ==========================================
+  /**
+   * Global rate limit for ALL snapshot triggers (passive + active)
+   * Per user: 16 AI snapshots per hour (independent of team)
+   */
+  private readonly MAX_SNAPSHOTS_PER_HOUR = 16;
+  private readonly RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+  /**
+   * Track snapshot timestamps per user
+   * Key: userId, Value: array of timestamps (sorted, oldest first)
+   */
+  private snapshotHistory: Map<string, number[]> = new Map();
+
+  /** Track if user has been shown rate limit warning for current hour */
+  private hasShownRateLimitWarning: Map<string, boolean> = new Map();
+
   constructor(private context: vscode.ExtensionContext) {
     this.supabase = getSupabase();
 
@@ -36,15 +65,179 @@ export class SnapshotManager {
     const workspaceFolders = vscode.workspace.workspaceFolders;
     this.workspaceRoot = workspaceFolders?.[0]?.uri.fsPath || '';
 
+    // Load persisted rate limit history from storage
+    this.loadRateLimitHistory();
+
     vscode.workspace.onDidChangeTextDocument(() => this.onWorkspaceActivity());
     vscode.workspace.onDidCreateFiles(() => this.onWorkspaceActivity());
     vscode.workspace.onDidDeleteFiles(() => this.onWorkspaceActivity());
     vscode.workspace.onDidRenameFiles(() => this.onWorkspaceActivity());
+
+    // Monitor when files are opened to check for initial snapshot
+    vscode.workspace.onDidOpenTextDocument((document) => this.checkInitialSnapshotOnFileOpen(document));
+
+    // Check if there are already open documents when extension activates
+    // Use a small delay to ensure extension context is fully initialized
+    setTimeout(() => {
+      this.checkAlreadyOpenDocuments();
+    }, 1000);
+  }
+
+  // ==========================================
+  // GLOBAL RATE LIMITING METHODS
+  // ==========================================
+
+  /**
+   * Checks if the user has exceeded the hourly snapshot limit.
+   * Returns an object with:
+   * - allowed: boolean - whether snapshot is allowed
+   * - remaining: number - snapshots remaining in current window
+   * - resetTime: Date - when the quota resets
+   * - message: string - user-friendly message
+   */
+  private checkRateLimit(userId: string): {
+    allowed: boolean;
+    remaining: number;
+    resetTime: Date | null;
+    message: string;
+  } {
+    const now = Date.now();
+
+    // Get or initialize snapshot history for this user
+    let history = this.snapshotHistory.get(userId) || [];
+
+    // Remove snapshots older than 1 hour (sliding window)
+    history = history.filter(timestamp => now - timestamp < this.RATE_LIMIT_WINDOW_MS);
+
+    // Update the history
+    this.snapshotHistory.set(userId, history);
+
+    const snapshotsInWindow = history.length;
+    const remaining = this.MAX_SNAPSHOTS_PER_HOUR - snapshotsInWindow;
+
+    if (snapshotsInWindow >= this.MAX_SNAPSHOTS_PER_HOUR) {
+      // Find the oldest snapshot to calculate reset time
+      const oldestSnapshot = history[0];
+      const resetTime = new Date(oldestSnapshot + this.RATE_LIMIT_WINDOW_MS);
+      const minutesUntilReset = Math.ceil((resetTime.getTime() - now) / 60000);
+
+      return {
+        allowed: false,
+        remaining: 0,
+        resetTime: resetTime,
+        message: `⏱️ AI snapshot limit reached (${this.MAX_SNAPSHOTS_PER_HOUR}/hour). Quota resets in ${minutesUntilReset} minute(s). This helps manage API costs.`
+      };
+    }
+
+    return {
+      allowed: true,
+      remaining: remaining,
+      resetTime: history.length > 0 ? new Date(history[0] + this.RATE_LIMIT_WINDOW_MS) : null,
+      message: `${remaining} AI snapshot(s) remaining this hour`
+    };
+  }
+
+  /**
+   * Records a snapshot in the rate limit history.
+   * Call this AFTER successfully creating a snapshot.
+   */
+  private recordSnapshot(userId: string): void {
+    const now = Date.now();
+    const history = this.snapshotHistory.get(userId) || [];
+    history.push(now);
+    this.snapshotHistory.set(userId, history);
+
+    // Reset the warning flag so user can be warned again next hour
+    this.hasShownRateLimitWarning.delete(userId);
+
+    // Persist to storage to prevent restart bypass
+    this.saveRateLimitHistory();
+  }
+
+  /**
+   * Shows a one-time warning per hour when user is getting close to limit.
+   * Call this when user has 2 or fewer snapshots remaining.
+   */
+  private showRateLimitWarningIfNeeded(userId: string, remaining: number): void {
+    // Only show warning once per hour, and only when 2 or fewer remain
+    if (remaining <= 2 && !this.hasShownRateLimitWarning.get(userId)) {
+      vscode.window.showWarningMessage(
+        `⚠️ AI Snapshot Budget: Only ${remaining} snapshot(s) remaining this hour. Please use wisely to manage API costs.`
+      );
+      this.hasShownRateLimitWarning.set(userId, true);
+    }
+  }
+
+  /**
+   * Loads rate limit history from persistent storage (globalState).
+   * Called on extension startup to prevent rate limit bypass via restart.
+   */
+  private loadRateLimitHistory(): void {
+    try {
+      const stored = this.context.globalState.get<Record<string, number[]>>('snapshotRateLimitHistory');
+      if (stored) {
+        const now = Date.now();
+        // Convert stored object to Map and filter out expired snapshots
+        for (const [userId, timestamps] of Object.entries(stored)) {
+          const validTimestamps = timestamps.filter(ts => now - ts < this.RATE_LIMIT_WINDOW_MS);
+          if (validTimestamps.length > 0) {
+            this.snapshotHistory.set(userId, validTimestamps);
+          }
+        }
+        console.log('[SnapshotManager] Rate limit history loaded from storage');
+      }
+    } catch (error) {
+      console.error('[SnapshotManager] Failed to load rate limit history:', error);
+    }
+  }
+
+  /**
+   * Saves rate limit history to persistent storage (globalState).
+   * Called after each snapshot to prevent rate limit bypass via restart.
+   */
+  private saveRateLimitHistory(): void {
+    try {
+      // Convert Map to plain object for storage
+      const toStore: Record<string, number[]> = {};
+      for (const [userId, timestamps] of this.snapshotHistory.entries()) {
+        if (timestamps.length > 0) {
+          toStore[userId] = timestamps;
+        }
+      }
+      this.context.globalState.update('snapshotRateLimitHistory', toStore);
+    } catch (error) {
+      console.error('[SnapshotManager] Failed to save rate limit history:', error);
+    }
+  }
+
+  /**
+   * Checks already-open documents when extension activates
+   * This handles the case where user has files open before initial snapshot is taken
+   */
+  private async checkAlreadyOpenDocuments() {
+    // Check if we have any text documents already open
+    const openDocuments = vscode.workspace.textDocuments;
+
+    if (openDocuments.length > 0) {
+      // Check the active (visible) document first if it exists
+      const activeDocument = vscode.window.activeTextEditor?.document;
+      if (activeDocument) {
+        await this.checkInitialSnapshotOnFileOpen(activeDocument);
+      } else if (openDocuments.length > 0) {
+        // If no active document, check the first open document
+        await this.checkInitialSnapshotOnFileOpen(openDocuments[0]);
+      }
+    }
   }
 
   // ——————————————————————
   // Public APIs you already call
   // ——————————————————————
+
+  /** Check if baseline snapshot exists */
+  public hasBaselineSnapshot(): boolean {
+    return this.baselineSnapshot !== null;
+  }
 
   /** Initial full snapshot (called when team is selected) */
   public async takeSnapshot(userId: string, projectName: string, teamId?: string) {
@@ -55,6 +248,9 @@ export class SnapshotManager {
       return;
     }
 
+    // Mark that we're taking initial snapshot
+    this.isTakingInitialSnapshot = true;
+
     vscode.window.showInformationMessage('📸 Taking initial workspace snapshot...');
 
     const snapshot = await this.captureWholeWorkspace();
@@ -62,12 +258,18 @@ export class SnapshotManager {
     // Save baseline in memory
     this.baselineSnapshot = snapshot;
 
+    // Reset warning flag since initial snapshot is now taken
+    this.hasShownInitialSnapshotWarning = false;
+
     // Write to DB: snapshot (all files), clear changes
     await this.insertNewSnapshot(userId, projectName, teamId, snapshot, {});
 
     const fileCount = Object.keys(snapshot).length;
     vscode.window.showInformationMessage(`✅ Initial snapshot complete: ${fileCount} files captured`);
     console.log("Full workspace snapshot saved.");
+
+    // Mark that we're done taking initial snapshot
+    this.isTakingInitialSnapshot = false;
   }
 
   /** Idle-based incremental snapshot: recompute ALL changes vs baseline and check thresholds */
@@ -78,13 +280,23 @@ export class SnapshotManager {
       return;
     }
 
-    // We require a baseline snapshot to compare against.
+    // Initial snapshots should ONLY be created when the user clicks "Switch Team".
     if (!this.baselineSnapshot) {
-      // No baseline yet? Create one now (e.g., first run after opening project).
-      const projectName = this.getProjectName();
-      await this.takeSnapshot(userId, projectName, teamId);
+      console.log('[SnapshotManager] No baseline snapshot exists - automatic snapshots will not run until user selects a team via Switch Team');
       return;
     }
+
+    // ====== GLOBAL RATE LIMIT CHECK (per-user) ======
+    const rateLimit = this.checkRateLimit(userId);
+    if (!rateLimit.allowed) {
+      console.log(`[SnapshotManager] Rate limit exceeded: ${rateLimit.message}`);
+      vscode.window.showWarningMessage(rateLimit.message);
+      return;
+    }
+
+    // Show warning if getting close to limit
+    this.showRateLimitWarningIfNeeded(userId, rateLimit.remaining);
+    // =================================================
 
     const projectName = this.getProjectName();
     const current = await this.captureWholeWorkspace();
@@ -101,12 +313,15 @@ export class SnapshotManager {
     // Only create snapshot if threshold is met
     if (linesChanged >= this.LINES_THRESHOLD || filesChanged >= this.FILES_THRESHOLD) {
       vscode.window.showInformationMessage(
-        `📸 Capturing snapshot: ${filesChanged} files, ${linesChanged} lines changed`
+        `📸 Capturing snapshot: ${filesChanged} files, ${linesChanged} lines changed (${rateLimit.remaining - 1} AI snapshots left this hour)`
       );
 
       // Create NEW row with ONLY changes (not full workspace)
       // Pass empty object {} for snapshot to save space
       await this.insertNewSnapshot(userId, projectName, teamId, {}, mergedChanges);
+
+      // Record snapshot in rate limit history (per-user)
+      this.recordSnapshot(userId);
 
       vscode.window.showInformationMessage(
         `✅ Snapshot sent to AI for analysis`
@@ -119,6 +334,65 @@ export class SnapshotManager {
     } else {
       console.log(`[SnapshotManager] Threshold not met (need ${this.LINES_THRESHOLD} lines or ${this.FILES_THRESHOLD} files). Skipping snapshot.`);
     }
+  }
+
+  // Initial snapshot notification
+  /**
+   * Checks if initial snapshot exists when user opens a file.
+   * Shows a one-time notification if no baseline snapshot exists.
+   */
+  private async checkInitialSnapshotOnFileOpen(document: vscode.TextDocument) {
+    // Only check for workspace files (not settings, output panels, etc.)
+    if (document.uri.scheme !== 'file') {
+      return;
+    }
+
+    // Skip if already shown warning
+    if (this.hasShownInitialSnapshotWarning) {
+      return;
+    }
+
+    // Skip if we're currently taking an initial snapshot
+    if (this.isTakingInitialSnapshot) {
+      return;
+    }
+
+    // Skip if baseline snapshot exists
+    if (this.baselineSnapshot) {
+      return;
+    }
+
+    // Skip if no workspace is open
+    if (!vscode.workspace.workspaceFolders?.length) {
+      return;
+    }
+
+    // Check if file is within the workspace
+    const workspaceFolder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!workspaceFolder) {
+      return;
+    }
+
+    // Check if user is signed in
+    const userId = await getCurrentUserId();
+    if (!userId) {
+      // User not signed in yet, don't show notification
+      return;
+    }
+
+    // Mark as shown to prevent repeated notifications
+    this.hasShownInitialSnapshotWarning = true;
+
+    // Show notification with action button
+    vscode.window.showInformationMessage(
+      'No initial snapshot detected. Please select a team in the Team panel to track your changes and share updates with your team.',
+      'Open Team Panel'
+    ).then(selection => {
+      if (selection === 'Open Team Panel') {
+        // Open the Team Activity panel
+        vscode.commands.executeCommand('workbench.view.extension.collabAgent');
+      }
+    });
   }
 
   // ——————————————————————
@@ -318,6 +592,127 @@ export class SnapshotManager {
     this.baselineSnapshot = newSnapshot;
   }
 
+  /**
+   * Broadcast snapshot - Manual override that bypasses automatic snapshot constraints
+   * Checks:
+   * 1. Initial snapshot exists
+   * 2. At least 2 lines changed
+   * 3. 60-second cooldown occured
+   * 4. Global rate limit not exceeded (10/hour across all triggers)
+   * Returns success/error object
+   */
+  public async broadcastSnapshot(userId: string, projectName: string, teamId?: string): Promise<{success: boolean, message: string}> {
+    // Require teamId for snapshot
+    if (!teamId) {
+      console.warn('[SnapshotManager] No team selected - skipping broadcast');
+      return {
+        success: false,
+        message: 'Please select a team before broadcasting snapshots'
+      };
+    }
+
+    // Check 1: Initial snapshot must exist
+    if (!this.baselineSnapshot) {
+      console.log('[SnapshotManager] No baseline snapshot exists - cannot broadcast');
+      return {
+        success: false,
+        message: 'Please trigger initial snapshot first by switching to a team'
+      };
+    }
+
+    // Check 2: Global rate limit (per-user, applies to both passive AND active triggers)
+    const rateLimit = this.checkRateLimit(userId);
+    if (!rateLimit.allowed) {
+      console.log(`[SnapshotManager] Rate limit exceeded for broadcast: ${rateLimit.message}`);
+      return {
+        success: false,
+        message: rateLimit.message
+      };
+    }
+
+    // Show warning if getting close to limit
+    this.showRateLimitWarningIfNeeded(userId, rateLimit.remaining);
+
+    // Check 3: Cooldown period (broadcast-specific, prevents spam clicking)
+    const now = Date.now();
+    const timeSinceLastBroadcast = now - this.lastBroadcastTime;
+    if (timeSinceLastBroadcast < this.BROADCAST_COOLDOWN) {
+      const remainingSeconds = Math.ceil((this.BROADCAST_COOLDOWN - timeSinceLastBroadcast) / 1000);
+      console.log(`[SnapshotManager] Broadcast cooldown active - ${remainingSeconds}s remaining`);
+      return {
+        success: false,
+        message: `Please wait ${remainingSeconds} seconds before broadcasting again`
+      };
+    }
+
+    // Capture current state and compute changes
+    const newSnapshot = await this.captureWholeWorkspace();
+    const diff = this.computeUnifiedDiffs(this.baselineSnapshot, newSnapshot);
+
+    const filesChanged = Object.keys(diff).length;
+    const linesChanged = this.countTotalLines(diff);
+
+    console.log(`[SnapshotManager] Broadcast check: ${filesChanged} files, ${linesChanged} lines changed`);
+
+    // Check 4: At least 2 lines changed
+    if (linesChanged < 2) {
+      console.log('[SnapshotManager] Insufficient changes for broadcast (need at least 2 lines)');
+      return {
+        success: false,
+        message: `Only ${linesChanged} line(s) changed. Need at least 2 lines to broadcast`
+      };
+    }
+
+    // All checks passed - create broadcast snapshot
+    vscode.window.showInformationMessage(
+      `📡 Broadcasting snapshot: ${filesChanged} files, ${linesChanged} lines changed (${rateLimit.remaining - 1} AI snapshots left this hour)`
+    );
+
+    // Create new snapshot row with broadcast marker in file_path
+    const payload = {
+      user_id: userId,
+      team_id: teamId,
+      project_name: projectName,
+      snapshot: {},
+      changes: diff,
+      file_path: '[BROADCAST]', // Special marker for broadcast snapshots
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await this.supabase
+      .from("file_snapshots")
+      .insert(payload)
+      .select();
+
+    if (error) {
+      console.error('[SnapshotManager] Failed to broadcast snapshot:', error);
+      return {
+        success: false,
+        message: `Failed to broadcast: ${error.message}`
+      };
+    }
+
+    // Update cooldown timer
+    this.lastBroadcastTime = now;
+
+    // Record snapshot in rate limit history (per-user)
+    this.recordSnapshot(userId);
+
+    // Update baseline to current state
+    this.baselineSnapshot = newSnapshot;
+
+    console.log('[SnapshotManager] Broadcast snapshot created successfully');
+
+    vscode.window.showInformationMessage(
+      `✅ Broadcast successful: ${filesChanged} files, ${linesChanged} lines`
+    );
+
+    return {
+      success: true,
+      message: `Broadcast successful: ${filesChanged} files, ${linesChanged} lines changed`
+    };
+  }
+
   private async requireUser(): Promise<string> {
     const userId = await getCurrentUserId();
     if (!userId) {
@@ -370,11 +765,10 @@ export class SnapshotManager {
   private async forceSavePendingChanges(userId: string, teamId: string) {
     console.log('[SnapshotManager] Force-saving pending changes (ignoring thresholds)');
 
-    // We require a baseline snapshot to compare against.
+    // Initial snapshots should ONLY be created when the user clicks "Switch Team".
     if (!this.baselineSnapshot) {
-      console.log('[SnapshotManager] No baseline yet - taking initial snapshot first');
-      const projectName = this.getProjectName();
-      await this.takeSnapshot(userId, projectName, teamId);
+      console.log('[SnapshotManager] No baseline snapshot exists - cannot save pending changes. User must select team via Switch Team first.');
+      vscode.window.showWarningMessage('Please select a team via Switch Team before starting a Live Share session');
       return;
     }
 
@@ -470,6 +864,7 @@ export class SnapshotManager {
       // Take a new initial snapshot to set a fresh baseline for local changes
       vscode.window.showInformationMessage('📸 Taking snapshot after session...');
       await this.takeSnapshot(userId, projectName, teamId);
+      // Note: takeSnapshot already resets hasShownInitialSnapshotWarning
     }
 
     // Resume automatic tracking

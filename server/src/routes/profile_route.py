@@ -19,7 +19,7 @@ def get_profile():
             return jsonify({"error": "user_id is required"}), 400
         
         profiles = sb_select("user_profiles", {
-            "select": "id,user_id,name,interests,strengths,weaknesses,custom_skills,updated_at",
+            "select": "id,user_id,name,interests,custom_skills,updated_at",
             "user_id": f"eq.{user_id}",
             "limit": "1"
         })
@@ -55,8 +55,6 @@ def save_profile():
     user_id = body.get("user_id")
     name = body.get("name", "")
     interests = body.get("interests", [])
-    strengths = body.get("strengths", [])
-    weaknesses = body.get("weaknesses", [])
     custom_skills = body.get("custom_skills", [])
     
     if not user_id:
@@ -73,8 +71,6 @@ def save_profile():
             "user_id": user_id,
             "name": name,
             "interests": interests,
-            "strengths": strengths,
-            "weaknesses": weaknesses,
             "custom_skills": custom_skills
         }
         

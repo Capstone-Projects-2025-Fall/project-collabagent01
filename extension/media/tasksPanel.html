@@ -100,21 +100,6 @@
     <!-- Tasks List UI -->
     <div id="tasks-content" class="tasks-content" style="display: none;">
         <div class="tasks-toolbar">
-            <div class="tasks-filters">
-                <select id="sprint-filter" class="filter-select">
-                    <option value="">All Issues</option>
-                    <option value="backlog">📋 Backlog</option>
-                </select>
-                <select id="status-filter" class="filter-select">
-                    <option value="">All Statuses</option>
-                    <option value="To Do">To Do</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Done">Done</option>
-                </select>
-                <select id="assignee-filter" class="filter-select">
-                    <option value="">All Assignees</option>
-                </select>
-            </div>
             <div class="tasks-actions">
                 <button class="button small" id="create-task-btn" title="Create new task">
                     <span class="button-icon"></span>
@@ -132,6 +117,21 @@
                     <span class="button-icon"></span>
                     Disconnect
                 </button>
+            </div>
+            <div class="tasks-filters">
+                <select id="sprint-filter" class="filter-select">
+                    <option value="">All Issues</option>
+                    <option value="backlog">📋 Backlog</option>
+                </select>
+                <select id="status-filter" class="filter-select">
+                    <option value="">All Statuses</option>
+                    <option value="To Do">To Do</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Done">Done</option>
+                </select>
+                <select id="assignee-filter" class="filter-select">
+                    <option value="">All Assignees</option>
+                </select>
             </div>
         </div>
 
