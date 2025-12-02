@@ -1,430 +1,297 @@
 import * as vscode from "vscode";
-import { LogEvent } from "../api/types/event";
-import { trackEvent } from "../api/log-api";
-import { getUserByID } from "../api/user-api";
-import { AUTH_CONTEXT, User } from "../api/types/user";
 import { globalContext } from "../extension";
-import { signIn, signUp } from "../api/auth-api";
-import {
-  authNotification,
-  authSignOutNotification,
-  errorNotification,
-  showAuthNotification,
-} from "../views/notifications";
-import { BASE_URL } from "../api/types/endpoints";
+import { AUTH_CONTEXT, User } from "../api/types/user";
+import * as authApi from "../api/auth-api";
+import * as userApi from "../api/user-api";
+import * as notifications from "../views/notifications";
 import { getSupabase } from "../auth/supabaseClient";
 
+// ---------------------------------------------
+// Helpers
+// ---------------------------------------------
 
-/**
- * Sets the authentication context for the user in the VS Code global state.
- *
- * This stores the user session and authentication status for extension-wide access.
- *
- * @param user - The user object to store in global state, or `undefined` to clear authentication.
- * @returns An object containing an optional error message.
- */
-export async function setAuthContext(
-  user: User | undefined
-): Promise<{ error?: string }> {
+async function getStoredUser(): Promise<User | undefined> {
   try {
-    if (!globalContext) {
-      throw new Error("Invalid user or context provided.");
+    return globalContext.globalState.get(AUTH_CONTEXT) as User | undefined;
+  } catch (err: any) {
+    throw new Error(err.message);
+  }
+}
+
+// ---------------------------------------------
+// setAuthContext
+// ---------------------------------------------
+
+export async function setAuthContext(user?: User) {
+  try {
+    await globalContext.globalState.update(AUTH_CONTEXT, user);
+    return { context: user };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+// ---------------------------------------------
+// getAuthContext
+// ---------------------------------------------
+
+export async function getAuthContext() {
+  try {
+    const context = globalContext.globalState.get(AUTH_CONTEXT) as User | undefined;
+    return { context };
+  } catch (err: any) {
+    return { error: err.message };
+  }
+}
+
+// ---------------------------------------------
+// checkUserSignIn
+// ---------------------------------------------
+
+export async function checkUserSignIn() {
+  try {
+    const ctx = await getStoredUser();
+
+    if (!ctx) {
+      notifications.authNotification();
+      return;
     }
+
+    const supabase = getSupabase();
+    const { data } = await supabase.auth.getSession();
+
+    const token = data?.session?.access_token;
+    if (!token) return;
+
+    const { user } = await userApi.getUserByID(token);
+    if (!user) return;
 
     await globalContext.globalState.update(AUTH_CONTEXT, user);
 
-    return {};
-  } catch (err) {
-    return {
-      error: err instanceof Error ? err.message : "Unknown error occurred",
-    };
+    notifications.showAuthNotification(`Welcome back, ${user.first_name}! 🎉`);
+  } catch (err: any) {
+    notifications.errorNotification(`Failed to get user context: ${err.message}`);
   }
 }
 
-/**
- * Retrieves the current authentication context from the global extension state.
- *
- * @returns An object containing either the user context or an error message.
- */
-export async function getAuthContext(): Promise<{
-  context?: User;
-  error?: string;
-}> {
+// ---------------------------------------------
+// signInOrUpMenu
+// ---------------------------------------------
+
+export async function signInOrUpMenu() {
   try {
-    const context = globalContext.globalState.get<User | undefined>(
-      AUTH_CONTEXT
-    );
-    return { context };
-  } catch (err) {
-    return {
-      error: err instanceof Error ? err.message : "Unknown error occurred",
-    };
-  }
-}
+    const ctx = await getStoredUser();
 
-/**
- * Checks if a user is signed in, and if not, prompts them to authenticate.
- */
-export async function checkUserSignIn() {
-  const { context: user, error } = await getAuthContext();
-  if (error) {
-    await errorNotification(`Failed to get user context: ${error}`);
-    return;
-  }
-  if (user === undefined) {
-    await authNotification();
-    return;
-  }
-
-  // Get the current session token from Supabase
-  const supabase = getSupabase();
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token || user.auth_token || user.id;
-
-  await getUserByID(token).then(async ({ user: refreshedUser, error }) => {
-    if (error) {
-      console.warn(`Failed to get user data during startup: ${error}`);
+    if (ctx) {
+      notifications.authSignOutNotification(
+        `You are already signed in as ${ctx.email}.`
+      );
       return;
     }
-    setAuthContext(refreshedUser);
-  });
 
-  if (user.isAuthenticated) {
-    await showAuthNotification(`Welcome back, ${user.first_name}! 🎉`);
-    return;
-  }
-}
+    const choice = await vscode.window.showQuickPick(["Sign in", "Sign up"]);
 
-/**
- * Displays a menu for the user to sign in or sign up.
- */
-export async function signInOrUpMenu() {
-  const { context: user, error } = await getAuthContext();
-  if (error) {
-    errorNotification(`Failed to get user context: ${error}`);
-    return;
-  }
-
-  if (user && user.isAuthenticated) {
-    await authSignOutNotification(
-      `You are already signed in as ${user.email}.`
-    );
-  } else {
-    const signInMethod = await vscode.window.showQuickPick(
-      ["Sign in", "Sign up"],
-      { placeHolder: "Sign in or create an account" }
-    );
-
-    if (signInMethod === "Sign in") {
-      signInMenu();
-    } else if (signInMethod === "Sign up") {
-      handleSignUp();
+    if (choice === "Sign in") {
+      return signInMenu();
     }
+
+    if (choice === "Sign up") {
+      return handleSignUp();
+    }
+  } catch (err: any) {
+    notifications.errorNotification(`Failed to get user context: ${err.message}`);
   }
 }
 
-/**
- * Displays the sign-out confirmation menu.
- */
+// ---------------------------------------------
+// signOutMenu
+// ---------------------------------------------
+
 export async function signOutMenu() {
-  const { context: user, error } = await getAuthContext();
-  if (error) {
-    vscode.window.showErrorMessage(`Failed to get user context: ${error}`);
-    return;
-  }
-  if (!user || !user.isAuthenticated) {
-    showAuthNotification(`You are already signed out.`);
-    return;
-  }
-  await authSignOutNotification(`Are you sure you want to sign out?`);
-}
+  try {
+    const ctx = await getStoredUser();
 
-/**
- * Displays a menu for the user to choose an email or GitHub sign-in method.
- */
-export async function signInMenu() {
-  const action = await vscode.window.showQuickPick(
-    ["Sign In with Email", "Sign In with GitHub"],
-    {
-      placeHolder: "Select a sign-in method",
+    if (!ctx) {
+      notifications.showAuthNotification("You are already signed out.");
+      return;
     }
-  );
 
-  if (!action) {
-    return;
-  }
-
-  switch (action) {
-    case "Sign In with Email":
-      await handleSignIn();
-      break;
-    case "Sign In with GitHub":
-      await signInWithGithub();
-      break;
+    notifications.authSignOutNotification("Are you sure you want to sign out?");
+  } catch (err: any) {
+    vscode.window.showErrorMessage(`Failed to get user context: ${err.message}`);
   }
 }
 
-/**
- * Handles the email and password sign-in flow.
- */
-export async function handleSignIn() {
-  const email = await vscode.window.showInputBox({
-    prompt: "Enter your email",
-    placeHolder: "sample@gmail.com",
-  });
-  if (!email) {
-    return;
+// ---------------------------------------------
+// signInMenu
+// ---------------------------------------------
+
+export async function signInMenu() {
+  const choice = await vscode.window.showQuickPick([
+    "Sign In with Email",
+    "Sign In with GitHub",
+  ]);
+
+  if (choice === "Sign In with Email") {
+    return handleSignIn();
   }
+
+  if (choice === "Sign In with GitHub") {
+    return signInWithGithub();
+  }
+}
+
+// ---------------------------------------------
+// handleSignIn
+// ---------------------------------------------
+
+export async function handleSignIn() {
+  const email = await vscode.window.showInputBox({ prompt: "Email" });
+  if (!email) return;
 
   const password = await vscode.window.showInputBox({
-    prompt: "Enter your password",
-    placeHolder: "password",
+    prompt: "Password",
     password: true,
   });
-  if (!password) {
-    return;
-  }
+  if (!password) return;
 
-  const { token, error } = await signIn(email, password);
-  if (error || !token) {
-    vscode.window.showErrorMessage(
-      `Sign In failed. Email or password may be incorrect.`
-    );
+  const { token, error } = await authApi.signIn(email, password);
 
-    const choice = await vscode.window.showInformationMessage(
-      "Account not found. Would you like to sign up with this Email and Password?",
+  if (!token || error) {
+    const res = await vscode.window.showInformationMessage(
+      "Sign In failed. Create new account?",
       "Yes",
       "No"
     );
-    if (choice === "Yes") {
-      await handleSignUpProvided(email, password);
+
+    if (res === "Yes") {
+      return handleSignUpProvided(email, password);
     }
+
     return;
   }
 
-  // Store the Supabase session manually so it's restored later
   const supabase = getSupabase();
-  const { error: sessionError } = await supabase.auth.setSession({
-    access_token: token,
-    refresh_token: token,
-  });
-  if (sessionError) {
-    console.error("[Auth] Failed to set Supabase session:", sessionError.message);
-  } else {
-    console.log("[Auth] Supabase session persisted successfully.");
+  await supabase.auth.setSession({ access_token: token, refresh_token: token });
+
+  const { user } = await userApi.getUserByID(token);
+
+  if (user) {
+    await setAuthContext(user);
+    notifications.showAuthNotification("Sign In successfully! 🎉");
   }
-
-  // Now fetch user data as usual
-  const { user, error: getUserError } = await getUserByID(token);
-  if (getUserError || !user) {
-    vscode.window.showErrorMessage(`Failed to get user data: ${getUserError}`);
-    return;
-  }
-  user.isAuthenticated = true;
-
-  const { error: authError } = await setAuthContext(user);
-  if (authError) {
-    vscode.window.showErrorMessage(`Failed to set user context: ${authError}`);
-    return;
-  }
-
-  await showAuthNotification("Sign In successfully! 🎉");
-
-  vscode.commands.executeCommand("collabAgent.authStateChanged");
 }
 
-/**
- * Signs up a user using email, password, and name if they are not found.
- *
- * @param email - User's email address.
- * @param password - User's password.
- */
+// ---------------------------------------------
+// handleSignUpProvided
+// ---------------------------------------------
+
 export async function handleSignUpProvided(email: string, password: string) {
-  const firstName = await vscode.window.showInputBox({
-    prompt: "Enter your first name",
-    placeHolder: "Example: John",
-  });
-  if (!firstName) {
-    return;
-  }
-  const lastName = await vscode.window.showInputBox({
-    prompt: "Enter your last name",
-    placeHolder: "Example: Doe",
-  });
-  if (!lastName) {
-    return;
-  }
-  const { token, error } = await signUp(email, password, firstName, lastName);
+  const first = await vscode.window.showInputBox({ prompt: "First Name" });
+  const last = await vscode.window.showInputBox({ prompt: "Last Name" });
+
+  const { token, error } = await authApi.signUp(
+    email,
+    password,
+    first ?? "",
+    last ?? ""
+  );
+
   if (error || !token) {
-    vscode.window.showErrorMessage(`Sign Up failed.`);
-    return;
-  }
-  const { user, error: getUserError } = await getUserByID(token);
-  if (getUserError || !user) {
-    vscode.window.showErrorMessage(`Failed to get user data: ${getUserError}`);
-    return;
-  }
-  user.isAuthenticated = true;
-  const { error: authError } = await setAuthContext(user);
-  if (authError) {
-    vscode.window.showErrorMessage(`Failed to set user context: ${authError}`);
+    notifications.errorNotification(`Sign Up failed: ${error}`);
     return;
   }
 
-  await showAuthNotification("Sign Up successfully! 🎉");
+  const { user } = await userApi.getUserByID(token);
 
-  vscode.commands.executeCommand("collabAgent.authStateChanged");
+  if (user) {
+    user.first_name = first ?? "";
+    user.last_name = last ?? "";
+    user.isAuthenticated = true;
+
+    await setAuthContext(user);
+  }
 }
 
-/**
- * Signs the user out and resets the authentication context.
- */
+// ---------------------------------------------
+// handleSignOut
+// ---------------------------------------------
+
 export async function handleSignOut() {
-  const { context: user, error: contextError } = await getAuthContext();
-  if (contextError || !user) {
-    await errorNotification(`Failed to get user context: ${contextError}`);
-    return;
-  }
-  const { error: setAuthError } = await setAuthContext(undefined);
-  if (setAuthError) {
-    await errorNotification(`Failed to set user context: ${setAuthError}`);
-    return;
-  }
-
-  // Clear the stored GitHub access token
   try {
-    const { clearGitHubAccessToken } = require('./github-verification-service');
-    await clearGitHubAccessToken();
-  } catch (err) {
-    console.warn('Failed to clear GitHub token:', err);
+    const ctx = await getStoredUser();
+    if (!ctx) throw new Error("no ctx");
+
+    await globalContext.globalState.update(AUTH_CONTEXT, undefined);
+    notifications.showAuthNotification("Sign Out Successfully! 👋");
+  } catch (err: any) {
+    notifications.errorNotification(`Failed to get user context: ${err.message}`);
   }
-
-  await showAuthNotification(`Sign Out Successfully! 👋`);
-
-  vscode.commands.executeCommand("collabAgent.authStateChanged");
 }
 
-/**
- * Handles the full email/password sign-up flow for new users.
- */
+// ---------------------------------------------
+// handleSignUp
+// ---------------------------------------------
+
 export async function handleSignUp() {
-  const firstName = await vscode.window.showInputBox({
-    prompt: "Enter your first name",
-    placeHolder: "Example: John",
-  });
-  if (!firstName) {
-    return;
-  }
-
-  const lastName = await vscode.window.showInputBox({
-    prompt: "Enter your last name",
-    placeHolder: "Example: Doe",
-  });
-  if (!lastName) {
-    return;
-  }
-
-  const email = await vscode.window.showInputBox({
-    prompt: "Enter your email",
-    placeHolder: "sample@gmail.com",
-  });
-  if (!email) {
-    return;
-  }
-
+  const first = await vscode.window.showInputBox({ prompt: "First Name" });
+  const last = await vscode.window.showInputBox({ prompt: "Last Name" });
+  const email = await vscode.window.showInputBox({ prompt: "Email" });
   const password = await vscode.window.showInputBox({
-    prompt: "Enter your password",
-    placeHolder: "password",
+    prompt: "Password",
     password: true,
   });
-  if (!password) {
+
+  const { token, error } = await authApi.signUp(
+    email ?? "",
+    password ?? "",
+    first ?? "",
+    last ?? ""
+  );
+
+  if (error || !token) {
+    notifications.errorNotification(`Sign Up failed: ${error}`);
+    notifications.authNotification();
     return;
   }
 
-  const { token, error } = await signUp(email, password, firstName, lastName);
+  const { user } = await userApi.getUserByID(token);
 
-  if (error || !token) {
-    await errorNotification(`Sign Up failed: ${error}`);
-    await authNotification();
-  } else {
-    const { user, error: getUserError } = await getUserByID(token);
-    if (getUserError || !user) {
-      await errorNotification(`Failed to get user data: ${getUserError}`);
-      await authNotification();
-      return;
-    }
-    await showAuthNotification("Sign Up successfully! 🎉");
-
-    const { error } = await setAuthContext(user);
-    if (error) {
-      await errorNotification(`Failed to register user in backend: ${error}`);
-    }
-
-  vscode.commands.executeCommand("collabAgent.authStateChanged");
+  if (user) {
+    await setAuthContext(user);
+    notifications.showAuthNotification("Sign Up successfully! 🎉");
   }
 }
 
-/**
- * Signs in a user through GitHub OAuth authentication flow.
- * Opens external browser for OAuth flow and handles the callback.
- */
+// ---------------------------------------------
+// GitHub OAuth
+// ---------------------------------------------
+
 export async function signInWithGithub() {
   try {
-  // Use require to avoid needing explicit .js extension under nodenext resolution
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { getSupabase } = require("../auth/supabaseClient");
     const supabase = getSupabase();
-    // Build deep link dynamically from the actual extension id so it keeps working if the publisher changes
-    // Expected format: vscode://{publisher}.{extensionName}/auth/callback
-    let redirectTo = "vscode://unknown.publisher/auth/callback";
-    try {
-      const thisExt = vscode.extensions.all.find(
-        (e) => e.extensionUri.toString() === (globalContext?.extensionUri.toString() || "")
-      );
-      const extId = thisExt?.id; // e.g., "publisher.collab-agent01"
-      if (extId) {
-        redirectTo = `vscode://${extId}/auth/callback`;
-      }
-    } catch {}
-    const { data, error } = await supabase.auth.signInWithOAuth({
+    const { data } = await supabase.auth.signInWithOAuth({
       provider: "github",
-      options: { redirectTo }
     });
-    if (error) throw error;
-    if (data?.url) {
-      await vscode.env.openExternal(vscode.Uri.parse(data.url));
-    } else {
-      throw new Error("No OAuth URL returned from Supabase");
-    }
-  } catch (error: any) {
-    await errorNotification(`GitHub Sign In failed: ${error.message}`);
-    await authNotification();
+
+    if (data?.url) vscode.env.openExternal(vscode.Uri.parse(data.url));
+  } catch (err: any) {
+    notifications.errorNotification(`GitHub Sign In failed: ${err.message}`);
+    notifications.authNotification();
   }
 }
 
-export async function getCurrentUserId(): Promise<string | null> {
+// ---------------------------------------------
+// getCurrentUserId
+// ---------------------------------------------
+
+export async function getCurrentUserId() {
   const supabase = getSupabase();
 
-  // Try to refresh and persist the session
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-  if (sessionError) {
-    console.warn("[Auth] getSession error:", sessionError.message);
-  }
+  const session = await supabase.auth.getSession();
+  const id = session?.data?.session?.user?.id;
+  if (id) return id;
 
-  if (sessionData?.session?.user?.id) {
-    console.log("[Auth] Found session user ID:", sessionData.session.user.id);
-    return sessionData.session.user.id;
-  }
-
-  // Try fallback - explicitly fetch user
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError) {
-    console.warn("[Auth] getUser fallback failed:", userError.message);
-  } else if (userData?.user) {
-    console.log("[Auth] Found user via getUser fallback:", userData.user.id);
-    return userData.user.id;
-  }
-
-  console.warn("[Auth] No session found in Supabase client.");
-  return null;
+  const fallback = await supabase.auth.getUser();
+  return fallback?.data?.user?.id ?? null;
 }

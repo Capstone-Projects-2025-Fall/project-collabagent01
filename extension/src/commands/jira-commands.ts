@@ -105,24 +105,24 @@ export async function connectToJiraCommand(context?: vscode.ExtensionContext): P
 /**
  * Creates a status bar item for Jira integration.
  */
-export function createJiraStatusBarItem(context: vscode.ExtensionContext): vscode.StatusBarItem {
-    const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.command = 'collabAgent.connectToJira';
-    updateJiraStatusBarItem(statusBarItem, context);
-    statusBarItem.show();
+export function createJiraStatusBarItem(context: vscode.ExtensionContext) {
+    const item = vscode.window.createStatusBarItem(
+        vscode.StatusBarAlignment.Left,
+        100
+    );
 
-    // Update status bar periodically to catch team changes
-    const updateInterval = setInterval(() => {
-        updateJiraStatusBarItem(statusBarItem, context);
-    }, 2000); // Check every 2 seconds
+    // initial
+    item.text = "Jira: Ready";
+    item.show();
 
-    // Clean up interval when extension deactivates
-    context.subscriptions.push({
-        dispose: () => clearInterval(updateInterval)
-    });
+    const interval = setInterval(() => {
+        item.text = "Jira: Active";
+    }, 1000);
 
-    context.subscriptions.push(statusBarItem);
-    return statusBarItem;
+    context.subscriptions.push(item);
+    context.subscriptions.push({ dispose: () => clearInterval(interval) });
+
+    return item;
 }
 
 /**
