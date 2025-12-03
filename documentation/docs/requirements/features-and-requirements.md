@@ -12,7 +12,7 @@
 
 ---
 
-## Collaboration Session Managemen
+## Collaboration Session Management
 
 ### Functional Requirements
 - Users can start a session, give it a name, and send an invite link to team members 
@@ -86,7 +86,7 @@
 ## GitHub Repository Verification
 
 ### Functional Requirements
-- Users can set GitHub Personal Acess Tokens for repository verification
+- Users can set GitHub Personal Access Tokens for repository verification
 - The system must validate token authenticity and permissions
 - Repository access must be verified for project integrity checks
 
