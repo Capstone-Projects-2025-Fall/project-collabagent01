@@ -4,100 +4,135 @@ sidebar_position: 5
 
 # Use-case descriptions
 
-## Use Case 1 – Pair Programming with AI in a VS Code Team
+## Use Case 1 - Pair Programming with AI Snapshots
 
-Story:
-Alex and Jamie are working on a group project in VS Code. They’re both in the same team in the Collab Agent system.
+*As a user, I want automatic AI-powered insights into my team's coding activity through file snapshots.*
 
-Step-by-step:
-1. Sign in to the extension
-Alex opens VS Code, installs the Collab Agent extension, and signs in with their student email. The extension stores their auth context and associates them with Team Alpha.
-
-2. Start coding as usual
-Alex edits auth-service.ts and file-snapshot-service.ts. Every time they make meaningful changes, the extension creates a file snapshot (file path, snapshot content, change summary, timestamp).
-
-3. Snapshots are synced to Supabase
-The extension calls addFileSnapshot, resolving Alex’s Supabase auth user ID and active team from the global context. Each snapshot is inserted into the file_snapshots table with user_id, team_id, and file info.
-
-4. Jamie joins the project later
-Jamie pulls the repo, opens VS Code with the same extension, and signs in. Their snapshots also get tied to Team Alpha, but with their own user ID.
-
-5. The team views AI-powered insights
-A dashboard or panel (webview / external UI) reads the snapshot data from Supabase and feeds it into an AI backend. It can now show:
-   * Who’s been working on which files
-   * Recent risky changes or error-prone zones
-   * Suggested refactors or tests to add
-
-6. Alex and Jamie adjust based on feedback
-They see that their auth flow is repeatedly changed and flagged as “high risk.” They decide to refactor together and rely on the AI suggestions to clean it up.
-
-Outcome:
-Without changing their normal workflow, the team gets automatic, AI-enhanced visibility into project progress and risk, driven entirely by snapshots captured from VS Code.
+1. The user (Alex) opens VS Code, installs the Collab Agent extension, and signs in with their student email.
+2. The extension stores their authentication context and associates them with Team Alpha.
+3. Alex edits auth-service.ts and file-snapshot-service.ts as part of their normal workflow.
+4. Every time Alex makes meaningful changes, the extension automatically creates a file snapshot (file path, snapshot content, change summary, timestamp).
+5. The extension calls addFileSnapshot, resolving Alex's Supabase auth user ID and active team from the global context, and inserts each snapshot into the file_snapshots table with user_id, team_id, and file info.
+6. Teammate Jamie pulls the repo, opens VS Code with the same extension, and signs in. Their snapshots also get tied to Team Alpha with their own user ID.
+7. The team opens the AI-powered insights dashboard (webview/external UI) which reads snapshot data from Supabase and feeds it into an AI backend.
+8. The dashboard shows who's been working on which files, recent risky changes or error-prone zones, and suggested refactors or tests to add.
+9. Alex and Jamie see that their auth flow is repeatedly changed and flagged as "high risk," so they decide to refactor together using the AI suggestions to clean it up.
 
 ### Sequence Diagram:
 <img width="1250" height="912" alt="Screenshot 2025-12-02 182001" src="https://github.com/user-attachments/assets/b9b2bd35-04f1-4290-a6d4-5080938bfcd1" />
 
 
-## Use Case 2 — Professor Uses Snapshot Summaries to Guide Taylor
+## Use Case 2 - Professor Monitors Student Progress via Snapshot Summaries
 
-Story:
-Taylor is working on a solo project in his computer science class, and the instructor needs a way to find out what Taylor has been working on and where he is struggling so they can provide proper feedback.
+*As a user (professor), I want to review AI-generated summaries of student coding activity to provide targeted guidance.*
 
-Step-by-step:
-1. Taylor is a student working on their course project in VS Code using the Collab Agent extension. As Taylor edits files—fixing functions, adding API calls, and experimenting with logic—the extension automatically captures snapshots of each save and quietly sends them to Supabase.
-
-2. Later in the week, Professor Lee logs into the course dashboard to monitor student progress. For each student, the dashboard shows AI-generated summaries built from the collected snapshots (patterns, common errors, unfinished work, or signs of confusion).
-
-3. When reviewing Taylor’s summaries, Professor Lee notices recurring themes: Taylor repeatedly changes input validation logic and keeps adjusting error handling around the same API route. The summary indicates uncertainty about correct parameter usage.
-
-4. During office hours, Professor Lee uses these insights to guide Taylor:
-   * “I saw you’ve been re-working the validation in user-api.ts. Let’s walk through how the request schema should look.”
-   * “It looks like you might be having trouble with error propagation—want to revisit how we structure our service responses?”
-
-Outcome:
-Taylor now gets targeted help, and the extension never needed direct feedback features—everything happened through snapshots → summaries → instructor insight.
+1. The student (Taylor) works on their course project in VS Code using the Collab Agent extension.
+2. As Taylor edits files—fixing functions, adding API calls, and experimenting with logic—the extension automatically captures snapshots of each save and sends them to Supabase.
+3. Later in the week, Professor Lee logs into the course dashboard to monitor student progress.
+4. For each student, the dashboard displays AI-generated summaries built from collected snapshots, showing patterns, common errors, unfinished work, and signs of confusion.
+5. When reviewing Taylor's summaries, Professor Lee notices recurring themes: Taylor repeatedly changes input validation logic and keeps adjusting error handling around the same API route.
+6. The summary indicates uncertainty about correct parameter usage in user-api.ts.
+7. During office hours, Professor Lee uses these insights to provide targeted guidance: "I saw you've been re-working the validation in user-api.ts. Let's walk through how the request schema should look."
+8. Professor Lee continues: "It looks like you might be having trouble with error propagation—want to revisit how we structure our service responses?"
+9. Taylor receives specific, relevant help based on their actual coding struggles without needing to explicitly ask for help or describe the problem.
 
 ### Sequence Diagram:
 <img width="1258" height="727" alt="Screenshot 2025-12-02 183829" src="https://github.com/user-attachments/assets/12a48a76-92a6-490b-a954-5c6ca0e7a680" />
 
+## Use Case 3 - Instructor Reviews Team Contribution via Activity Dashboard
 
-## Use Case 3 – Instructor/Team Lead Reviewing Real Contribution & Activity
+*As an instructor/team lead, I want to review each team member's contribution and activity without manually digging through Git logs.*
 
-Story:
-Professor Lee wants to know how each member of Team Beta is contributing to their final project, without digging through Git logs manually.
-
-Step-by-step:
-1. Students work as usual
-Each team member (Sam, Jordan, and Priya) works locally in VS Code with the extension installed. They’re all signed in and associated with Team Beta via collabAgent.currentTeam.
-
-2. Snapshots build a contribution timeline
-As they work:
-   * Every significant change to files produces a snapshot.
-   * Each snapshot is stored in Supabase with user_id, team_id, file path, timestamp, and change summary.
-
-3. Professor Lee opens the instructor dashboard
-A web/dashboard view queries the file_snapshots table grouped by team_id and user_id. It displays:
-   * Number of snapshots per user
-   * Files touched by each member
-   * Recent activity windows (e.g., last 24–72 hours)
-
-4. Patterns emerge clearly
-The dashboard reveals:
-   * Sam: many snapshots on backend services
-   * Jordan: mostly UI files and styling
-   * Priya: sparse activity overall, very few snapshots
-
-5. Professor Lee drills into details
-They click on Priya’s timeline to view detailed snapshot info — file paths, timestamps, and diffs. It’s obvious Priya joined late or isn’t contributing evenly.
-
-6. Actionable next steps
-Professor Lee can:
-   * Talk to the team about workload balance
-   * Offer support to Priya
-   * Use snapshot data as part of grading or participation rubrics
-
-Outcome:
-The extension gives instructors/team leads objective, fine-grained visibility into who did what and when, using the snapshot system rather than relying on guesswork.
+1. Each team member (Sam, Jordan, and Priya) works locally in VS Code with the Collab Agent extension installed.
+2. All team members are signed in and associated with Team Beta via collabAgent.currentTeam.
+3. As they work, every significant change to files produces a snapshot that is stored in Supabase with user_id, team_id, file path, timestamp, and change summary.
+4. Professor Lee opens the instructor dashboard, which queries the file_snapshots table grouped by team_id and user_id.
+5. The dashboard displays the number of snapshots per user, files touched by each member, and recent activity windows (e.g., last 24–72 hours).
+6. Patterns emerge clearly: Sam has many snapshots on backend services, Jordan has mostly UI files and styling, and Priya shows sparse activity overall with very few snapshots.
+7. Professor Lee clicks on Priya's timeline to drill into detailed snapshot info—file paths, timestamps, and diffs.
+8. The data reveals that Priya joined late or isn't contributing evenly to the project.
+9. Professor Lee uses this information to talk to the team about workload balance, offer support to Priya, and incorporate snapshot data into grading or participation rubrics.
 
 ### Sequence Diagram:
 <img width="1148" height="794" alt="Screenshot 2025-12-02 182150" src="https://github.com/user-attachments/assets/559d595b-4f47-4a42-a1bd-6eaf15b176ff" />
+
+## Use Case 4 - Team Creation and Project Association
+
+*As a user, I want to create a team lobby and associate it with my current project so teammates can collaborate.*
+
+1. The user opens VS Code with the Collab Agent extension installed and signs in with their account.
+2. The user navigates to the extension sidebar and clicks "Create New Team."
+3. The user enters a team name (e.g., "Backend Development Squad") in the input field.
+4. The extension generates a unique 6-character join code and creates the team in Supabase with the user as the team admin.
+5. The extension automatically detects the current project's Git repository information and associates it with the team.
+6. The user sees the join code displayed prominently with a "Copy Code" button to share with teammates.
+7. The user shares the join code with teammates via email, Slack, or other communication channels.
+8. When teammates enter the join code in their extension, they are added to the team and can see the associated project information.
+9. All team members can now view team activity, file snapshots, and collaborate within the same project context.
+
+<img width="850" height="868" alt="Usecase4" src="https://github.com/user-attachments/assets/f312be2a-e1e5-45e8-83dd-c8c09d90c30c" />
+
+## Use Case 5 - Jira Integration for Sprint Management
+
+*As a team lead, I want to connect my team's Jira workspace to track sprint tasks directly in VS Code.*
+
+1. The team lead opens the Collab Agent extension sidebar and navigates to the "Team Settings" section.
+2. The team lead clicks "Connect Jira" and is prompted to choose between OAuth authentication or manual credentials.
+3. The team lead selects manual credentials and enters their Jira site URL, email, and API token.
+4. The extension tests the connection by fetching available projects and displays them for confirmation.
+5. The team lead selects the relevant project, and the extension saves the Jira configuration to Supabase associated with the team ID.
+6. The extension displays a "Tasks" panel showing the current sprint's issues with status, assignee, and story points.
+7. Team members can now view sprint tasks, backlog items, and update issue statuses directly from VS Code.
+8. When a team member clicks on a task, they can transition it (e.g., "To Do" → "In Progress"), reassign it, or update story points.
+9. All changes sync immediately to Jira, and the team can track progress without leaving their development environment.
+
+<img width="1032" height="1243" alt="Usecase5" src="https://github.com/user-attachments/assets/ec9ad494-fba5-402f-85da-501aa062c51f" />
+
+## Use Case 6 - GitHub Repository Verification for Team Projects
+
+*As a user, I want to verify my GitHub push access to ensure I can contribute to the team's repository.*
+
+1. The user joins a team that has an associated GitHub repository for their project.
+2. The extension detects the GitHub remote URL from the local Git configuration.
+3. The extension prompts the user: "This team uses a GitHub repository. Would you like to verify your push access?"
+4. The user clicks "Verify Access" and is prompted to provide a GitHub personal access token.
+5. The extension stores the token securely and makes an API call to GitHub to check the user's repository permissions.
+6. If the user has push access, the extension displays a success message: "GitHub access verified. You can push to this repository."
+7. If the user lacks push access, the extension shows: "You don't have push access. Contact the repository owner to request access."
+8. The verification status is displayed in the extension sidebar with a colored indicator (green for verified, yellow for pending, red for no access).
+9. The user can re-verify at any time or update their GitHub token if permissions change.
+
+<img width="1023" height="1128" alt="Usecase6" src="https://github.com/user-attachments/assets/d9519746-ea71-418e-99b2-50aa798206ad" />
+
+## Use Case 7 - Live Share Session with Team Activity Tracking
+
+*As a user, I want to start a Live Share session and have the extension automatically log session activity for my team.*
+
+1. The user opens VS Code with their team project and navigates to the Collab Agent extension sidebar.
+2. The user clicks "Start Live Share Session" in the extension panel.
+3. The extension creates a Live Share session and generates a shareable link.
+4. The extension automatically logs a team activity event to Supabase: "User started a Live Share session" with a timestamp.
+5. The user shares the Live Share link with teammates via the extension's built-in share button.
+6. When teammates join the session, the extension logs participant join events: "Teammate joined the Live Share session."
+7. During the session, the extension tracks which files are being collaboratively edited and logs significant changes.
+8. When the user ends the Live Share session, the extension logs a session end event with duration and participant count.
+9. All team members can view the session history in the Team Activity Feed, including who participated and what files were worked on.
+
+<img width="1239" height="1221" alt="Usecase7" src="https://github.com/user-attachments/assets/e55de538-7666-4307-ac81-029e7fba03f6" />
+
+## Use Case 8 - Project Validation and Team Switching
+
+*As a user, I want to switch between multiple teams and have the extension validate that I'm working on the correct project.*
+
+1. The user is currently working with Team Alpha on a React frontend project.
+2. The user opens the extension sidebar and clicks "Switch Team" to view all teams they're a member of.
+3. The user selects Team Beta, which is associated with a different backend API project.
+4. The extension detects that the current VS Code workspace doesn't match Team Beta's associated project.
+5. The extension displays a warning: "Project mismatch detected. Team Beta is associated with 'backend-api-service' but you're currently in 'frontend-react-app'."
+6. The extension offers three options: "Open Team Project," "Continue Anyway," or "Cancel."
+7. The user clicks "Open Team Project," and the extension opens the correct project folder in a new VS Code window.
+8. The extension validates the project by checking the Git remote URL and project structure hash.
+9. Once validated, the extension displays: "You're now working with Team Beta on the correct project" and enables team features like activity tracking and file snapshots.
+
+<img width="1087" height="1445" alt="Usecase8" src="https://github.com/user-attachments/assets/43ef4ea3-3cdd-4fc5-b3f3-980d58352e59" />
+
