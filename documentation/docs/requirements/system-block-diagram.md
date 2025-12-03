@@ -5,7 +5,8 @@ sidebar_position: 2
 # System Block Diagram
 <!-- <img width="1214" height="571" alt="image" src="https://github.com/user-attachments/assets/de7ef793-e0b4-421a-82e9-88cdf77c6717" /> -->
 <!-- <img width="1803" height="454" alt="image" src="https://github.com/user-attachments/assets/f0f49800-452c-444e-a11b-bf56adb2ce1b" /> -->
-<img width="1795" height="395" alt="image" src="https://github.com/user-attachments/assets/b01e69a3-fad6-403d-989e-a48a465af69a" />
+<img width="1551" height="771" alt="image" src="https://github.com/user-attachments/assets/c289e0ec-39e3-49f1-8a88-b3e1b561af57" />
+
 
 
 
