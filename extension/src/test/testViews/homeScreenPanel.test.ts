@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
-import { HomeScreenPanel } from '../views/HomeScreenPanel';
+import { HomeScreenPanel } from '../../views/HomeScreenPanel';
 
 jest.mock('fs');
 

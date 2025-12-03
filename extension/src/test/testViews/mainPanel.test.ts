@@ -1,16 +1,56 @@
 import * as vscode from 'vscode';
-import { CollabAgentPanelProvider } from '../views/MainPanel';
-import { HomeScreenPanel } from '../views/HomeScreenPanel';
-import { AgentPanelProvider } from '../views/AgentPanel';
-import { LiveShareManager } from '../views/LiveSharePanel';
+import { CollabAgentPanelProvider } from '../../views/MainPanel';
+import { HomeScreenPanel } from '../../views/HomeScreenPanel';
+import { AgentPanelProvider } from '../../views/AgentPanel';
+import { LiveShareManager } from '../../views/LiveSharePanel';
+
+// Mock fs module
+jest.mock('fs', () => ({
+    readFileSync: jest.fn(() => '<html><body>{{HOME_HTML}}{{LIVESHARE_HTML}}{{AGENT_HTML}}{{TASKS_HTML}}{{PROFILE_HTML}}</body></html>')
+}));
 
 // Mock sub-views
-jest.mock('../views/HomeScreenPanel');
-jest.mock('../views/AgentPanel');
-jest.mock('../views/LiveSharePanel');
+jest.mock('../../views/HomeScreenPanel', () => ({
+    HomeScreenPanel: jest.fn().mockImplementation(() => ({
+        getHtml: jest.fn().mockResolvedValue('<div>Home Screen</div>')
+    }))
+}));
+
+jest.mock('../../views/AgentPanel', () => ({
+    AgentPanelProvider: jest.fn().mockImplementation(() => ({
+        getInnerHtml: jest.fn().mockReturnValue('<div>Agent Panel</div>'),
+        setWebviewForDelegation: jest.fn(),
+        createTeam: jest.fn().mockResolvedValue(undefined),
+        refreshTeamsList: jest.fn().mockResolvedValue(undefined)
+    }))
+}));
+
+jest.mock('../../views/LiveSharePanel', () => ({
+    LiveShareManager: jest.fn().mockImplementation(() => ({
+        setView: jest.fn(),
+        updateTeamActivity: jest.fn(),
+        startLiveShareSession: jest.fn(),
+        initializeLiveShare: jest.fn().mockResolvedValue(undefined),
+        dispose: jest.fn()
+    }))
+}));
+
+jest.mock('../../views/TasksPanel', () => ({
+    TasksPanel: jest.fn().mockImplementation(() => ({
+        getHtml: jest.fn().mockReturnValue('<div>Tasks Panel</div>'),
+        setWebview: jest.fn(),
+        initializePanel: jest.fn().mockResolvedValue(undefined)
+    }))
+}));
+
+jest.mock('../../views/ProfilePanel', () => ({
+    ProfilePanel: jest.fn().mockImplementation(() => ({
+        getHtml: jest.fn().mockResolvedValue('<div>Profile Panel</div>')
+    }))
+}));
 
 // Mock auth-service
-jest.mock('../services/auth-service', () => ({
+jest.mock('../../services/auth-service', () => ({
     getAuthContext: jest.fn().mockResolvedValue({ context: { isAuthenticated: true, email: 'test@example.com', first_name: 'TestUser' } }),
     signInOrUpMenu: jest.fn().mockResolvedValue(undefined)
 }));
@@ -44,8 +84,7 @@ describe('CollabAgentPanelProvider', () => {
         expect(panel).toBeInstanceOf(CollabAgentPanelProvider);
     });
 
-    it.skip('should resolve webview and set HTML', async () => {
-        // TODO: Fix this test - needs proper mocking of file system and vscode.Uri
+    it('should resolve webview and set HTML', async () => {
         const panel = new CollabAgentPanelProvider(extensionUri, context);
         const htmlPromise = panel['resolveWebviewView'](webviewView, {} as any, {} as any);
         await expect(htmlPromise).resolves.not.toThrow();

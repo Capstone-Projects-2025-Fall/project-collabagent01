@@ -13,13 +13,13 @@ const vslsMock = {
 jest.mock('vsls', () => vslsMock);
 
 // Mock profile-service used by the panel
-jest.mock('../services/profile-service', () => ({ 
+jest.mock('../../services/profile-service', () => ({
 	getCachedDisplayName: jest.fn(),
 	getOrInitDisplayName: jest.fn()
 }));
 
-import { LiveShareManager } from '../views/LiveSharePanel';
-import { getCachedDisplayName, getOrInitDisplayName } from '../services/profile-service';
+import { LiveShareManager } from '../../views/LiveSharePanel';
+import { getCachedDisplayName, getOrInitDisplayName } from '../../services/profile-service';
 
 describe('LiveShareManager (unit)', () => {
 	let provider: LiveShareManager;
@@ -184,11 +184,10 @@ describe('LiveShareManager (unit)', () => {
 				expect(webviewPost).toHaveBeenCalledWith(expect.objectContaining({ command: 'updateSessionStatus', status: 'loading' }));
 			});
 
-			test.skip('handleSessionChange with session sets sessionStartTime and posts updateSessionStatus', () => {
-				// TODO: Fix this test - handleSessionChange is now async and needs proper Supabase mocking
+			test('handleSessionChange with session sets sessionStartTime and posts updateSessionStatus', async () => {
 				const fakeSession: any = { role: 'Host', id: 's1', user: { displayName: 'H' }, peerNumber: 1 };
 				(provider as any)._liveShareApi = { peers: [] };
-				(provider as any).handleSessionChange({ session: fakeSession, changeType: 'existing' });
+				await (provider as any).handleSessionChange({ session: fakeSession, changeType: 'existing' });
 				expect((provider as any).sessionStartTime).toBeDefined();
 				expect(webviewPost).toHaveBeenCalledWith(expect.objectContaining({ command: 'updateSessionStatus' }));
 			});
