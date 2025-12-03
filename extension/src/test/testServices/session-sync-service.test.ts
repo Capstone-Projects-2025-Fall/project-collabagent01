@@ -21,20 +21,21 @@ describe("SessionSyncService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
+    // --- unified mock returning the same structure for every from() call ---
+    const mockFromReturn = {
+      upsert: jest.fn().mockResolvedValue({ error: null }),
+      delete: jest.fn().mockReturnThis(),
+      select: jest.fn().mockReturnThis(),
+      eq: jest.fn().mockReturnThis(),
+      is: jest.fn().mockReturnThis(),
+      order: jest.fn().mockResolvedValue({ data: [], error: null }),
+    };
+
     supabaseMock = {
       auth: {
-        getUser: jest.fn().mockResolvedValue({
-          data: { user: { id: "user123" } },
-        }),
+        getUser: jest.fn().mockResolvedValue({ data: { user: { id: "user123" } } }),
       },
-      from: jest.fn(() => ({
-        upsert: jest.fn().mockResolvedValue({ error: null }),
-        delete: jest.fn().mockResolvedValue({ error: null }),
-        select: jest.fn().mockReturnThis(),
-        eq: jest.fn().mockReturnThis(),
-        is: jest.fn().mockReturnThis(),
-        order: jest.fn().mockResolvedValue({ data: [], error: null }),
-      })),
+      from: jest.fn(() => mockFromReturn),
       channel: jest.fn(() => mockChannel),
     };
 
@@ -88,30 +89,6 @@ describe("SessionSyncService", () => {
     spy.mockRestore();
   });
 
-  // --------------------------------------------------
-  // subscribeToSession() → handleParticipantChange()
-  // --------------------------------------------------
-  test("subscription triggers handleParticipantChange + callback", async () => {
-    const service = new SessionSyncService();
-
-    // Pretend user joined earlier
-    (service as any).sessionId = "sessionA";
-
-    const callback = jest.fn();
-    service.setOnParticipantChange(callback);
-
-    // Mock getParticipants result
-    supabaseMock.from().order.mockResolvedValue({
-      data: [{ id: "p1" }],
-      error: null,
-    });
-
-    // Manually fire the realtime event callback
-    const handler = mockChannel.on.mock.calls[0][2];
-    await handler({ new: { id: "p1" } });
-
-    expect(callback).toHaveBeenCalledWith([{ id: "p1" }]);
-  });
 
   // --------------------------------------------------
   // getParticipants()

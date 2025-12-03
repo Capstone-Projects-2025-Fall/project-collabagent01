@@ -110,3 +110,7 @@ function cryptoRandomUUIDFallback(): string {
     return v.toString(16);
   });
 }
+
+export const __test = {
+  cryptoRandomUUIDFallback,
+};

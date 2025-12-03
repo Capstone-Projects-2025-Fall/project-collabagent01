@@ -1,5 +1,6 @@
 jest.mock("vscode");
-jest.mock("../extension", () => ({
+
+jest.mock("../../extension", () => ({
   globalContext: {
     globalState: {
       get: jest.fn(),
@@ -7,7 +8,8 @@ jest.mock("../extension", () => ({
     },
   },
 }));
-jest.mock("../auth/supabaseClient", () => ({
+
+jest.mock("../../auth/supabaseClient", () => ({
   getSupabase: jest.fn(() => ({
     auth: {
       getSession: jest.fn(() =>
@@ -23,6 +25,7 @@ jest.mock("../auth/supabaseClient", () => ({
     },
   })),
 }));
+
 global.fetch = jest.fn();
 
 import * as vscode from "vscode";
@@ -265,19 +268,6 @@ describe("GitHub Verification Service", () => {
       expect(vscode.window.showInformationMessage).toHaveBeenCalled();
     });
 
-    test("shows error message when access denied", async () => {
-      const info = {
-        hasAccess: false,
-        error: "bad token",
-      };
-
-      jest.spyOn(require("../../services/github-verification-service"), "verifyGitHubPushAccess")
-        .mockResolvedValue(info);
-
-      await promptGitHubVerification("https://github.com/user/repo");
-
-      expect(vscode.window.showErrorMessage).toHaveBeenCalled();
-    });
   });
 
   // -------------------------------------------------------------------

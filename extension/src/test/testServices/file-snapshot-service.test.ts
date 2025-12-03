@@ -1,6 +1,5 @@
 /**
- * FINAL FIXED VERSION — file-snapshot-service.test.ts
- * All 8 failures resolved.
+ * FINAL FIXED VERSION — ALL REFERENCE ERRORS RESOLVED
  */
 
 jest.mock("vscode", () => ({
@@ -62,11 +61,8 @@ jest.mock("@supabase/supabase-js", () => ({
   createClient: jest.fn(() => mockSupabase),
 }));
 
-// -------------------------
-// Bring in mocks
-// -------------------------
-const config = require("vscode").workspace.getConfiguration;
-const authService = require("../../services/auth-service");
+import * as vscode from "vscode";
+import { getAuthContext } from "../../services/auth-service";
 
 // -------------------------
 // Test Suite
@@ -75,27 +71,44 @@ describe("file snapshot service", () => {
   const loadModule = () => require("../../services/file-snapshot-service");
 
   beforeEach(() => {
-    jest.resetModules();
     jest.clearAllMocks();
 
-    config.mockReturnValue({
-      get: jest.fn().mockImplementation((key: string) => {
-        if (key.endsWith("supabase.url")) return "https://example.supabase.co";
-        if (key.endsWith("supabase.anonKey")) return "anon-key";
-        return undefined;
-      }),
+    (vscode.workspace.getConfiguration as jest.Mock).mockImplementation(
+      (section?: string) => {
+        if (section === "collabAgent") {
+          return {
+            get: jest.fn((key: string) => {
+              if (key === "supabase.url") return "https://example.supabase.co";
+              if (key === "supabase.anonKey") return "anon-key";
+              return undefined;
+            }),
+          };
+        }
+        return { get: jest.fn().mockReturnValue(undefined) };
+      }
+    );
+
+    // FIXED SUPABASE CHAINING MOCKS
+    mockFrom.mockReturnValue({
+      insert: mockInsert,
     });
 
-    mockInsert.mockReturnValue({ select: mockSelect });
-    mockSelect.mockReturnValue({ single: mockSingle });
+    mockInsert.mockReturnValue({
+      select: mockSelect,
+    });
+
+    mockSelect.mockReturnValue({
+      single: mockSingle,
+    });
   });
 
   // ------------------------------------------------------------------
   test("getSupabaseClient throws when config missing", async () => {
     const { addFileSnapshot } = loadModule();
 
-    config.mockReturnValue({
-      get: jest.fn().mockReturnValue(undefined), // missing config
+    // override config for this test
+    (vscode.workspace.getConfiguration as jest.Mock).mockReturnValue({
+      get: jest.fn().mockReturnValue(undefined),
     });
 
     const result = await addFileSnapshot({
@@ -112,7 +125,7 @@ describe("file snapshot service", () => {
   test("addFileSnapshot fails when user not authenticated", async () => {
     const { addFileSnapshot } = loadModule();
 
-    authService.getAuthContext.mockResolvedValue({
+    (getAuthContext as jest.Mock).mockResolvedValue({
       context: undefined,
       error: "no ctx",
     });
@@ -131,7 +144,7 @@ describe("file snapshot service", () => {
   test("addFileSnapshot fails when auth user not found", async () => {
     const { addFileSnapshot } = loadModule();
 
-    authService.getAuthContext.mockResolvedValue({
+    (getAuthContext as jest.Mock).mockResolvedValue({
       context: { email: "test@example.com" },
       error: undefined,
     });
@@ -157,7 +170,7 @@ describe("file snapshot service", () => {
   test("addFileSnapshot fails when no team selected", async () => {
     const { addFileSnapshot } = loadModule();
 
-    authService.getAuthContext.mockResolvedValue({
+    (getAuthContext as jest.Mock).mockResolvedValue({
       context: { email: "test@example.com" },
       error: undefined,
     });
@@ -183,7 +196,7 @@ describe("file snapshot service", () => {
   test("addFileSnapshot returns error when Supabase insert fails", async () => {
     const { addFileSnapshot } = loadModule();
 
-    authService.getAuthContext.mockResolvedValue({
+    (getAuthContext as jest.Mock).mockResolvedValue({
       context: { email: "test@example.com" },
       error: undefined,
     });
@@ -214,7 +227,7 @@ describe("file snapshot service", () => {
   test("addFileSnapshot succeeds and returns id", async () => {
     const { addFileSnapshot } = loadModule();
 
-    authService.getAuthContext.mockResolvedValue({
+    (getAuthContext as jest.Mock).mockResolvedValue({
       context: { email: "test@example.com" },
       error: undefined,
     });
@@ -240,9 +253,13 @@ describe("file snapshot service", () => {
     expect(result.success).toBe(true);
     expect(result.id).toBe("snapshot-123");
   });
+});
 
-  // ------------------------------------------------------------------
-  test("cryptoRandomUUIDFallback uses crypto.randomUUID when present", () => {
+// ------------------------------------------------------------------
+// Separate crypto tests so resetModules does NOT break mocks
+// ------------------------------------------------------------------
+describe("cryptoRandomUUIDFallback", () => {
+  test("uses crypto.randomUUID when present", () => {
     jest.resetModules();
     jest.clearAllMocks();
 
@@ -256,8 +273,7 @@ describe("file snapshot service", () => {
     expect(uuid).toBe("real-uuid-123");
   });
 
-  // ------------------------------------------------------------------
-  test("cryptoRandomUUIDFallback uses fallback when randomUUID not available", () => {
+  test("uses fallback when randomUUID not available", () => {
     jest.resetModules();
     jest.clearAllMocks();
 

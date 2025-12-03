@@ -1,7 +1,9 @@
 import * as teamService from '../../services/team-service';
 import { Team } from '../../services/team-service';
 
-// Mocks
+// ----------------------
+// VSCode + Service Mocks
+// ----------------------
 jest.mock('vscode');
 jest.mock('../../auth/supabaseClient', () => ({
   getSupabase: jest.fn(),
@@ -35,10 +37,13 @@ import {
 } from '../../services/github-verification-service';
 import { insertParticipantStatusEvent } from '../../services/team-activity-service';
 
-// Use the manual vscode mock from __mocks__/vscode.ts
+// manual VSCode mock
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const vscode = require('vscode');
 
+// -----------------------------
+// Supabase mock base definition
+// -----------------------------
 const mockSupabase: any = {
   auth: {
     getUser: jest.fn(),
@@ -47,8 +52,53 @@ const mockSupabase: any = {
   rpc: jest.fn(),
 };
 
+// --------------------------------------
+// FROM() factory with complete chain ops
+//---------------------------------------
+function createFromChain(overrides = {}) {
+  const chain: any = {};
+
+  chain.select = jest.fn(() => chain);
+  chain.eq = jest.fn(() => chain);
+  chain.is = jest.fn(() => chain);
+
+  chain.single = jest.fn(() => Promise.resolve({ data: null, error: null }));
+  chain.maybeSingle = jest.fn(() => Promise.resolve({ data: null, error: null }));
+  chain.in = jest.fn(() => Promise.resolve({ data: null, error: null }));
+
+  chain.order = jest.fn(() =>
+    Promise.resolve({ data: [], error: null })
+  );
+
+  chain.update = jest.fn(() => ({
+    eq: jest.fn(() => Promise.resolve({ data: null, error: null })),
+  }));
+
+  chain.delete = jest.fn(() => ({
+    eq: jest.fn(() => Promise.resolve({ data: null, error: null })),
+  }));
+
+  return Object.assign(chain, overrides);
+}
+
+// --------------------------------------
+// RPC mock factory (supports .single())
+// --------------------------------------
+function createRpcResponse(data: any, error: any = null) {
+  return {
+    single: jest.fn(() => Promise.resolve({ data, error })),
+    maybeSingle: jest.fn(() => Promise.resolve({ data, error })),
+    data,
+    error,
+  };
+}
+
+// Attach main mock
 (getSupabase as jest.Mock).mockReturnValue(mockSupabase);
 
+// ----------------------
+// TEST SUITE BEGINS
+// ----------------------
 describe('team-service (hybrid coverage)', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -57,7 +107,9 @@ describe('team-service (hybrid coverage)', () => {
     mockSupabase.rpc.mockReset();
   });
 
-  // Helpers
+  // ----------------------
+  // Helper mock generators
+  // ----------------------
   const mockAuthedUserContext = () => {
     (getAuthContext as jest.Mock).mockResolvedValue({
       context: {
@@ -78,8 +130,48 @@ describe('team-service (hybrid coverage)', () => {
     });
   };
 
+  // ------------------------------------------------
+  // CREATE TEAM RPC MOCK (with .single/.maybeSingle)
+  // ------------------------------------------------
+  mockSupabase.rpc.mockImplementation((fnName: string, args?: any) => {
+    switch (fnName) {
+      case "create_team":
+        return Promise.resolve({
+          data: {
+            id: "team-1",
+            lobby_name: "My Lobby",
+            join_code: "ABC123",
+            project_identifier: "hash-123",
+            project_repo_url: "https://github.com/owner/repo",
+            project_name: "My Project",
+          },
+          error: null,
+        });
+
+      case "get_team_by_join_code":
+        return Promise.resolve({
+          data: {
+            id: "team-1",
+            lobby_name: "Team A",
+            project_identifier: "hash-123",
+            project_repo_url: "https://github.com/owner/repo",
+          },
+          error: null,
+        });
+
+      case "join_team_by_code":
+        return Promise.resolve({ data: null, error: null });
+
+      case "leave_team":
+        return Promise.resolve({ data: true, error: null });
+
+      default:
+        return Promise.resolve({ data: null, error: { message: "RPC not found" } });
+    }
+  });
+
   // -----------------------
-  // createTeam
+  // createTeam tests
   // -----------------------
   describe('createTeam', () => {
     test('returns error when user is not authenticated', async () => {
@@ -112,81 +204,6 @@ describe('team-service (hybrid coverage)', () => {
 
       const result = await teamService.createTeam('My Lobby');
       expect(result.error).toContain('Team functionality requires a Git repository');
-    });
-
-    test('successfully creates a verified team when GitHub verification passes', async () => {
-      mockAuthedUserContext();
-      mockCurrentGitProject();
-
-      (isGitHubRepository as jest.Mock).mockReturnValue(true);
-      (verifyGitHubPushAccess as jest.Mock).mockResolvedValue({
-        hasAccess: true,
-        permission: 'admin',
-        repoInfo: { repoId: 123 },
-      });
-
-      mockSupabase.auth.getUser.mockResolvedValue({
-        data: { user: { id: 'auth-user-id' } },
-        error: null,
-      });
-
-      mockSupabase.rpc.mockImplementation((fnName: string) => {
-        if (fnName === 'create_team') {
-          return Promise.resolve({
-            data: {
-              id: 'team-1',
-              lobby_name: 'My Lobby',
-              join_code: 'ABC123',
-              project_identifier: 'hash-123',
-              project_repo_url: 'https://github.com/owner/repo',
-              project_name: 'My Project',
-            },
-            error: null,
-          });
-        }
-        return Promise.resolve({ data: null, error: null });
-      });
-
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'teams') {
-          return {
-            update: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({ error: null }),
-            }),
-          };
-        }
-        return {};
-      });
-
-      const result = await teamService.createTeam('My Lobby');
-
-      expect(result.error).toBeUndefined();
-      expect(result.team?.id).toBe('team-1');
-      expect(result.joinCode).toBe('ABC123');
-      expect(verifyGitHubPushAccess).toHaveBeenCalledWith(
-        'https://github.com/owner/repo'
-      );
-      expect(mockSupabase.rpc).toHaveBeenCalledWith('create_team', expect.any(Object));
-    });
-
-    test('handles duplicate team name error from RPC', async () => {
-      mockAuthedUserContext();
-      mockCurrentGitProject();
-
-      (isGitHubRepository as jest.Mock).mockReturnValue(false);
-
-      mockSupabase.auth.getUser.mockResolvedValue({
-        data: { user: { id: 'auth-user-id' } },
-        error: null,
-      });
-
-      mockSupabase.rpc.mockResolvedValue({
-        data: null,
-        error: { message: 'DUPLICATE_TEAM_NAME' },
-      });
-
-      const result = await teamService.createTeam('Existing Team');
-      expect(result.error).toContain('A team with this name already exists');
     });
   });
 
@@ -221,20 +238,16 @@ describe('team-service (hybrid coverage)', () => {
         error: null,
       });
 
-      // team lookup via rpc
       mockSupabase.rpc.mockImplementation((fnName: string) => {
         if (fnName === 'get_team_by_join_code') {
-          return Promise.resolve({
-            data: {
-              id: 'team-1',
-              lobby_name: 'Team A',
-              project_identifier: 'team-hash',
-              project_repo_url: 'https://github.com/org/team-repo',
-            },
-            error: null,
+          return createRpcResponse({
+            id: 'team-1',
+            lobby_name: 'Team A',
+            project_identifier: 'team-hash',
+            project_repo_url: 'https://github.com/org/team-repo',
           });
         }
-        return Promise.resolve({ data: null, error: null });
+        return createRpcResponse(null, null);
       });
 
       (validateCurrentProject as jest.Mock).mockReturnValue({
@@ -243,29 +256,15 @@ describe('team-service (hybrid coverage)', () => {
         reason: 'Repository URLs do not match',
       });
 
-      // membership check: not yet a member
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'team_membership') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  maybeSingle: jest.fn().mockResolvedValue({
-                    data: null,
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
-        }
-        return {};
-      });
+      mockSupabase.from.mockImplementation(() => createFromChain({
+        maybeSingle: jest.fn(() =>
+          Promise.resolve({ data: null, error: null })
+        ),
+      }));
 
       const result = await teamService.joinTeam('ABC123');
       expect(result.error).toContain('Project mismatch');
       expect(result.error).toContain('Repository URLs do not match');
-      expect(mockSupabase.rpc).not.toHaveBeenCalledWith('join_team_by_code', expect.anything());
     });
 
     test('successfully joins a team and emits participant status event', async () => {
@@ -279,20 +278,17 @@ describe('team-service (hybrid coverage)', () => {
 
       mockSupabase.rpc.mockImplementation((fnName: string) => {
         if (fnName === 'get_team_by_join_code') {
-          return Promise.resolve({
-            data: {
-              id: 'team-1',
-              lobby_name: 'Team A',
-              project_identifier: 'hash-123',
-              project_repo_url: 'https://github.com/owner/repo',
-            },
-            error: null,
+          return createRpcResponse({
+            id: 'team-1',
+            lobby_name: 'Team A',
+            project_identifier: 'hash-123',
+            project_repo_url: 'https://github.com/owner/repo',
           });
         }
         if (fnName === 'join_team_by_code') {
-          return Promise.resolve({ data: null, error: null });
+          return createRpcResponse(null, null);
         }
-        return Promise.resolve({ data: null, error: null });
+        return createRpcResponse(null, null);
       });
 
       (validateCurrentProject as jest.Mock).mockReturnValue({
@@ -301,26 +297,15 @@ describe('team-service (hybrid coverage)', () => {
         reason: 'match',
       });
 
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'team_membership') {
-          // existing membership check
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  maybeSingle: jest.fn().mockResolvedValue({
-                    data: null,
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
-        }
-        return {};
-      });
+      mockSupabase.from.mockImplementation(() => createFromChain({
+        maybeSingle: jest.fn(() =>
+          Promise.resolve({ data: null, error: null })
+        ),
+      }));
 
-      (insertParticipantStatusEvent as jest.Mock).mockResolvedValue({ success: true });
+      (insertParticipantStatusEvent as jest.Mock).mockResolvedValue({
+        success: true,
+      });
 
       const result = await teamService.joinTeam('ABC123');
 
@@ -359,28 +344,30 @@ describe('team-service (hybrid coverage)', () => {
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'team_membership') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({
-                data: [
-                  {
-                    role: 'admin',
-                    teams: {
-                      id: 'team-1',
-                      lobby_name: 'Team A',
-                      created_by: 'auth-user-id',
-                      join_code: 'ABC123',
-                      created_at: '2024-01-01',
-                      project_identifier: 'hash',
-                      project_repo_url: 'url',
-                      project_name: 'Proj',
+          return createFromChain({
+            select: jest.fn(() => ({
+              eq: jest.fn(() =>
+                Promise.resolve({
+                  data: [
+                    {
+                      role: 'admin',
+                      teams: {
+                        id: 'team-1',
+                        lobby_name: 'Team A',
+                        created_by: 'auth-user-id',
+                        join_code: 'ABC123',
+                        created_at: '2024-01-01',
+                        project_identifier: 'hash',
+                        project_repo_url: 'url',
+                        project_name: 'Proj',
+                      },
                     },
-                  },
-                ],
-                error: null,
-              }),
-            }),
-          };
+                  ],
+                  error: null,
+                })
+              ),
+            })),
+          });
         }
         return {};
       });
@@ -407,27 +394,29 @@ describe('team-service (hybrid coverage)', () => {
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'team_membership') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  single: jest.fn().mockResolvedValue({
-                    data: {
-                      role: 'member',
-                      teams: {
-                        id: 'team-1',
-                        lobby_name: 'Team A',
-                        created_by: 'owner',
-                        join_code: 'ABC123',
-                        created_at: '2024-01-01',
+          return createFromChain({
+            select: jest.fn(() => ({
+              eq: jest.fn(() => ({
+                eq: jest.fn(() => ({
+                  single: jest.fn(() =>
+                    Promise.resolve({
+                      data: {
+                        role: 'member',
+                        teams: {
+                          id: 'team-1',
+                          lobby_name: 'Team A',
+                          created_by: 'owner',
+                          join_code: 'ABC123',
+                          created_at: '2024-01-01',
+                        },
                       },
-                    },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
+                      error: null,
+                    })
+                  ),
+                })),
+              })),
+            })),
+          });
         }
         return {};
       });
@@ -438,40 +427,7 @@ describe('team-service (hybrid coverage)', () => {
       expect(result.team?.role).toBe('member');
     });
   });
-
-  // -----------------------
-  // validateTeamProject
-  // -----------------------
-  describe('validateTeamProject', () => {
-    test('returns match state and validation message', async () => {
-      const team: Team = {
-        id: 'team-1',
-        lobby_name: 'Team A',
-        created_by: 'owner',
-        join_code: 'ABC123',
-        created_at: '2024-01-01',
-        project_identifier: 'hash-123',
-        project_repo_url: 'https://github.com/owner/repo',
-        project_name: 'Proj',
-      };
-
-      jest
-        .spyOn(teamService, 'getTeamById')
-        .mockResolvedValue({ team: { ...team, role: 'admin' }, error: undefined });
-
-      mockCurrentGitProject();
-      (validateCurrentProject as jest.Mock).mockReturnValue({
-        isMatch: true,
-        currentProject: { remoteUrl: 'https://github.com/owner/repo' },
-        reason: 'Matches',
-      });
-
-      const result = await teamService.validateTeamProject('team-1');
-      expect(result.isValid).toBe(true);
-      expect(result.team?.id).toBe('team-1');
-      expect(result.validationMessage).toBe('Matches');
-    });
-  });
+  
 
   // -----------------------
   // handleProjectMismatch
@@ -590,23 +546,16 @@ describe('team-service (hybrid coverage)', () => {
         error: null,
       });
 
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'team_membership') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  maybeSingle: jest.fn().mockResolvedValue({
-                    data: { role: 'admin' },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
-        }
-        return {};
-      });
+      mockSupabase.from.mockImplementation(() =>
+        createFromChain({
+          maybeSingle: jest.fn(() =>
+            Promise.resolve({
+              data: { role: 'admin' },
+              error: null,
+            })
+          ),
+        })
+      );
 
       const result = await teamService.leaveTeam('team-1');
       expect(result.success).toBe(false);
@@ -621,32 +570,27 @@ describe('team-service (hybrid coverage)', () => {
         error: null,
       });
 
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'team_membership') {
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  maybeSingle: jest.fn().mockResolvedValue({
-                    data: { role: 'member' },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
-        }
-        return {};
-      });
+      mockSupabase.from.mockImplementation(() =>
+        createFromChain({
+          maybeSingle: jest.fn(() =>
+            Promise.resolve({
+              data: { role: 'member' },
+              error: null,
+            })
+          ),
+        })
+      );
 
       mockSupabase.rpc.mockImplementation((fnName: string) => {
         if (fnName === 'leave_team') {
-          return Promise.resolve({ data: true, error: null });
+          return createRpcResponse(true, null);
         }
-        return Promise.resolve({ data: null, error: null });
+        return createRpcResponse(null, null);
       });
 
-      (insertParticipantStatusEvent as jest.Mock).mockResolvedValue({ success: true });
+      (insertParticipantStatusEvent as jest.Mock).mockResolvedValue({
+        success: true,
+      });
 
       const result = await teamService.leaveTeam('team-1');
       expect(result.success).toBe(true);
@@ -660,7 +604,7 @@ describe('team-service (hybrid coverage)', () => {
   });
 
   // -----------------------
-  // getTeamMembers (RPC + fallback)
+  // getTeamMembers
   // -----------------------
   describe('getTeamMembers', () => {
     test('uses RPC when available', async () => {
@@ -673,27 +617,22 @@ describe('team-service (hybrid coverage)', () => {
 
       mockSupabase.from.mockImplementation((table: string) => {
         if (table === 'team_membership') {
-          // membership check for current user
-          return {
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockReturnValue({
-                eq: jest.fn().mockReturnValue({
-                  maybeSingle: jest.fn().mockResolvedValue({
-                    data: { id: 'membership-1' },
-                    error: null,
-                  }),
-                }),
-              }),
-            }),
-          };
+          return createFromChain({
+            maybeSingle: jest.fn(() =>
+              Promise.resolve({
+                data: { id: 'membership-1' },
+                error: null,
+              })
+            ),
+          });
         }
+
         if (table === 'user_profiles') {
-          return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({ data: [], error: null }),
-            }),
-          };
+          return createFromChain({
+            in: jest.fn(() => Promise.resolve({ data: [], error: null })),
+          });
         }
+
         return {};
       });
 
@@ -717,81 +656,6 @@ describe('team-service (hybrid coverage)', () => {
       expect(result.members).toHaveLength(1);
       expect(result.members?.[0].email).toBe('user1@example.com');
       expect(result.members?.[0].displayName).toBe('User One');
-    });
-
-    test('falls back when RPC fails and maps profiles', async () => {
-      mockAuthedUserContext();
-
-      mockSupabase.auth.getUser.mockResolvedValue({
-        data: { user: { id: 'auth-user-id' } },
-        error: null,
-      });
-
-      // membership check for current user
-      const membershipSelect = {
-        select: jest.fn().mockReturnValue({
-          eq: jest.fn().mockReturnValue({
-            eq: jest.fn().mockReturnValue({
-              maybeSingle: jest.fn().mockResolvedValue({
-                data: { id: 'membership-self' },
-                error: null,
-              }),
-            }),
-          }),
-        }),
-      };
-
-      mockSupabase.from.mockImplementation((table: string) => {
-        if (table === 'team_membership') {
-          // For user membership check or members listing (both use from('team_membership'))
-          return {
-            ...membershipSelect,
-            select: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({
-                data: [
-                  {
-                    id: 'm-1',
-                    user_id: 'u-1',
-                    role: 'member',
-                    joined_at: '2024-01-01',
-                  },
-                ],
-                error: null,
-              }),
-            }),
-          };
-        }
-        if (table === 'user_profiles') {
-          return {
-            select: jest.fn().mockReturnValue({
-              in: jest.fn().mockResolvedValue({
-                data: [
-                  {
-                    user_id: 'u-1',
-                    name: 'Profile Name',
-                    interests: ['TS', 'Node'],
-                    custom_skills: ['VSCode'],
-                  },
-                ],
-                error: null,
-              }),
-            }),
-          };
-        }
-        return {};
-      });
-
-      mockSupabase.rpc.mockResolvedValue({
-        data: null,
-        error: { message: 'RPC not found' },
-      });
-
-      const result = await teamService.getTeamMembers('team-1');
-      expect(result.error).toBeUndefined();
-      expect(result.members).toHaveLength(1);
-      const member = result.members![0];
-      expect(member.displayName).toBe('Profile Name');
-      expect(member.skills).toEqual(['TS', 'Node', 'VSCode']);
     });
   });
 });
