@@ -18,9 +18,7 @@ sidebar_position: 5
 8. The dashboard shows who's been working on which files, recent risky changes or error-prone zones, and suggested refactors or tests to add.
 9. Alex and Jamie see that their auth flow is repeatedly changed and flagged as "high risk," so they decide to refactor together using the AI suggestions to clean it up.
 
-### Sequence Diagram:
 <img width="1250" height="912" alt="Screenshot 2025-12-02 182001" src="https://github.com/user-attachments/assets/b9b2bd35-04f1-4290-a6d4-5080938bfcd1" />
-
 
 ## Use Case 2 - Professor Monitors Student Progress via Snapshot Summaries
 
@@ -36,7 +34,6 @@ sidebar_position: 5
 8. Professor Lee continues: "It looks like you might be having trouble with error propagation—want to revisit how we structure our service responses?"
 9. Taylor receives specific, relevant help based on their actual coding struggles without needing to explicitly ask for help or describe the problem.
 
-### Sequence Diagram:
 <img width="1258" height="727" alt="Screenshot 2025-12-02 183829" src="https://github.com/user-attachments/assets/12a48a76-92a6-490b-a954-5c6ca0e7a680" />
 
 ## Use Case 3 - Instructor Reviews Team Contribution via Activity Dashboard
@@ -53,7 +50,6 @@ sidebar_position: 5
 8. The data reveals that Priya joined late or isn't contributing evenly to the project.
 9. Professor Lee uses this information to talk to the team about workload balance, offer support to Priya, and incorporate snapshot data into grading or participation rubrics.
 
-### Sequence Diagram:
 <img width="1148" height="794" alt="Screenshot 2025-12-02 182150" src="https://github.com/user-attachments/assets/559d595b-4f47-4a42-a1bd-6eaf15b176ff" />
 
 ## Use Case 4 - Team Creation and Project Association
@@ -88,23 +84,7 @@ sidebar_position: 5
 
 <img width="1032" height="1243" alt="Usecase5" src="https://github.com/user-attachments/assets/ec9ad494-fba5-402f-85da-501aa062c51f" />
 
-## Use Case 6 - GitHub Repository Verification for Team Projects
-
-*As a user, I want to verify my GitHub push access to ensure I can contribute to the team's repository.*
-
-1. The user joins a team that has an associated GitHub repository for their project.
-2. The extension detects the GitHub remote URL from the local Git configuration.
-3. The extension prompts the user: "This team uses a GitHub repository. Would you like to verify your push access?"
-4. The user clicks "Verify Access" and is prompted to provide a GitHub personal access token.
-5. The extension stores the token securely and makes an API call to GitHub to check the user's repository permissions.
-6. If the user has push access, the extension displays a success message: "GitHub access verified. You can push to this repository."
-7. If the user lacks push access, the extension shows: "You don't have push access. Contact the repository owner to request access."
-8. The verification status is displayed in the extension sidebar with a colored indicator (green for verified, yellow for pending, red for no access).
-9. The user can re-verify at any time or update their GitHub token if permissions change.
-
-<img width="1023" height="1128" alt="Usecase6" src="https://github.com/user-attachments/assets/d9519746-ea71-418e-99b2-50aa798206ad" />
-
-## Use Case 7 - Live Share Session with Team Activity Tracking
+## Use Case 6 - Live Share Session with Team Activity Tracking
 
 *As a user, I want to start a Live Share session and have the extension automatically log session activity for my team.*
 
@@ -120,7 +100,7 @@ sidebar_position: 5
 
 <img width="1239" height="1221" alt="Usecase7" src="https://github.com/user-attachments/assets/e55de538-7666-4307-ac81-029e7fba03f6" />
 
-## Use Case 8 - Project Validation and Team Switching
+## Use Case 7 - Project Validation and Team Switching
 
 *As a user, I want to switch between multiple teams and have the extension validate that I'm working on the correct project.*
 
