@@ -2,6 +2,8 @@
 
 ## Extension Setup and Authentication
 
+CollabAgent integrates Supabase OAuth to provide a secure authentication gateway for all collaboration features. The system establishes user identity and maintains persistent sessions across VS Code instances, forming the foundation for team-based collaboration and activity tracking.
+
 ### Functional Requirements
 - Users must download the CollabAgent extension and create an account
 - Users must be signed in to start or join a collaboration session
@@ -13,6 +15,8 @@
 ---
 
 ## Collaboration Session Management
+
+This feature orchestrates the creation and lifecycle of collaborative coding sessions through Live Share integration. Users can establish named sessions with shareable invite codes, enabling  team coordination and controlled access to collaborative workspaces.
 
 ### Functional Requirements
 - Users can start a session, give it a name, and send an invite link to team members 
@@ -28,6 +32,8 @@
 
 ## Real-Time Code Synchronization
 
+Built on Microsoft's Live Share API, this feature transforms VS Code into a multiplayer coding environment where changes propagate instantly across all connected developers. The system maintains workspace consistency through automatic conflict resolution and resilient network handling.
+
 ### Functional Requirements
 - The IDE must support real-time synchronization where all edits appear instantly across team members' editors 
 - Multiple team members can edit the same file simultaneously without conflicts
@@ -40,6 +46,8 @@
 ---
 
 ## Agent Bot Activity Monitoring
+
+The Agent Bot serves as an intelligent observer that captures and displays team collaboration events in a centralized feed. It combines Live Share session tracking with AI-powered code analysis to provide contextual summaries of development activity, helping teams maintain awareness of ongoing work.
 
 ### Functional Requirements
 - The Agent tab must include a team activity feed showing real time updates
@@ -54,6 +62,8 @@
 ---
 
 ## Team Project Management 
+
+This feature ensures development consistency by linking teams to specific Git repositories and validating workspace alignment before collaboration begins. It prevents common mistakes like working on wrong branches or outdated codebases by enforcing project compatibility checks during team operations.
 
 ### Functional Requirements
 - Users can validate the current project against the selected team 
@@ -70,6 +80,8 @@
 
 ## Jira Task Integration
 
+CollabAgent bridges the gap between project management and development by embedding Jira functionality directly into VS Code. Teams can manage sprints, update issue statuses, and track story points without context-switching, creating a unified workflow from planning to implementation.
+
 ### Functional Requirements
 - Team admins can configure Jira integration with URL, email and API token
 - The extension must synchronize Jira issues and display them in the tasks panel
@@ -83,20 +95,9 @@
 
 ---
 
-## GitHub Repository Verification
-
-### Functional Requirements
-- Users can set GitHub Personal Access Tokens for repository verification
-- The system must validate token authenticity and permissions
-- Repository access must be verified for project integrity checks
-
-### Non-Functional Requirements
-- Repository verification must work with repositories containing up to 10,000 files
-- The system must handle GitHub API rate limits without requiring user intervention
-
----
-
 ## User Profile Management
+
+The profile system establishes developer identity within teams through customizable display names and role-based permissions. It creates a persistent identity layer that connects individual developers to their teams, projects, and collaboration history across the platform.
 
 ### Functional Requirements
 - Users can set and update their display names for team identification
@@ -111,6 +112,8 @@
 ---
 
 ## Session Activity Logging
+
+This feature creates an auditable history of collaboration sessions by capturing file modifications, participant actions, and session metadata. The logging system supports retrospective analysis and project documentation by maintaining searchable records of team development activities over time.
 
 ### Functional Requirements
 - The system must track and store file changes during collaboration sessions
