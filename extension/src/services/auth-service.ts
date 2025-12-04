@@ -1,6 +1,4 @@
 import * as vscode from "vscode";
-import { LogEvent } from "../api/types/event";
-import { trackEvent } from "../api/log-api";
 import { getUserByID } from "../api/user-api";
 import { AUTH_CONTEXT, User } from "../api/types/user";
 import { globalContext } from "../extension";

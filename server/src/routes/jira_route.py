@@ -1,26 +1,8 @@
 from flask import Blueprint, request, jsonify
-import requests
 import os
-from ..database.db import sb_select, sb_insert, sb_update
+from ..database.db import sb_select, sb_insert, sb_update, sb_delete
 
 jira_bp = Blueprint("jira", __name__, url_prefix="/api/jira")
-
-# Get Supabase config for direct REST calls
-SUPABASE_URL = (os.getenv("SUPABASE_URL") or "").rstrip("/")
-SERVICE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or ""  
-
-def sb_delete(table: str, params: dict):
-    """Delete function using direct REST API call."""
-    headers = {
-        "apikey": SERVICE_KEY,
-        "Authorization": f"Bearer {SERVICE_KEY}",
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-    }
-    rest_url = f"{SUPABASE_URL}/rest/v1"
-    r = requests.delete(f"{rest_url}/{table}", headers=headers, params=params, timeout=20)
-    r.raise_for_status()
-    return r.json() if r.text else []
 
 @jira_bp.post("/config")
 def save_jira_config():
