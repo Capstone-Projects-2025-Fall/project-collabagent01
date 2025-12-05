@@ -41,47 +41,102 @@ The VS Code extension presents multiple tabs:
   - Provides controls for starting or joining a VS Code Live Share session.
   - Integrates with the Live Share extension API to initiate or join sessions.
   - Optionally notifies the backend so that Live Share events (for example “session started” or “session ended”) can appear in the activity timeline.
+ 
+### Interfaces Consumed and Provided
 
-**Backend Services**
-**Flask (Python)**
- The backend manages communication, synchronization, and activity monitoring between extension clients and the Agent Bot.
-  * Key Features:
-    - Session Control – Creates, joins, and maintains collaboration sessions.
-    - File/Change Broadcasting – Distributes edits and events in real time.
-    - Activity Logging – Records user actions such as file opens, edits, and saves.
-    - Bot Integration – Relays activity updates and status changes to the Agent Bot.
+- **Consumes**
+  - VS Code API (commands, webview, configuration).
+  - Live Share API (for session creation/joining).
+  - Backend REST API (for summaries, Jira data, profiles, and timeline).
 
-**Agent Bot**
-**Collaboration Assistant**
- The Agent Bot helps teams stay coordinated by monitoring activity and providing intelligent feedback inside the extension sidebar.
-  * Key Features:
-    - Activity Monitoring – Posts updates like “Ben opened auth.js” or “Nick is editing Login.jsx.”
-    - Manual Status Updates – Users can broadcast what task they’re working on with one click.
-    - Smart Task Detection – Suggests likely tasks based on recent file activity and editing patterns.
-    - Team Feed – Maintains a scrollable history of team actions for easy reference.
+- **Provides**
+  - A unified sidebar UI that exposes CollabAgent features directly inside VS Code.
+  - User actions and context to the backend in the form of HTTP/JSON requests.
+
+---
+
+### Backend Services (Flask + Python)
+The backend provides REST endpoints used by the extension and coordinates external integrations.
+ Key Responsibilities
+- **AI Summaries**
+  - Accepts requests from the extension containing code context or task information.
+  - Calls an AI provider (e.g., Gemini or ChatGPT) to generate natural language summaries.
+  - Returns structured responses to the extension.
+
+- **Jira Integration**
+  - Connects to the Jira REST API to retrieve issues, statuses, and metadata.
+  - Maps Jira issues to teams or users as needed.
+  - Provides filtered task lists for the Tasks tab.
+
+- **User Profile Management**
+  - Stores and retrieves user profile data (skills, experience, preferences).
+  - Uses profile data when preparing recommendations.
+
+- **Team Activity Timeline**
+  - Stores and serves activity events, such as:
+    - Timeline notes or status updates from users.
+    - Jira issue changes recorded by the system.
+    - AI-generated summaries or explanations.
+    - Optional Live Share session start/end events.
+  - Returns ordered lists of events to populate the Teams tab.
+
+- **Authentication and Configuration**
+  - Handles secure communication with the extension.
+  - Manages API tokens or configuration for Jira and AI services.
     
-**Database & Authentication**
-**(Planned – PostgreSQL/Supabase)**
- The system will use a database service to store and manage collaborative data.
-  * Planned Features:
-    - User Authentication – Secure login and session tracking.
-    - Session Storage – Saves collaboration session details and connected members.
-    - Activity History – Stores file edits, bot messages, and status updates for analytics.
-    - Real-Time Sync – Ensures updates propagate instantly across all users.
+---
 
-   
-**Entity-Relationship Diagram**
-<img width="896" height="590" alt="Screenshot 2025-09-21 171425" src="https://github.com/user-attachments/assets/9568ba25-8d4d-4b31-91a3-5097f2a78e39" />
+### Agent Intelligence Layer (AI Provider)
 
-**Table Design**
+The intelligence layer is implemented using an external AI model provider.
 
-<img width="622" height="250" alt="Screenshot 2025-10-03 193154" src="https://github.com/user-attachments/assets/5815334a-d4a8-4259-bde6-c8479180062c" />
+### Key Responsibilities
 
-<img width="641" height="221" alt="Screenshot 2025-10-03 193201" src="https://github.com/user-attachments/assets/a0f69232-2139-46e4-bd84-dd29b6e9cf33" />
+- **Code and Task Summarization**
+  - Generates concise descriptions of code snippets or task context.
+- **Recommendation Support**
+  - Helps suggest tasks or areas of focus based on profile information and project context.
 
-<img width="572" height="218" alt="Screenshot 2025-10-03 193209" src="https://github.com/user-attachments/assets/d03f4866-90ca-4b66-8212-c56e5fe53cb8" />
+---
 
-<img width="616" height="255" alt="Screenshot 2025-10-03 193217" src="https://github.com/user-attachments/assets/6d4d0176-22a0-49b3-b1c7-ac0c573cffad" />
+## Database Layer (PostgreSQL / Supabase)
+
+The database provides persistent storage for CollabAgent.
+
+### Stored Data (Conceptual)
+
+- **Users**
+  - User identifiers and basic metadata.
+- **Profiles**
+  - Skill sets, experience levels, and preferences.
+- **Teams**
+  - Team definitions and membership.
+- **Activity Events**
+  - Timeline entries such as Jira updates, status notes, AI summaries, and Live Share session events (if recorded).
+- **Integration Metadata**
+  - Mappings between internal entities and Jira issues or external identifiers.
+
+The backend accesses the database using SQL or an ORM, and no direct database access is exposed to the VS Code extension.
+
+---
+
+## External Services
+
+### Jira REST API
+
+- Provides issue and project data (keys, summaries, statuses, assignees, etc.).
+- Called by the backend to supply the Tasks tab and to populate the timeline with task-related events.
+
+### VS Code Live Share
+
+- Provides real-time collaborative editing sessions.
+- Invoked from the Live Share tab in the extension, using the Live Share API.
+- Session-related metadata can be forwarded to the backend to appear on the team activity timeline.
+
+### AI Model Provider
+
+- Supplies natural language generation for summaries and explanations.
+- Called by the backend with structured prompts and context.
 
 
 
