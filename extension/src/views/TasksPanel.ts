@@ -732,8 +732,8 @@ export class TasksPanel {
             }));
 
             // Call the AI recommendations API
-            // Note: Update BACKEND_URL in src/config/backend-config.ts after deploying to Render
-            const { getApiUrl } = require('../config/backend-config');
+            // Note: Update TESTING flag in src/api/types/endpoints.ts after deploying to Render
+            const { getApiUrl } = require('../api/types/endpoints');
             const response = await fetch(getApiUrl('/api/ai/task_recommendations'), {
                 method: 'POST',
                 headers: {

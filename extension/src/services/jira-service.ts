@@ -73,9 +73,9 @@ export class JiraService {
 
     private constructor() {
         // Use centralized backend configuration
-        // Note: Update BACKEND_URL in src/config/backend-config.ts after deploying to Render
-        const { BACKEND_URL } = require('../config/backend-config');
-        this.baseUrl = BACKEND_URL;
+        // Note: Update TESTING flag in src/api/types/endpoints.ts after deploying to Render
+        const { BASE_URL } = require('../api/types/endpoints');
+        this.baseUrl = BASE_URL;
     }
 
     public static getInstance(): JiraService {

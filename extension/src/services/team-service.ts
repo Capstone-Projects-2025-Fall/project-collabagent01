@@ -23,14 +23,6 @@ export interface Team {
     github_repo_id?: string;
 }
 
-export interface TeamMembership {
-    id: string;
-    team_id: string;
-    user_id: string;
-    role: 'member' | 'admin';
-    joined_at: string;
-}
-
 export interface TeamWithMembership extends Team {
     role: 'member' | 'admin';
 }

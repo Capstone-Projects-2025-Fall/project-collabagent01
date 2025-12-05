@@ -1,7 +1,7 @@
 jest.mock("vscode");
 jest.mock("axios");
-jest.mock("../../config/backend-config", () => ({
-  BACKEND_URL: "http://localhost:3000",
+jest.mock("../../api/types/endpoints", () => ({
+  BASE_URL: "http://localhost:3000",
 }));
 
 import * as vscode from "vscode";

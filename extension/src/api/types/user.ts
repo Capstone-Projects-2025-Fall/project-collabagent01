@@ -4,12 +4,6 @@ export enum UserStatus {
   LOCKED = "LOCKED",
 }
 
-export enum UserSectionStatus {
-  ACTIVE = "ACTIVE",
-  NEED_REVIEW = "NEED_REVIEW",
-  COMPLETE = "COMPLETE",
-}
-
 export interface User {
   id: string;
   email: string;
@@ -38,15 +32,5 @@ export type UserSettings = {
   suspend_rate: number;
   intervened?: boolean;
 };
-
-export interface UserClass {
-  id: string;
-  classTitle: string;
-  classCode: string;
-  instructorId: string;
-  classHexColor?: string;
-  classImageCover?: string;
-  createdAt?: string;
-}
 
 export const AUTH_CONTEXT = "authContext";
