@@ -14,9 +14,6 @@ The VS Code extension presents multiple tabs:
 - **Teams** – Create or join teams and view the team activity timeline.
 - **Live Share** – Create or join VS Code Live Share sessions.
 
-<img width="419" height="527" alt="image" src="https://github.com/user-attachments/assets/c139b4ec-5162-4c06-9686-5c7484969137" />
-
-
 ### Key Responsibilities
 
 - **Intro Tab**
@@ -86,9 +83,7 @@ The backend provides REST endpoints used by the extension and coordinates extern
     
 ---
 
-### Agent Intelligence Layer (AI Provider)
-
-The intelligence layer is implemented using an external AI model provider.
+### Agent Intelligence Layer (AI Provider)<img width="1353" height="467" alt="ViewLayerServer" src="https://github.com/user-attachments/assets/a024bc82-c093-49b5-8084-cbe8b6122543" />
 
 ### Key Responsibilities
 
@@ -116,8 +111,6 @@ The database provides persistent storage for CollabAgent.
 - **Integration Metadata**
   - Mappings between internal entities and Jira issues or external identifiers.
 
-The backend accesses the database using SQL or an ORM, and no direct database access is exposed to the VS Code extension.
-
 ---
 
 ## External Services
@@ -137,6 +130,19 @@ The backend accesses the database using SQL or an ORM, and no direct database ac
 
 - Supplies natural language generation for summaries and explanations.
 - Called by the backend with structured prompts and context.
+
+### Diagrams
+
+<img width="507" height="632" alt="overallSystemarch" src="https://github.com/user-attachments/assets/8806f7a2-e452-4efe-917b-356d5f30efd0" />
+<img width="933" height="886" alt="image" src="https://github.com/user-attachments/assets/1846f9d3-5fd6-4298-af03-87a51da2fe74" />
+<img width="1353" height="467" alt="ViewLayerServer" src="https://github.com/user-attachments/assets/ba1af0be-1e76-40eb-a4ec-2731a6c41fde" />
+<img width="1228" height="532" alt="ViewLayerClient" src="https://github.com/user-attachments/assets/c8a5395b-f7af-4032-991d-0506642f9fbb" />
+<img width="663" height="476" alt="ServiceLayer" src="https://github.com/user-attachments/assets/94a6398a-617b-49d1-b43d-5186a8c871fe" />
+
+
+
+
+
 
 
 
