@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify
-import os
 from ..database.db import sb_select, sb_insert, sb_update, sb_delete
 
 jira_bp = Blueprint("jira", __name__, url_prefix="/api/jira")

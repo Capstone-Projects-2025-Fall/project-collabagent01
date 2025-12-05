@@ -11,50 +11,6 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 simple_model = genai.GenerativeModel(SIMPLE_MODEL)
 advance_model = genai.GenerativeModel(ADVANCE_MODEL)
 
-
-# DISABLED: Unprotected endpoint - no rate limiting
-# Re-enable with rate limiting if needed in the future
-# @ai_bp.post("/summarize")
-# def summarize():
-#     body = request.get_json(silent=True) or {}
-#     limit = str(body.get("limit", 50))
-#     order = body.get("order", "created_at.desc")
-#
-#     rows = sb_select("notes", {
-#         "select":"id,title,body,created_at",
-#         "order": order,
-#         "limit": limit
-#     })
-#     if not rows:
-#         return jsonify({"summary":"No rows found.","meta":{"row_count":0}})
-#
-#     # Build compact corpus (MVP guardrail at ~10k chars)
-#     total, lines = 0, []
-#     for r in rows:
-#         piece = f"• {r.get('title') or '(untitled)'}\n{(r.get('body') or '').strip()}\n"
-#         if total + len(piece) > 10000: break
-#         lines.append(piece); total += len(piece)
-#     corpus = "\n".join(lines)
-#
-#     prompt = textwrap.dedent(f"""
-#       You are a technical code summarizer. Your task is to take the following details and create a summary that captures the crucial information in a semi-concise manner.
-#         1. The summary should be clear and easy to understand.
-#         2. Use bullet points or numbered lists where appropriate to enhance readability.
-#         3. Focus on the most important aspects and avoid unnecessary details.
-#         4. If a section changes significantly, provide a brief explanation of the changes.
-#       Keep concrete details (IDs, endpoints, filenames, counts).
-#
-#       ENTRIES:
-#       {corpus}
-#     """).strip()
-#
-#     resp = advance_model.generate_content(prompt)
-#     return jsonify({
-#       "summary": (resp.text or "").strip() or "(no output)",
-#       "meta": {"row_count": len(rows), "model": ADVANCE_MODEL}
-#     })
-
-
 @ai_bp.post("/process_snapshot")
 def process_snapshot():
   """
@@ -539,82 +495,6 @@ def live_share_summary():
     "snapshot_id": snapshot_id,
     "message": "Snapshot stored, edge function will auto-generate summary"
   }), 201
-
-
-# DISABLED: Unprotected endpoint - no rate limiting
-# Re-enable with rate limiting if needed in the future
-# @ai_bp.get("/skill_summary")
-# def skill_summary():
-#     """
-#     Get an AI-powered summary of users who have a particular skill.
-#     Query parameter: skill (e.g., ?skill=Python)
-#     Returns: JSON with count, user list, and AI summary
-#     """
-#     skill = request.args.get("skill", "").strip()
-#     if not skill:
-#         return jsonify({"error": "skill parameter is required"}), 400
-#
-#     try:
-#         # Query user_profiles for users with this skill in interests, strengths, or custom_skills
-#         # PostgreSQL array contains operator: @>
-#         profiles = sb_select("user_profiles", {
-#             "select": "user_id,name,interests,strengths,weaknesses,custom_skills",
-#             "or": f"(interests.cs.{{{skill}}},strengths.cs.{{{skill}}},custom_skills.cs.{{{skill}}})"
-#         })
-#
-#         count = len(profiles) if profiles else 0
-#
-#         if count == 0:
-#             return jsonify({
-#                 "skill": skill,
-#                 "count": 0,
-#                 "users": [],
-#                 "summary": f"No users found with {skill} in their profile.",
-#                 "model": SIMPLE_MODEL
-#             }), 200
-#
-#         # Build a compact summary of matched users
-#         matched = []
-#         for p in profiles:
-#             matched.append({
-#                 "name": p.get("name") or "Anonymous",
-#                 "user_id": p.get("user_id"),
-#                 "interests": p.get("interests") or [],
-#                 "strengths": p.get("strengths") or []
-#             })
-#
-#         # Build AI prompt
-#         user_list = "\n".join([
-#             f"- {u['name']}: interests={u['interests']}, strengths={u['strengths']}"
-#             for u in matched
-#         ])
-#
-#         prompt = textwrap.dedent(f"""
-#             You are a team coordinator AI. Summarize the following users who have "{skill}"
-#             in their profile. Provide a brief, actionable summary highlighting:
-#             1. Total count of users with this skill
-#             2. Their key strengths and interests related to {skill}
-#             3. Suggestions for task delegation based on their profiles
-#
-#             Keep it concise (2-3 sentences).
-#
-#             USERS:
-#             {user_list}
-#         """).strip()
-#
-#         resp = simple_model.generate_content(prompt)
-#         summary_text = (resp.text or "").strip() or f"{count} users found with {skill} skill."
-#
-#         return jsonify({
-#             "skill": skill,
-#             "count": count,
-#             "users": matched,
-#             "summary": summary_text,
-#             "model": SIMPLE_MODEL
-#         }), 200
-#
-#     except Exception as e:
-#         return jsonify({"error": str(e)}), 500
 
 
 @ai_bp.post("/task_recommendations")
