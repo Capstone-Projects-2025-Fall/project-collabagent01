@@ -374,7 +374,7 @@
 			} else {
 				// Clear list when no team
 				const list = document.getElementById('activityList');
-				if (list) list.innerHTML = '<div style="opacity:0.8;font-size:12px;">No active team.</div>';
+				if (list) list.innerHTML = '';
 			}
 		} catch (e) {}
 	}

@@ -589,11 +589,16 @@ export class TasksPanel {
      * Handles fetching assignable users for the project.
      */
     public async handleFetchAssignableUsers() {
-        if (!this._currentTeamId || !this._view) return;
+        if (!this._currentTeamId || !this._view) {
+            console.warn('[handleFetchAssignableUsers] No team ID or view available');
+            return;
+        }
 
         try {
+            console.log('[handleFetchAssignableUsers] Fetching assignable users for team:', this._currentTeamId);
             const jiraService = JiraService.getInstance();
             const users = await jiraService.fetchAssignableUsers(this._currentTeamId);
+            console.log('[handleFetchAssignableUsers] Fetched users:', users.length, 'users');
 
             // Send users to webview
             this._view.webview.postMessage({
@@ -602,7 +607,7 @@ export class TasksPanel {
             });
 
         } catch (error) {
-            console.error('Failed to fetch assignable users:', error);
+            console.error('[handleFetchAssignableUsers] Failed to fetch assignable users:', error);
             this._view?.webview.postMessage({
                 command: 'assignableUsers',
                 users: [],

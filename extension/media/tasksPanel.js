@@ -126,6 +126,8 @@
         createTaskBtn.addEventListener('click', () => {
             if (createTaskModal) {
                 createTaskModal.style.display = 'flex';
+                // Request assignable users from backend
+                window.vscode.postMessage({ command: 'fetchAssignableUsers' });
                 // Focus on summary input
                 const summaryInput = document.getElementById('task-summary');
                 if (summaryInput) {
@@ -133,6 +135,34 @@
                 }
             }
         });
+    }
+
+    // Populate assignee dropdown with assignable users from Jira
+    function populateAssigneeDropdown(users) {
+        const assigneeSelect = document.getElementById('task-assignee');
+        if (!assigneeSelect) {
+            console.warn('[populateAssigneeDropdown] assigneeSelect element not found');
+            return;
+        }
+
+        console.log('[populateAssigneeDropdown] Received users:', users);
+
+        // Clear existing options
+        assigneeSelect.innerHTML = '<option value="">Unassigned</option>';
+
+        // Add assignable user options
+        if (users && users.length > 0) {
+            console.log('[populateAssigneeDropdown] Populating dropdown with', users.length, 'users');
+            users.sort((a, b) => a.displayName.localeCompare(b.displayName)).forEach(function(user) {
+                const option = document.createElement('option');
+                option.value = user.displayName;
+                option.textContent = user.displayName;
+                option.setAttribute('data-account-id', user.accountId);
+                assigneeSelect.appendChild(option);
+            });
+        } else {
+            console.warn('[populateAssigneeDropdown] No users provided');
+        }
     }
 
     // Close Modal Handlers
@@ -174,7 +204,9 @@
                 summary: formData.get('summary'),
                 description: formData.get('description') || '',
                 issuetype: formData.get('issuetype') || 'Task',
-                priority: formData.get('priority') || ''
+                priority: formData.get('priority') || '',
+                storypoints: formData.get('storypoints') || '',
+                assignee: formData.get('assignee') || ''
             };
 
             // Validate summary
@@ -306,6 +338,8 @@
             updateTasksUI(message);
         } else if (message.command === 'updateSprints') {
             updateSprintFilter(message.sprints);
+        } else if (message.command === 'assignableUsers') {
+            populateAssigneeDropdown(message.users);
         }
     });
 

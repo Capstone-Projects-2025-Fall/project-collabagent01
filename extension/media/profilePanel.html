@@ -145,12 +145,17 @@
     </div>
 
     <script>
-        // Clear all skill checkboxes
+        // Clear all skill checkboxes and custom interests input
         document.getElementById('clear-skills-btn').addEventListener('click', function() {
             const checkboxes = document.querySelectorAll('input[name="interests"]');
             checkboxes.forEach(checkbox => {
                 checkbox.checked = false;
             });
+            // Also clear the custom interests text input
+            const customInterestsInput = document.getElementById('custom-interests');
+            if (customInterestsInput) {
+                customInterestsInput.value = '';
+            }
         });
 
         // Delete Account Modal Logic

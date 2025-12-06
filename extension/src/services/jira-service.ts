@@ -782,26 +782,39 @@ export class JiraService {
         }
 
         try {
-            const response = await axios.get(
-                `${config.jira_url}/rest/api/3/user/assignable/search`,
-                {
-                    headers: {
-                        'Authorization': `Basic ${config.access_token}`,
-                        'Accept': 'application/json'
-                    },
-                    params: {
-                        project: config.jira_project_key,
-                        maxResults: 100
-                    },
-                    timeout: 10000
-                }
-            );
+            // First, get all issues to find users who are actually working on the project
+            const issues = await this.fetchTeamIssues(teamId);
 
-            return response.data.map((user: any) => ({
-                accountId: user.accountId,
-                displayName: user.displayName,
-                emailAddress: user.emailAddress
-            }));
+            // Collect unique users from assignee and reporter fields
+            const activeUsers = new Map<string, {accountId: string, displayName: string, emailAddress?: string}>();
+
+            issues.forEach(issue => {
+                // Add assignee if present
+                if (issue.fields.assignee) {
+                    activeUsers.set(issue.fields.assignee.accountId, {
+                        accountId: issue.fields.assignee.accountId,
+                        displayName: issue.fields.assignee.displayName,
+                        emailAddress: issue.fields.assignee.emailAddress
+                    });
+                }
+                // Add reporter if present (reporter only has displayName in the type)
+                if (issue.fields.reporter && issue.fields.reporter.displayName) {
+                    // Reporter type only guarantees displayName, so we need to check if other fields exist
+                    const reporter = issue.fields.reporter as any;
+                    if (reporter.accountId) {
+                        activeUsers.set(reporter.accountId, {
+                            accountId: reporter.accountId,
+                            displayName: reporter.displayName,
+                            emailAddress: reporter.emailAddress
+                        });
+                    }
+                }
+            });
+
+            // Convert to array and sort by display name
+            return Array.from(activeUsers.values()).sort((a, b) =>
+                a.displayName.localeCompare(b.displayName)
+            );
         } catch (error: any) {
             console.error('Failed to fetch assignable users:', error);
             throw new Error(`Failed to fetch assignable users: ${error.message}`);
@@ -856,6 +869,37 @@ export class JiraService {
                 issuePayload.fields.priority = {
                     name: taskData.priority
                 };
+            }
+
+            // Add optional story points if provided
+            if (taskData.storypoints) {
+                const storyPointsValue = parseInt(taskData.storypoints, 10);
+                if (!isNaN(storyPointsValue) && storyPointsValue > 0) {
+                    // Story Points are typically stored in customfield_10026 (Scrum field)
+                    issuePayload.fields.customfield_10026 = storyPointsValue;
+                }
+            }
+
+            // Add optional assignee if provided
+            if (taskData.assignee) {
+                console.log('[createIssue] Assignee provided:', taskData.assignee);
+                // Fetch assignable users to get the accountId from displayName
+                try {
+                    const assignableUsers = await this.fetchAssignableUsers(teamId);
+                    console.log('[createIssue] Fetched assignable users:', assignableUsers.map(u => u.displayName));
+                    const user = assignableUsers.find(u => u.displayName === taskData.assignee);
+                    if (user) {
+                        console.log('[createIssue] Found matching user:', user);
+                        issuePayload.fields.assignee = {
+                            accountId: user.accountId
+                        };
+                    } else {
+                        console.warn(`[createIssue] Assignee "${taskData.assignee}" not found in assignable users. Available:`, assignableUsers.map(u => u.displayName));
+                    }
+                } catch (error) {
+                    console.error('[createIssue] Failed to fetch assignable users for assignee:', error);
+                    // Continue without assignee if fetch fails
+                }
             }
 
             console.log('Creating Jira issue with payload:', JSON.stringify(issuePayload, null, 2));
