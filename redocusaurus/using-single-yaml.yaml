@@ -2,33 +2,33 @@ openapi: 3.1.0
 info:
   title: Collab Agent Backend API
   version: 1.0.0
-  description: >-
-    Official REST API used by the Collab Agent VS Code extension.  
+  description: >
+    Official REST API used by the Collab Agent VS Code extension.
 
-    It covers authentication, users, Jira integration, AI-powered collaboration
-    features, Live Share session telemetry and profile management.
+    It covers authentication, users, Jira integration, AI features, Live Share
+    telemetry, and profile management.
 servers:
   - url: https://project-collabagent01.onrender.com
-    description: Production server
+    description: Production
   - url: http://127.0.0.1:5000
-    description: Local development server
+    description: Local
 security:
   - bearerAuth: []
 paths:
   /auth/login:
     post:
+      tags:
+        - Authentication
       summary: Email / password sign-in
-      description: >-
-        Sign-in with email credentials. The **provider** query parameter MUST be
-        `email`.
+      description: Sign-in using email credentials.
       parameters:
         - in: query
           name: provider
+          required: true
           schema:
             type: string
             enum:
               - email
-          required: true
       requestBody:
         required: true
         content:
@@ -56,6 +56,8 @@ paths:
           $ref: '#/components/responses/Unauthorized'
   /auth/signup:
     post:
+      tags:
+        - Authentication
       summary: Create account
       requestBody:
         required: true
@@ -90,6 +92,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
   /auth/signout:
     post:
+      tags:
+        - Authentication
       summary: Invalidate session
       requestBody:
         required: true
@@ -109,6 +113,8 @@ paths:
           $ref: '#/components/responses/BadRequest'
   /users/{userId}/lock:
     put:
+      tags:
+        - Users
       summary: Lock / unlock user
       parameters:
         - $ref: '#/components/parameters/UserId'
@@ -131,30 +137,10 @@ paths:
           description: Status updated
         '400':
           $ref: '#/components/responses/BadRequest'
-  /users/{userId}/class-status:
-    get:
-      summary: Get per-class user status
-      parameters:
-        - $ref: '#/components/parameters/UserId'
-        - in: query
-          name: class_id
-          schema:
-            type: string
-          required: false
-      responses:
-        '200':
-          description: Current status
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  data:
-                    $ref: '#/components/schemas/UserStatus'
-        '404':
-          $ref: '#/components/responses/NotFound'
   /users/{userId}/status:
     put:
+      tags:
+        - Users
       summary: Update overall user status
       parameters:
         - $ref: '#/components/parameters/UserId'
@@ -177,21 +163,25 @@ paths:
           description: Updated
   /users/{userId}:
     get:
+      tags:
+        - Users
       summary: Get user by ID
       parameters:
         - $ref: '#/components/parameters/UserId'
       responses:
         '200':
-          description: User object
+          description: User info
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/User'
         '404':
           $ref: '#/components/responses/NotFound'
-  /users/{userId}/sections:
+  /users/{userId}/class-status:
     get:
-      summary: Get section ID(s) for user
+      tags:
+        - Classes & Sections
+      summary: Get per-class user status
       parameters:
         - $ref: '#/components/parameters/UserId'
         - in: query
@@ -200,7 +190,30 @@ paths:
             type: string
       responses:
         '200':
-          description: Section information
+          description: Class status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/UserStatus'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users/{userId}/sections:
+    get:
+      tags:
+        - Classes & Sections
+      summary: Get section IDs for user
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - in: query
+          name: class_id
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Section info
           content:
             application/json:
               schema:
@@ -209,7 +222,9 @@ paths:
                   user_section_id:
                     type: string
     put:
-      summary: Create / update user section
+      tags:
+        - Classes & Sections
+      summary: Create / update section
       parameters:
         - $ref: '#/components/parameters/UserId'
       requestBody:
@@ -231,12 +246,14 @@ paths:
           description: Saved
   /users/{userId}/classes:
     get:
+      tags:
+        - Classes & Sections
       summary: List classes for user
       parameters:
         - $ref: '#/components/parameters/UserId'
       responses:
         '200':
-          description: Array of classes
+          description: Class list
           content:
             application/json:
               schema:
@@ -245,7 +262,9 @@ paths:
                   $ref: '#/components/schemas/UserClass'
   /api/jira/config:
     post:
-      summary: Save Jira integration settings (admin)
+      tags:
+        - Jira Integration
+      summary: Save Jira integration (admin)
       requestBody:
         required: true
         content:
@@ -254,17 +273,19 @@ paths:
               $ref: '#/components/schemas/JiraConfig'
       responses:
         '200':
-          description: Configuration saved
+          description: Saved
         '400':
           $ref: '#/components/responses/BadRequest'
   /api/jira/config/{teamId}:
     get:
-      summary: Get Jira config for team
+      tags:
+        - Jira Integration
+      summary: Get Jira config
       parameters:
         - $ref: '#/components/parameters/TeamId'
       responses:
         '200':
-          description: Configuration
+          description: Config
           content:
             application/json:
               schema:
@@ -272,14 +293,18 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     delete:
-      summary: Remove Jira integration
+      tags:
+        - Jira Integration
+      summary: Remove Jira config
       parameters:
         - $ref: '#/components/parameters/TeamId'
       responses:
         '200':
-          description: Disconnected
+          description: Removed
   /api/ai/feed:
     get:
+      tags:
+        - AI Features
       summary: Team activity timeline
       parameters:
         - $ref: '#/components/parameters/TeamIdQuery'
@@ -291,7 +316,7 @@ paths:
             minimum: 1
       responses:
         '200':
-          description: Array of activity items
+          description: Activity list
           content:
             application/json:
               schema:
@@ -300,7 +325,9 @@ paths:
                   $ref: '#/components/schemas/ActivityItem'
   /api/ai/live_share_event:
     post:
-      summary: Insert Live Share start/join/end event
+      tags:
+        - AI Features
+      summary: Insert Live Share event
       requestBody:
         required: true
         content:
@@ -312,7 +339,9 @@ paths:
           description: Recorded
   /api/ai/live_share_summary:
     post:
-      summary: Upload Live Share session git diff / summary
+      tags:
+        - AI Features
+      summary: Upload Live Share git diff / summary
       requestBody:
         required: true
         content:
@@ -331,6 +360,8 @@ paths:
                     type: string
   /api/ai/task_recommendations:
     post:
+      tags:
+        - AI Features
       summary: Generate AI task delegation suggestions
       requestBody:
         required: true
@@ -340,7 +371,7 @@ paths:
               $ref: '#/components/schemas/TaskRecommendationRequest'
       responses:
         '200':
-          description: Number of recommendations posted to timeline
+          description: Recommendations posted
           content:
             application/json:
               schema:
@@ -350,13 +381,15 @@ paths:
                     type: integer
   /api/profile:
     get:
-      summary: Fetch user profile
+      tags:
+        - User Profile
+      summary: Fetch profile
       parameters:
         - in: query
           name: user_id
+          required: true
           schema:
             type: string
-          required: true
       responses:
         '200':
           description: Profile
@@ -367,7 +400,9 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
     post:
-      summary: Create / update user profile
+      tags:
+        - User Profile
+      summary: Create / update profile
       requestBody:
         required: true
         content:
@@ -376,7 +411,7 @@ paths:
               $ref: '#/components/schemas/UserProfile'
       responses:
         '200':
-          description: Profile saved
+          description: Saved
 components:
   securitySchemes:
     bearerAuth:
@@ -516,7 +551,6 @@ components:
           type: string
         access_token:
           type: string
-          description: Base64-encoded email:token
         refresh_token:
           type: string
           nullable: true
@@ -600,7 +634,6 @@ components:
           type: string
         changes:
           type: string
-          description: Unified git diff
     TaskRecommendationRequest:
       type: object
       required:
