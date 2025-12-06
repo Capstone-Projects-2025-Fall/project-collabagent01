@@ -25,8 +25,8 @@ export class HomeScreenPanel {
         let loginStatusHtml = '';
         if (!loggedIn) {
             loginStatusHtml = `<div class="status-block">
-                <p>Please sign up or log in to continue.</p>
-                <button class="home-button" id="loginBtn">Sign Up / Log In</button>
+                <p>Please sign in with GitHub to continue.</p>
+                <button class="home-button" id="loginBtn">Sign in with GitHub</button>
             </div>`;
         } else {
             loginStatusHtml = `<div class="status-block success">

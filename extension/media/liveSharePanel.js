@@ -26,16 +26,18 @@
 	// Home tab: Install Live Share and Login buttons
 	function setupHomePanelButtons() {
 		const installBtn = document.getElementById('installLiveShareBtn');
-		if (installBtn) {
+		if (installBtn && !installBtn.hasAttribute('data-listener-added')) {
 			installBtn.addEventListener('click', function() {
 				post('installLiveShare');
 			});
+			installBtn.setAttribute('data-listener-added', 'true');
 		}
 		const loginBtn = document.getElementById('loginBtn');
-		if (loginBtn) {
+		if (loginBtn && !loginBtn.hasAttribute('data-listener-added')) {
 			loginBtn.addEventListener('click', function() {
 				post('loginOrSignup');
 			});
+			loginBtn.setAttribute('data-listener-added', 'true');
 		}
 	}
 	// Agent tab: Team management buttons

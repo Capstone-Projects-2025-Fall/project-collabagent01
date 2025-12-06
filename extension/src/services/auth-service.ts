@@ -108,16 +108,20 @@ export async function signInOrUpMenu() {
       `You are already signed in as ${user.email}.`
     );
   } else {
-    const signInMethod = await vscode.window.showQuickPick(
-      ["Sign in", "Sign up"],
-      { placeHolder: "Sign in or create an account" }
-    );
+    // Temporarily commenting out sign-in/sign-up selection - only GitHub OAuth is active
+    // const signInMethod = await vscode.window.showQuickPick(
+    //   ["Sign in", "Sign up"],
+    //   { placeHolder: "Sign in or create an account" }
+    // );
 
-    if (signInMethod === "Sign in") {
-      signInMenu();
-    } else if (signInMethod === "Sign up") {
-      handleSignUp();
-    }
+    // if (signInMethod === "Sign in") {
+    //   signInMenu();
+    // } else if (signInMethod === "Sign up") {
+    //   handleSignUp();
+    // }
+
+    // Directly call GitHub sign-in
+    signInMenu();
   }
 }
 
@@ -141,25 +145,29 @@ export async function signOutMenu() {
  * Displays a menu for the user to choose an email or GitHub sign-in method.
  */
 export async function signInMenu() {
-  const action = await vscode.window.showQuickPick(
-    ["Sign In with Email", "Sign In with GitHub"],
-    {
-      placeHolder: "Select a sign-in method",
-    }
-  );
+  // Temporarily commenting out email option - only GitHub OAuth is active
+  // const action = await vscode.window.showQuickPick(
+  //   ["Sign In with Email", "Sign In with GitHub"],
+  //   {
+  //     placeHolder: "Select a sign-in method",
+  //   }
+  // );
 
-  if (!action) {
-    return;
-  }
+  // if (!action) {
+  //   return;
+  // }
 
-  switch (action) {
-    case "Sign In with Email":
-      await handleSignIn();
-      break;
-    case "Sign In with GitHub":
-      await signInWithGithub();
-      break;
-  }
+  // switch (action) {
+  //   case "Sign In with Email":
+  //     await handleSignIn();
+  //     break;
+  //   case "Sign In with GitHub":
+  //     await signInWithGithub();
+  //     break;
+  // }
+
+  // Directly call GitHub sign-in
+  await signInWithGithub();
 }
 
 /**

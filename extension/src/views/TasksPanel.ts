@@ -146,8 +146,8 @@ export class TasksPanel {
                 showLoading: false,
                 statusText: 'No team selected',
                 errorMessage: !this._currentTeamId
-                    ? 'Please select a team in the Agent Bot tab first.'
-                    : 'You are not a member of the current team.'
+                    ? 'Please select a team from the Teams tab.'
+                    : 'Please select a team from the Teams tab.'
             });
             return;
         }
