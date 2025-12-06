@@ -20,9 +20,11 @@
     const closeModalBtn = document.getElementById('close-modal-btn');
     const cancelTaskBtn = document.getElementById('cancel-task-btn');
     const createTaskForm = document.getElementById('create-task-form');
+    const taskSearchInput = document.getElementById('task-search-input');
+    const clearSearchBtn = document.getElementById('clear-search-btn');
 
     // Jira setup form submission
-    if (jiraSetupForm) {
+    if (jiraSetupForm && !jiraSetupForm.hasAttribute('data-listener-added')) {
         jiraSetupForm.addEventListener('submit', (e) => {
             e.preventDefault();
 
@@ -51,58 +53,65 @@
                 jiraToken
             });
         });
+        jiraSetupForm.setAttribute('data-listener-added', 'true');
     }
 
     // Token help link toggle
-    if (tokenHelpLink) {
+    if (tokenHelpLink && !tokenHelpLink.hasAttribute('data-listener-added')) {
         tokenHelpLink.addEventListener('click', (e) => {
             e.preventDefault();
             if (tokenHelpTooltip) {
                 tokenHelpTooltip.style.display = 'block';
             }
         });
+        tokenHelpLink.setAttribute('data-listener-added', 'true');
     }
 
-    if (closeHelpTooltip) {
+    if (closeHelpTooltip && !closeHelpTooltip.hasAttribute('data-listener-added')) {
         closeHelpTooltip.addEventListener('click', () => {
             if (tokenHelpTooltip) {
                 tokenHelpTooltip.style.display = 'none';
             }
         });
+        closeHelpTooltip.setAttribute('data-listener-added', 'true');
     }
 
     // Legacy connect button (kept for backwards compatibility, but form is preferred)
-    if (connectBtn && !jiraSetupForm) {
+    if (connectBtn && !jiraSetupForm && !connectBtn.hasAttribute('data-listener-added')) {
         connectBtn.addEventListener('click', () => {
             window.vscode.postMessage({ command: 'connectJira' });
         });
+        connectBtn.setAttribute('data-listener-added', 'true');
     }
 
-    if (disconnectBtn) {
+    if (disconnectBtn && !disconnectBtn.hasAttribute('data-listener-added')) {
         console.log('[Tasks] Disconnect button found, adding click listener');
         disconnectBtn.addEventListener('click', () => {
             console.log('[Tasks] Disconnect button clicked - sending disconnect request');
             // Send disconnect request to extension (extension will show confirmation dialog)
             window.vscode.postMessage({ command: 'disconnectJira' });
         });
-    } else {
+        disconnectBtn.setAttribute('data-listener-added', 'true');
+    } else if (!disconnectBtn) {
         console.log('[Tasks] Disconnect button NOT found in DOM');
     }
 
-    if (refreshBtn) {
+    if (refreshBtn && !refreshBtn.hasAttribute('data-listener-added')) {
         refreshBtn.addEventListener('click', () => {
             window.vscode.postMessage({ command: 'refreshTasks' });
         });
+        refreshBtn.setAttribute('data-listener-added', 'true');
     }
 
-    if (retryBtn) {
+    if (retryBtn && !retryBtn.hasAttribute('data-listener-added')) {
         retryBtn.addEventListener('click', () => {
             window.vscode.postMessage({ command: 'retryTasks' });
         });
+        retryBtn.setAttribute('data-listener-added', 'true');
     }
 
     // AI Suggestions Button - Get AI recommendations for unassigned tasks
-    if (aiSuggestionsBtn) {
+    if (aiSuggestionsBtn && !aiSuggestionsBtn.hasAttribute('data-listener-added')) {
         aiSuggestionsBtn.addEventListener('click', () => {
             // Disable button and show loading state
             aiSuggestionsBtn.disabled = true;
@@ -119,10 +128,11 @@
                 aiSuggestionsBtn.innerHTML = originalText;
             }, 30000); // 30 second timeout
         });
+        aiSuggestionsBtn.setAttribute('data-listener-added', 'true');
     }
 
     // Create Task Button - Open Modal
-    if (createTaskBtn) {
+    if (createTaskBtn && !createTaskBtn.hasAttribute('data-listener-added')) {
         createTaskBtn.addEventListener('click', () => {
             if (createTaskModal) {
                 createTaskModal.style.display = 'flex';
@@ -135,6 +145,7 @@
                 }
             }
         });
+        createTaskBtn.setAttribute('data-listener-added', 'true');
     }
 
     // Populate assignee dropdown with assignable users from Jira
@@ -176,25 +187,28 @@
         }
     }
 
-    if (closeModalBtn) {
+    if (closeModalBtn && !closeModalBtn.hasAttribute('data-listener-added')) {
         closeModalBtn.addEventListener('click', closeModal);
+        closeModalBtn.setAttribute('data-listener-added', 'true');
     }
 
-    if (cancelTaskBtn) {
+    if (cancelTaskBtn && !cancelTaskBtn.hasAttribute('data-listener-added')) {
         cancelTaskBtn.addEventListener('click', closeModal);
+        cancelTaskBtn.setAttribute('data-listener-added', 'true');
     }
 
     // Close modal when clicking overlay
-    if (createTaskModal) {
+    if (createTaskModal && !createTaskModal.hasAttribute('data-listener-added')) {
         createTaskModal.addEventListener('click', (e) => {
             if (e.target.classList.contains('modal-overlay')) {
                 closeModal();
             }
         });
+        createTaskModal.setAttribute('data-listener-added', 'true');
     }
 
     // Handle form submission
-    if (createTaskForm) {
+    if (createTaskForm && !createTaskForm.hasAttribute('data-listener-added')) {
         createTaskForm.addEventListener('submit', (e) => {
             e.preventDefault();
 
@@ -227,6 +241,7 @@
                 taskData: taskData
             });
         });
+        createTaskForm.setAttribute('data-listener-added', 'true');
     }
 
     // Listen for task creation success/failure, AI suggestions completion, and Jira connection
@@ -331,6 +346,45 @@
         });
     }
 
+    // Search input listener with debouncing for better performance
+    let searchTimeout;
+    if (taskSearchInput) {
+        taskSearchInput.addEventListener('input', (e) => {
+            const searchValue = e.target.value.trim();
+
+            // Show/hide clear button
+            if (clearSearchBtn) {
+                clearSearchBtn.style.display = searchValue ? 'block' : 'none';
+            }
+
+            // Debounce the search to avoid filtering on every keystroke
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                filterTasks();
+            }, 300); // 300ms delay
+        });
+
+        // Handle Enter key to trigger immediate search
+        taskSearchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                clearTimeout(searchTimeout);
+                filterTasks();
+            }
+        });
+    }
+
+    // Clear search button
+    if (clearSearchBtn) {
+        clearSearchBtn.addEventListener('click', () => {
+            if (taskSearchInput) {
+                taskSearchInput.value = '';
+                clearSearchBtn.style.display = 'none';
+                filterTasks();
+                taskSearchInput.focus();
+            }
+        });
+    }
+
     // Handle UI updates from extension
     window.addEventListener('message', function(event) {
         const message = event.data;
@@ -411,11 +465,59 @@
     function filterTasks() {
         const statusFilterEl = document.getElementById('status-filter');
         const assigneeFilterEl = document.getElementById('assignee-filter');
+        const searchInputEl = document.getElementById('task-search-input');
 
         const statusValue = statusFilterEl ? statusFilterEl.value : '';
         const assigneeValue = assigneeFilterEl ? assigneeFilterEl.value : '';
+        const searchValue = searchInputEl ? searchInputEl.value.trim().toLowerCase() : '';
 
         let filteredTasks = allTasks;
+
+        // Filter by search keyword
+        if (searchValue) {
+            filteredTasks = filteredTasks.filter(task => {
+                try {
+                    // Search in task key (e.g., "CBA-218")
+                    const matchesKey = task.key && task.key.toLowerCase().includes(searchValue);
+
+                    // Search in task summary (title)
+                    const matchesSummary = task.fields.summary &&
+                        task.fields.summary.toLowerCase().includes(searchValue);
+
+                    // Search in task description (if exists and is a string)
+                    let matchesDescription = false;
+                    if (task.fields.description) {
+                        // Handle both string and object descriptions
+                        const descText = typeof task.fields.description === 'string'
+                            ? task.fields.description
+                            : JSON.stringify(task.fields.description);
+                        matchesDescription = descText.toLowerCase().includes(searchValue);
+                    }
+
+                    // Search in assignee name (if assigned)
+                    const matchesAssignee = task.fields.assignee &&
+                        task.fields.assignee.displayName &&
+                        task.fields.assignee.displayName.toLowerCase().includes(searchValue);
+
+                    // Search in status
+                    const matchesStatus = task.fields.status &&
+                        task.fields.status.name &&
+                        task.fields.status.name.toLowerCase().includes(searchValue);
+
+                    // Search in priority (if exists)
+                    const matchesPriority = task.fields.priority &&
+                        task.fields.priority.name &&
+                        task.fields.priority.name.toLowerCase().includes(searchValue);
+
+                    // Return true if any field matches
+                    return matchesKey || matchesSummary || matchesDescription ||
+                           matchesAssignee || matchesStatus || matchesPriority;
+                } catch (error) {
+                    console.error('[Tasks] Error filtering task:', task.key, error);
+                    return false;
+                }
+            });
+        }
 
         // Filter by status
         if (statusValue) {
@@ -643,14 +745,18 @@
         editor.appendChild(input);
         editor.appendChild(saveBtn);
         editor.appendChild(cancelBtn);
-        
-        // Position editor near badge
-        const rect = badgeElement.getBoundingClientRect();
-        editor.style.position = 'absolute';
-        editor.style.top = (rect.top + window.scrollY) + 'px';
-        editor.style.left = (rect.left + window.scrollX) + 'px';
-        
+
+        // Add editor to DOM first (hidden) so we can measure its height
+        editor.style.position = 'fixed';
+        editor.style.visibility = 'hidden';
         document.body.appendChild(editor);
+
+        // Calculate optimal position using smart positioning
+        const position = getOptimalDropdownPosition(badgeElement, editor, 50);
+        editor.style.top = position.top;
+        editor.style.left = position.left;
+        editor.style.visibility = 'visible';
+
         input.focus();
         input.select();
         
@@ -714,6 +820,47 @@
     // Store assignable users globally (extracted from tasks)
     let assignableUsers = [];
 
+    // Helper function to calculate optimal dropdown position
+    function getOptimalDropdownPosition(triggerElement, dropdownElement, estimatedHeight) {
+        const triggerRect = triggerElement.getBoundingClientRect();
+        const dropdownHeight = dropdownElement.offsetHeight || estimatedHeight || 300;
+        const viewportHeight = window.innerHeight;
+
+        // Calculate space above and below the trigger element
+        const spaceBelow = viewportHeight - triggerRect.bottom;
+        const spaceAbove = triggerRect.top;
+
+        // Add a small buffer (8px) to prevent touching viewport edges
+        const buffer = 8;
+
+        let top;
+        let openedAbove = false;
+
+        if (spaceBelow >= dropdownHeight + buffer) {
+            // Enough space below - open downward (default behavior)
+            top = triggerRect.bottom + 'px';
+            openedAbove = false;
+        } else if (spaceAbove >= dropdownHeight + buffer) {
+            // Not enough space below, but enough space above - open upward
+            top = (triggerRect.top - dropdownHeight) + 'px';
+            openedAbove = true;
+        } else if (spaceBelow >= spaceAbove) {
+            // Neither has enough space, use the larger space (below)
+            top = triggerRect.bottom + 'px';
+            openedAbove = false;
+        } else {
+            // Neither has enough space, use the larger space (above)
+            top = (triggerRect.top - dropdownHeight) + 'px';
+            openedAbove = true;
+        }
+
+        return {
+            top: top,
+            left: triggerRect.left + 'px',
+            openedAbove: openedAbove
+        };
+    }
+
     // Shows the reassign dropdown
     function showReassignDropdown(issueKey, currentAssigneeId, buttonElement) {
         const existingDropdown = document.querySelector('.reassign-dropdown');
@@ -743,13 +890,17 @@
         });
         
         dropdown.innerHTML = dropdownHtml;
-        
-        // Position dropdown near button using fixed positioning
-        const rect = buttonElement.getBoundingClientRect();
-        dropdown.style.top = rect.bottom + 'px';
-        dropdown.style.left = rect.left + 'px';
-        
+
+        // Add dropdown to DOM first so we can measure its height
+        dropdown.style.position = 'fixed';
+        dropdown.style.visibility = 'hidden';
         document.body.appendChild(dropdown);
+
+        // Calculate optimal position using smart positioning
+        const position = getOptimalDropdownPosition(buttonElement, dropdown, 300);
+        dropdown.style.top = position.top;
+        dropdown.style.left = position.left;
+        dropdown.style.visibility = 'visible';
         
         // Add click handlers to options
         dropdown.querySelectorAll('.reassign-option').forEach(function(option) {
@@ -813,13 +964,17 @@
         });
         
         dropdown.innerHTML = dropdownHtml;
-        
-        // Position dropdown near badge using fixed positioning
-        const rect = badgeElement.getBoundingClientRect();
-        dropdown.style.top = rect.bottom + 'px';
-        dropdown.style.left = rect.left + 'px';
-        
+
+        // Add dropdown to DOM first so we can measure its height
+        dropdown.style.position = 'fixed';
+        dropdown.style.visibility = 'hidden';
         document.body.appendChild(dropdown);
+
+        // Calculate optimal position using smart positioning
+        const position = getOptimalDropdownPosition(badgeElement, dropdown, 250);
+        dropdown.style.top = position.top;
+        dropdown.style.left = position.left;
+        dropdown.style.visibility = 'visible';
         
         // Add click handlers to options
         dropdown.querySelectorAll('.priority-option').forEach(function(option) {

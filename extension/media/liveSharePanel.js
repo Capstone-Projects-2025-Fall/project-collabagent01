@@ -150,6 +150,7 @@
 		setupActivityFeed();
 		setupProfilePanel();
 		updateBroadcastButtonState(); // Initialize broadcast button state
+		updateTeamManagementButtonsState(); // Initialize team management buttons state
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -437,6 +438,45 @@
 		}
 	}
 
+	function updateTeamManagementButtonsState() {
+		const inSession = currentSessionStatus === 'hosting' || currentSessionStatus === 'joined';
+
+		// List of team management buttons to disable (excluding refreshTeamsBtn)
+		const teamButtons = [
+			{ id: 'createTeamBtn', title: 'Create a new team' },
+			{ id: 'joinTeamBtn', title: 'Join an existing team' },
+			{ id: 'switchTeamBtn', title: 'Switch to a different team' },
+			{ id: 'deleteTeamBtn', title: 'Delete your team' },
+			{ id: 'leaveTeamBtn', title: 'Leave your team' }
+		];
+
+		teamButtons.forEach(btnConfig => {
+			const btn = document.getElementById(btnConfig.id);
+			if (btn) {
+				if (inSession) {
+					btn.disabled = true;
+					btn.style.opacity = '0.5';
+					btn.style.cursor = 'not-allowed';
+					btn.title = 'Cannot manage teams while in an active Live Share session';
+				} else {
+					btn.disabled = false;
+					btn.style.opacity = '1';
+					btn.style.cursor = 'pointer';
+					btn.title = btnConfig.title;
+				}
+			}
+		});
+
+		// Refresh button should ALWAYS remain enabled
+		const refreshBtn = document.getElementById('refreshTeamsBtn');
+		if (refreshBtn) {
+			refreshBtn.disabled = false;
+			refreshBtn.style.opacity = '1';
+			refreshBtn.style.cursor = 'pointer';
+			refreshBtn.title = 'Refresh teams';
+		}
+	}
+
 	function updateSessionStatus(status, link, participants, role, duration) {
 		const statusDiv = document.getElementById('sessionStatus');
 		const btns = document.getElementById('sessionButtons');
@@ -458,6 +498,7 @@
 		// Update current session status and broadcast button state
 		currentSessionStatus = status;
 		updateBroadcastButtonState();
+		updateTeamManagementButtonsState();
 
 		if (chatInput) {
 			if (status === 'hosting' || status === 'joined') {

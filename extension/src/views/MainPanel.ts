@@ -713,6 +713,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
             
             const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.js'));
+            const tasksScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'tasksPanel.js'));
             const mainStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'mainPanel.css'));
             const liveShareStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.css'));
             const agentStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.css'));
@@ -737,6 +738,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{TASKS_STYLE_URI}}', tasksStyleUri.toString())
                 .replace('{{PROFILE_STYLE_URI}}', profileStyleUri.toString())
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
+                .replace('{{TASKS_SCRIPT_URI}}', tasksScriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)
                 .replace('{{IS_AUTHENTICATED}}', loggedIn.toString())
                 .replace('{{LIVESHARE_INSTALLED}}', liveShareInstalled.toString())
