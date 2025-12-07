@@ -207,8 +207,8 @@ describe("auth-commands", () => {
 
     await new Promise(setImmediate);
 
-    expect(item.text).toBe("$(key) Sign In / Sign Up");
-    expect(item.tooltip).toBe("Authenticate with Collab Agent");
+    expect(item.text).toBe("$(key) Sign in with GitHub");
+    expect(item.tooltip).toBe("Authenticate with GitHub");
     expect(item.command).toBe("collabAgent.signIn");
   });
 

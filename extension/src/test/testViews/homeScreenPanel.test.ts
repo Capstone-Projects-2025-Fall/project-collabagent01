@@ -49,7 +49,7 @@ describe('HomeScreenPanel', () => {
 
     test('shows login button when user is not logged in', async () => {
         const html = await panel.getHtml(mockWebview, true, false);
-        expect(html).toContain('Sign Up / Log In');
+        expect(html).toContain('Sign in with GitHub');
     });
 
     test('shows user email when logged in', async () => {
