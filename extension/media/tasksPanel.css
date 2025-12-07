@@ -4,7 +4,8 @@
   padding: 20px;
   width: 100%;
   box-sizing: border-box;
-  max-width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
 }
 
 /* Header Section */
@@ -19,11 +20,12 @@
 
 .tasks-header h2 {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 600;
-  color: var(--vscode-foreground);
+  color: #ffffff;
   flex: 1;
-  letter-spacing: 0.3px;
+  letter-spacing: 0.5px;
+  text-align: center;
 }
 
 .tasks-status {
@@ -276,53 +278,132 @@
 
 .tasks-toolbar {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding: 16px;
-  background: var(--vscode-editor-background);
-  border-radius: 12px;
-  border: 1px solid var(--vscode-panel-border);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
 }
 
-.tasks-filters {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+/* Search Row */
+.tasks-search-row {
+  width: 100%;
+  padding: 0 0 8px 0;
 }
 
-.filter-select {
-  padding: 8px 14px;
+.search-container {
+  position: relative;
+  width: 100%;
+}
+
+.task-search-input {
+  width: 100%;
+  padding: 12px 40px 12px 16px;
   border: 1px solid var(--vscode-input-border);
   border-radius: 8px;
   background: var(--vscode-input-background);
   color: var(--vscode-input-foreground);
   font-size: 13px;
   font-weight: 500;
+  transition: all 0.2s ease;
+  outline: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+}
+
+.task-search-input::placeholder {
+  color: var(--vscode-input-placeholderForeground);
+  opacity: 0.7;
+}
+
+.task-search-input:hover {
+  border-color: var(--vscode-focusBorder);
+}
+
+.task-search-input:focus {
+  border-color: var(--vscode-focusBorder);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder), 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.clear-search-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: none;
+  color: var(--vscode-descriptionForeground);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  line-height: 1;
+  display: none;
+  opacity: 0.7;
+}
+
+.clear-search-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground);
+  color: var(--vscode-foreground);
+  opacity: 1;
+}
+
+.clear-search-btn:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
+.tasks-filters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  width: 100%;
+  padding: 14px 16px;
+  background: var(--vscode-editor-background);
+  border-radius: 8px;
+  border: 1px solid var(--vscode-panel-border);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  scrollbar-gutter: stable;
+}
+
+.filter-select {
+  padding: 7px 14px;
+  border: 1px solid var(--vscode-input-border);
+  border-radius: 6px;
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  font-size: 12px;
+  font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
   outline: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  flex: 1;
+  min-width: 120px;
 }
 
 .filter-select:hover {
   border-color: var(--vscode-focusBorder);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .filter-select:focus {
   border-color: var(--vscode-focusBorder);
-  box-shadow: 0 0 0 3px rgba(14, 99, 156, 0.1);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder);
 }
 
 #sprint-filter {
   font-weight: 600;
-  min-width: 160px;
 }
 
 .tasks-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  width: 100%;
+  justify-content: center;
 }
 
 /* Tasks List */
@@ -391,6 +472,12 @@
   margin-bottom: 12px;
 }
 
+.task-key-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .task-key {
   font-family: 'Courier New', monospace;
   font-weight: 700;
@@ -404,6 +491,130 @@
 
 .task-key:hover {
   background: var(--vscode-list-hoverBackground);
+}
+
+.task-story-points-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+  border-radius: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.2s ease;
+}
+
+.task-story-points-badge.editable {
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.task-story-points-badge.editable:hover {
+  transform: scale(1.05);
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+  border-color: var(--vscode-focusBorder);
+}
+
+.task-story-points-badge.empty {
+  opacity: 0.6;
+  font-weight: 600;
+}
+
+.task-story-points-badge.empty:hover {
+  opacity: 1;
+}
+
+/* Story Points Editor */
+.story-points-editor {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--vscode-dropdown-background);
+  border: 2px solid var(--vscode-focusBorder);
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 1001;
+  animation: editorFadeIn 0.2s ease;
+}
+
+@keyframes editorFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.story-points-input {
+  width: 60px;
+  padding: 4px 8px;
+  border: 1px solid var(--vscode-input-border);
+  background: var(--vscode-input-background);
+  color: var(--vscode-input-foreground);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.story-points-input:focus {
+  outline: none;
+  border-color: var(--vscode-focusBorder);
+}
+
+.story-points-input.error {
+  border-color: var(--vscode-errorForeground);
+  animation: shake 0.3s ease;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
+}
+
+.story-points-save,
+.story-points-cancel {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.story-points-save {
+  background: var(--vscode-button-background);
+  color: var(--vscode-button-foreground);
+}
+
+.story-points-save:hover {
+  background: var(--vscode-button-hoverBackground);
+  transform: scale(1.1);
+}
+
+.story-points-cancel {
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+}
+
+.story-points-cancel:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+  transform: scale(1.1);
 }
 
 /* Status Badges - Color Coded */
@@ -423,21 +634,24 @@
 }
 
 .task-status.status-to-do {
-  background: rgba(100, 149, 237, 0.15);
-  color: #6495ED;
-  border: 1px solid rgba(100, 149, 237, 0.3);
+  background: rgba(100, 149, 237, 0.35);
+  color: #A3C9FF;
+  border: 1px solid rgba(100, 149, 237, 0.7);
+  font-weight: 700;
 }
 
 .task-status.status-in-progress {
-  background: rgba(255, 165, 0, 0.15);
-  color: #FFA500;
-  border: 1px solid rgba(255, 165, 0, 0.3);
+  background: rgba(255, 165, 0, 0.35);
+  color: #FFD699;
+  border: 1px solid rgba(255, 165, 0, 0.7);
+  font-weight: 700;
 }
 
 .task-status.status-done {
-  background: rgba(76, 175, 80, 0.15);
-  color: #4CAF50;
-  border: 1px solid rgba(76, 175, 80, 0.3);
+  background: rgba(76, 175, 80, 0.35);
+  color: #99F09D;
+  border: 1px solid rgba(76, 175, 80, 0.7);
+  font-weight: 700;
 }
 
 .task-title {
@@ -459,11 +673,32 @@
 .task-assignee, .task-priority {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 10px;
+  gap: 4px;
+  padding: 3px 8px;
   background: var(--vscode-textCodeBlock-background);
-  border-radius: 6px;
+  border-radius: 4px;
   transition: all 0.2s ease;
+  font-size: 11px;
+}
+
+.task-priority.editable {
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.task-priority.editable:hover {
+  background: var(--vscode-list-hoverBackground);
+  border-color: var(--vscode-focusBorder);
+  transform: translateY(-1px);
+}
+
+.task-priority.empty {
+  opacity: 0.6;
+  font-style: italic;
+}
+
+.task-priority.empty:hover {
+  opacity: 1;
 }
 
 .task-assignee:hover, .task-priority:hover {
@@ -480,26 +715,26 @@
 }
 
 .transition-btn {
-  padding: 6px 16px;
+  padding: 5px 12px;
   border: none;
-  border-radius: 8px;
-  font-size: 12px;
+  border-radius: 5px;
+  font-size: 11px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  letter-spacing: 0.3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .transition-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .transition-btn:active {
   transform: translateY(0);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .btn-in-progress {
@@ -518,6 +753,156 @@
 
 .btn-done:hover {
   background: linear-gradient(135deg, #45a049, #3d8b40);
+}
+
+.reassign-btn {
+  padding: 5px 12px;
+  border: 1px solid var(--vscode-button-border);
+  border-radius: 5px;
+  background: var(--vscode-button-secondaryBackground);
+  color: var(--vscode-button-secondaryForeground);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  letter-spacing: 0.2px;
+}
+
+.reassign-btn:hover {
+  background: var(--vscode-button-secondaryHoverBackground);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.reassign-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* Reassign Dropdown */
+.reassign-dropdown {
+  position: fixed;
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  min-width: 220px;
+  max-height: 300px;
+  overflow-y: auto;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.reassign-dropdown-header {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--vscode-dropdown-border);
+  background: var(--vscode-dropdown-listBackground);
+}
+
+.reassign-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.reassign-option:last-child {
+  border-bottom: none;
+}
+
+.reassign-option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.reassign-option.selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  font-weight: 600;
+}
+
+.reassign-option .assignee-icon {
+  font-size: 16px;
+}
+
+.reassign-option .assignee-name {
+  flex: 1;
+  font-size: 13px;
+}
+
+/* Priority Dropdown */
+.priority-dropdown {
+  position: fixed;
+  background: var(--vscode-dropdown-background);
+  border: 1px solid var(--vscode-dropdown-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  min-width: 200px;
+  animation: dropdownFadeIn 0.2s ease;
+}
+
+.priority-dropdown-header {
+  padding: 10px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vscode-descriptionForeground);
+  border-bottom: 1px solid var(--vscode-dropdown-border);
+  background: var(--vscode-dropdown-listBackground);
+}
+
+.priority-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+}
+
+.priority-option:last-child {
+  border-bottom: none;
+}
+
+.priority-option:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+
+.priority-option.selected {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+  font-weight: 600;
+}
+
+.priority-option .priority-icon {
+  font-size: 16px;
+}
+
+.priority-option .priority-name {
+  flex: 1;
+  font-size: 13px;
 }
 
 .no-tasks {
@@ -558,29 +943,32 @@
   background: var(--vscode-button-background);
   color: var(--vscode-button-foreground);
   border: none;
-  padding: 10px 20px;
-  margin: 6px;
-  border-radius: 8px;
+  padding: 7px 14px;
+  margin: 0;
+  border-radius: 6px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 500;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  letter-spacing: 0.2px;
+  text-transform: capitalize;
+  white-space: nowrap;
 }
 
 .button:hover {
   background: var(--vscode-button-hoverBackground);
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
 .button:active {
   transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
 
 .button.small {
-  padding: 8px 16px;
+  padding: 7px 14px;
   font-size: 12px;
 }
 
@@ -955,24 +1343,72 @@
 @media (max-width: 768px) {
   .tasks-container {
     padding: 12px;
+    max-width: 100%;
+  }
+
+  .tasks-header h2 {
+    font-size: 16px;
   }
 
   .tasks-toolbar {
     flex-direction: column;
-    gap: 12px;
+    gap: 14px;
+  }
+
+  .tasks-actions {
+    flex-direction: row;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .tasks-actions .button {
+    flex: 0 1 auto;
+    min-width: 120px;
+    max-width: 180px;
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .task-search-input {
+    font-size: 12px;
+    padding: 10px 36px 10px 14px;
+  }
+
+  .clear-search-btn {
+    font-size: 14px;
+    padding: 4px;
   }
 
   .tasks-filters {
     width: 100%;
     flex-direction: column;
+    gap: 6px;
+    padding: 12px;
   }
 
   .filter-select {
     width: 100%;
+    padding: 8px 12px;
+    font-size: 11px;
   }
 
   .task-item {
-    padding: 14px 16px;
+    padding: 12px 14px;
+  }
+
+  .task-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .task-title {
+    font-size: 12px;
+  }
+
+  .task-status {
+    padding: 3px 8px;
+    font-size: 9px;
   }
 
   .task-meta {
@@ -980,10 +1416,44 @@
     gap: 8px;
   }
 
+  .task-meta-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .task-assignee,
+  .task-priority {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+
+  .task-actions {
+    flex-direction: row;
+    gap: 6px;
+    justify-content: flex-start;
+  }
+
+  .transition-btn {
+    flex: 0 1 auto;
+    min-width: 80px;
+    max-width: 120px;
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
+  .reassign-btn {
+    flex: 0 1 auto;
+    min-width: 80px;
+    max-width: 120px;
+    padding: 6px 10px;
+    font-size: 10px;
+  }
+
   .tooltip {
     min-width: 250px;
     max-width: 300px;
-    font-size: 12px;
+    font-size: 11px;
   }
 
   .modal-content {
@@ -993,7 +1463,22 @@
 
   .modal-header,
   #create-task-form {
-    padding: 20px;
+    padding: 16px;
+  }
+
+  .modal-header h3 {
+    font-size: 16px;
+  }
+
+  .form-group label {
+    font-size: 11px;
+  }
+
+  .form-group input,
+  .form-group select,
+  .form-group textarea {
+    font-size: 12px;
+    padding: 8px 10px;
   }
 
   .form-row {
@@ -1003,10 +1488,102 @@
 
   .form-actions {
     flex-direction: column-reverse;
+    gap: 8px;
   }
 
   .form-actions .button {
     width: 100%;
     margin: 0;
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+
+  .button.small {
+    padding: 8px 12px;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .tasks-container {
+    padding: 8px;
+    max-width: 100%;
+  }
+
+  .tasks-header h2 {
+    font-size: 14px;
+  }
+
+  .tasks-toolbar {
+    gap: 12px;
+  }
+
+  .tasks-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .tasks-actions .button {
+    flex: 0 1 auto;
+    padding: 4px 6px;
+    font-size: 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: auto;
+    max-width: fit-content;
+  }
+
+  .tasks-filters {
+    padding: 10px;
+  }
+
+  .filter-select {
+    padding: 7px 10px;
+    font-size: 10px;
+  }
+
+  .task-item {
+    padding: 10px 12px;
+  }
+
+  .task-title {
+    font-size: 11px;
+  }
+
+  .task-status {
+    padding: 2px 6px;
+    font-size: 8px;
+  }
+
+  .task-assignee,
+  .task-priority {
+    font-size: 9px;
+    padding: 2px 5px;
+  }
+
+  .task-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .transition-btn,
+  .reassign-btn {
+    flex: 0 1 auto;
+    min-width: 70px;
+    max-width: 100px;
+    padding: 5px 8px;
+    font-size: 9px;
+  }
+
+  .modal-header,
+  #create-task-form {
+    padding: 12px;
+  }
+
+  .modal-header h3 {
+    font-size: 14px;
   }
 }

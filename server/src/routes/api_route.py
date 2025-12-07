@@ -11,48 +11,6 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 simple_model = genai.GenerativeModel(SIMPLE_MODEL)
 advance_model = genai.GenerativeModel(ADVANCE_MODEL)
 
-
-@ai_bp.post("/summarize")
-def summarize():
-    body = request.get_json(silent=True) or {}
-    limit = str(body.get("limit", 50))
-    order = body.get("order", "created_at.desc")
-
-    rows = sb_select("notes", {
-        "select":"id,title,body,created_at",
-        "order": order,
-        "limit": limit
-    })
-    if not rows:
-        return jsonify({"summary":"No rows found.","meta":{"row_count":0}})
-
-    # Build compact corpus (MVP guardrail at ~10k chars)
-    total, lines = 0, []
-    for r in rows:
-        piece = f"• {r.get('title') or '(untitled)'}\n{(r.get('body') or '').strip()}\n"
-        if total + len(piece) > 10000: break
-        lines.append(piece); total += len(piece)
-    corpus = "\n".join(lines)
-
-    prompt = textwrap.dedent(f"""
-      You are a technical code summarizer. Your task is to take the following details and create a summary that captures the crucial information in a semi-concise manner.
-        1. The summary should be clear and easy to understand.
-        2. Use bullet points or numbered lists where appropriate to enhance readability.
-        3. Focus on the most important aspects and avoid unnecessary details.
-        4. If a section changes significantly, provide a brief explanation of the changes.
-      Keep concrete details (IDs, endpoints, filenames, counts).
-
-      ENTRIES:
-      {corpus}
-    """).strip()
-
-    resp = advance_model.generate_content(prompt)
-    return jsonify({
-      "summary": (resp.text or "").strip() or "(no output)",
-      "meta": {"row_count": len(rows), "model": ADVANCE_MODEL}
-    })
-
-
 @ai_bp.post("/process_snapshot")
 def process_snapshot():
   """
@@ -160,10 +118,11 @@ def get_feed():
     return jsonify({"error": "team_id is required"}), 400
 
   # Select from team_activity_feed and join with file_snapshots to get changes and snapshot
+  # Sort by pinned status first (pinned items on top), then by created_at descending
   rows = sb_select("team_activity_feed", {
-    "select": "id,team_id,user_id,summary,event_header,file_path,source_snapshot_id,activity_type,created_at,file_snapshots(changes,snapshot)",
+    "select": "id,team_id,user_id,summary,event_header,file_path,source_snapshot_id,activity_type,created_at,pinned,file_snapshots(changes,snapshot)",
     "team_id": f"eq.{team_id}",
-    "order": "created_at.desc",
+    "order": "pinned.desc.nullslast,created_at.desc",
     "limit": str(limit)
   })
 
@@ -254,15 +213,34 @@ def live_share_event():
 
   # Handle session start event
   if event_type == "started":
+    session_link = body.get("session_link")  # Get session invite link
     event_header = f"{display_name} started hosting a Live Share session, join up and collaborate"
     activity_type = "live_share_started"
-    summary = None  # No AI summary yet for started events
+    # Store session link in summary temporarily (will be displayed in UI)
+    summary = session_link if session_link else None
     source_snapshot_id = body.get("snapshot_id")  # Link to initial workspace snapshot
+    pinned = True  # Pin Live Share Started events to top of activity feed
 
   # Handle session end event
   elif event_type == "ended":
     if not session_id:
       return jsonify({"error": "session_id is required for ended events"}), 400
+
+    # Unpin the corresponding "Live Share Started" event
+    # Find the started event by matching session_id in file_path
+    from ..database.db import sb_update
+    try:
+      sb_update("team_activity_feed", {
+        "pinned": "eq.true",
+        "activity_type": "eq.live_share_started",
+        "file_path": f"eq.session:{session_id}"
+      }, {
+        "pinned": False
+      })
+      print(f"[live_share_event] Unpinned Live Share Started event for session {session_id}")
+    except Exception as e:
+      print(f"[live_share_event] Warning: Could not unpin started event: {e}")
+      # Continue even if unpinning fails
 
     # Get participants from session_participants table
     participants = sb_select("session_participants", {
@@ -298,6 +276,7 @@ def live_share_event():
     activity_type = "live_share_ended"
     summary = None  # Will be filled by edge function with AI summary
     source_snapshot_id = body.get("snapshot_id")  # Link to git diff snapshot
+    pinned = False  # Don't pin ended events
 
   else:
     return jsonify({"error": "Invalid event_type. Must be 'started' or 'ended'"}), 400
@@ -311,6 +290,7 @@ def live_share_event():
     "file_path": f"session:{session_id}" if session_id else None,
     "source_snapshot_id": source_snapshot_id,  # Link snapshot for both started and ended events
     "activity_type": activity_type,
+    "pinned": pinned  # Pin Live Share Started events to top
   }
   out = sb_insert("team_activity_feed", feed_row)
 
@@ -319,6 +299,165 @@ def live_share_event():
     "event_header": event_header,
     "model": "preset"
   }), 201
+
+
+@ai_bp.post("/participant_status_event")
+def participant_status_event():
+  """Create a Participant Status event when team members join or leave.
+
+  Request body:
+  {
+    "team_id": "uuid",          # Team receiving the event (required)
+    "user_id": "uuid",          # User initiating the action (required - e.g. admin or system user)
+    "joined": ["user_uuid"],     # List of user_ids who just joined
+    "left": ["user_uuid"],       # List of user_ids who just left
+  }
+
+  The event header will list joined and/or left users. This event is informational only:
+  - Tag: "Participant Status" (blue)
+  - Non-clickable in UI (no buttons / details section)
+  - No AI summary, "summary" stored as null
+  """
+  body = request.get_json(force=True) or {}
+  team_id = body.get("team_id")
+  user_id = body.get("user_id")
+  joined_ids = body.get("joined", []) or []
+  left_ids = body.get("left", []) or []
+
+  if not team_id or not user_id:
+    return jsonify({"error": "team_id and user_id are required"}), 400
+
+  if len(joined_ids) == 0 and len(left_ids) == 0:
+    return jsonify({"error": "Provide at least one joined or left user id"}), 400
+
+  # Helper to resolve display names for provided user IDs
+  def resolve_names(user_ids):
+    if not user_ids:
+      return []
+    try:
+      profiles = sb_select("user_profiles", {
+        "select": "user_id,name",
+        "user_id": f"in.({','.join(user_ids)})"
+      }) or []
+      name_map = {p.get("user_id"): (p.get("name") or p.get("user_id")[:8] + "…") for p in profiles}
+      return [name_map.get(uid, uid[:8] + "…") for uid in user_ids]
+    except Exception as e:
+      print(f"[participant_status_event] Failed to resolve names: {e}")
+      return [uid[:8] + "…" for uid in user_ids]
+
+  joined_names = resolve_names(joined_ids)
+  left_names = resolve_names(left_ids)
+
+  parts = []
+  if joined_names:
+    if len(joined_names) == 1:
+      parts.append(f"{joined_names[0]} has joined the team")
+    else:
+      parts.append(f"{', '.join(joined_names[:-1])} and {joined_names[-1]} have joined the team")
+  if left_names:
+    if len(left_names) == 1:
+      parts.append(f"{left_names[0]} has left the team")
+    else:
+      parts.append(f"{', '.join(left_names[:-1])} and {left_names[-1]} have left the team")
+  event_header = " ; ".join(parts)
+
+  feed_row = {
+    "team_id": team_id,
+    "user_id": user_id,
+    "event_header": event_header,
+    "summary": None,  # Non-clickable informational event
+    "file_path": None,
+    "source_snapshot_id": None,
+    "activity_type": "participant_status",
+  }
+
+  try:
+    out = sb_insert("team_activity_feed", feed_row)
+  except Exception as e:
+    print(f"[participant_status_event] Failed to insert feed row: {e}")
+    return jsonify({"error": "Failed to insert participant status event"}), 500
+
+  return jsonify({
+    "inserted": out,
+    "event_header": event_header,
+    "activity_type": "participant_status"
+  }), 201
+
+
+@ai_bp.post("/live_share_update_link")
+def live_share_update_link():
+  """
+  Updates an existing Live Share Started event with the session invite link.
+  This is called when the user captures the invite link from clipboard.
+  """
+  body = request.get_json(force=True) or {}
+  team_id = body.get("team_id")
+  session_id = body.get("session_id")
+  session_link = body.get("session_link")
+
+  if not team_id or not session_id or not session_link:
+    return jsonify({"error": "team_id, session_id, and session_link are required"}), 400
+
+  try:
+    from ..database.db import sb_update
+
+    # Update the Live Share Started event for this session
+    # Find by team_id, session_id in file_path, and activity_type
+    sb_update("team_activity_feed", {
+      "team_id": f"eq.{team_id}",
+      "file_path": f"eq.session:{session_id}",
+      "activity_type": "eq.live_share_started"
+    }, {
+      "summary": session_link
+    })
+
+    print(f"[live_share_update_link] Updated Live Share Started event with session link for session {session_id}")
+
+    return jsonify({
+      "success": True,
+      "message": "Session link updated successfully"
+    }), 200
+
+  except Exception as e:
+    print(f"[live_share_update_link] Error updating session link: {e}")
+    return jsonify({"error": str(e)}), 500
+
+
+@ai_bp.post("/cleanup_orphaned_pins")
+def cleanup_orphaned_pins():
+  """
+  Cleans up orphaned pinned Live Share Started events.
+  This happens when VS Code closes while a session is active.
+  Unpins all "Live Share Started" events for a team.
+  """
+  body = request.get_json(force=True) or {}
+  team_id = body.get("team_id")
+
+  if not team_id:
+    return jsonify({"error": "team_id is required"}), 400
+
+  try:
+    from ..database.db import sb_update
+
+    # Unpin all Live Share Started events for this team
+    sb_update("team_activity_feed", {
+      "team_id": f"eq.{team_id}",
+      "activity_type": "eq.live_share_started",
+      "pinned": "eq.true"
+    }, {
+      "pinned": False
+    })
+
+    print(f"[cleanup_orphaned_pins] Unpinned all orphaned Live Share Started events for team {team_id}")
+
+    return jsonify({
+      "success": True,
+      "message": "Orphaned pinned events cleaned up successfully"
+    }), 200
+
+  except Exception as e:
+    print(f"[cleanup_orphaned_pins] Error cleaning up orphaned pins: {e}")
+    return jsonify({"error": str(e)}), 500
 
 
 @ai_bp.post("/live_share_summary")
@@ -356,80 +495,6 @@ def live_share_summary():
     "snapshot_id": snapshot_id,
     "message": "Snapshot stored, edge function will auto-generate summary"
   }), 201
-
-
-@ai_bp.get("/skill_summary")
-def skill_summary():
-    """
-    Get an AI-powered summary of users who have a particular skill.
-    Query parameter: skill (e.g., ?skill=Python)
-    Returns: JSON with count, user list, and AI summary
-    """
-    skill = request.args.get("skill", "").strip()
-    if not skill:
-        return jsonify({"error": "skill parameter is required"}), 400
-
-    try:
-        # Query user_profiles for users with this skill in interests, strengths, or custom_skills
-        # PostgreSQL array contains operator: @>
-        profiles = sb_select("user_profiles", {
-            "select": "user_id,name,interests,strengths,weaknesses,custom_skills",
-            "or": f"(interests.cs.{{{skill}}},strengths.cs.{{{skill}}},custom_skills.cs.{{{skill}}})"
-        })
-
-        count = len(profiles) if profiles else 0
-
-        if count == 0:
-            return jsonify({
-                "skill": skill,
-                "count": 0,
-                "users": [],
-                "summary": f"No users found with {skill} in their profile.",
-                "model": SIMPLE_MODEL
-            }), 200
-
-        # Build a compact summary of matched users
-        matched = []
-        for p in profiles:
-            matched.append({
-                "name": p.get("name") or "Anonymous",
-                "user_id": p.get("user_id"),
-                "interests": p.get("interests") or [],
-                "strengths": p.get("strengths") or []
-            })
-
-        # Build AI prompt
-        user_list = "\n".join([
-            f"- {u['name']}: interests={u['interests']}, strengths={u['strengths']}"
-            for u in matched
-        ])
-
-        prompt = textwrap.dedent(f"""
-            You are a team coordinator AI. Summarize the following users who have "{skill}"
-            in their profile. Provide a brief, actionable summary highlighting:
-            1. Total count of users with this skill
-            2. Their key strengths and interests related to {skill}
-            3. Suggestions for task delegation based on their profiles
-
-            Keep it concise (2-3 sentences).
-
-            USERS:
-            {user_list}
-        """).strip()
-
-        resp = simple_model.generate_content(prompt)
-        summary_text = (resp.text or "").strip() or f"{count} users found with {skill} skill."
-
-        return jsonify({
-            "skill": skill,
-            "count": count,
-            "users": matched,
-            "summary": summary_text,
-            "model": SIMPLE_MODEL
-        }), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 
 @ai_bp.post("/task_recommendations")
@@ -486,17 +551,15 @@ def task_recommendations():
 
         # Fetch user profiles with skills
         profiles = sb_select("user_profiles", {
-            "select": "user_id,name,interests,strengths,custom_skills",
+            "select": "user_id,name,interests,custom_skills",
             "user_id": f"in.({','.join(user_ids)})"
         })
 
         # Build team members list with skills
         members_with_skills = []
         for profile in profiles:
-            # Combine all skills from strengths and interests
+            # Combine all skills from interests and custom_skills
             skills = []
-            if profile.get("strengths"):
-                skills.extend(profile.get("strengths"))
             if profile.get("interests"):
                 skills.extend(profile.get("interests"))
             if profile.get("custom_skills"):
@@ -518,10 +581,12 @@ def task_recommendations():
             }), 400
 
         # Build AI prompt for task-to-member matching
+        # Limit to 25 tasks to manage API costs and token limits
+        MAX_TASKS_TO_ANALYZE = 25
         tasks_text = "\n".join([
             f"Task {i+1}: [{task.get('key')}] {task.get('summary')}" +
-            (f" - {task.get('description')[:200]}" if task.get('description') else "")
-            for i, task in enumerate(unassigned_tasks[:10])  # Limit to 10 tasks to avoid token limits
+            (f" - {str(task.get('description'))[:200]}" if task.get('description') else "")
+            for i, task in enumerate(unassigned_tasks[:MAX_TASKS_TO_ANALYZE])
         ])
 
         members_text = "\n".join([
@@ -605,13 +670,66 @@ def task_recommendations():
                 print(f"Failed to insert recommendation for {task_key}: {e}")
                 continue
 
-        return jsonify({
+        # Prepare response with information about task limits
+        total_tasks = len(unassigned_tasks)
+        tasks_analyzed = min(total_tasks, MAX_TASKS_TO_ANALYZE)
+
+        response_data = {
             "success": True,
             "recommendations_count": recommendations_posted,
+            "tasks_analyzed": tasks_analyzed,
+            "total_unassigned": total_tasks,
             "message": f"Posted {recommendations_posted} task recommendations to timeline",
             "model": ADVANCE_MODEL
-        }), 201
+        }
+
+        # Add warning if we had to truncate
+        if total_tasks > MAX_TASKS_TO_ANALYZE:
+            response_data["warning"] = f"Analyzed {MAX_TASKS_TO_ANALYZE} of {total_tasks} tasks to manage API costs"
+
+        return jsonify(response_data), 201
 
     except Exception as e:
         print(f"Error in task_recommendations: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@ai_bp.post("/activity/mark-assigned")
+def mark_activity_assigned():
+    """
+    Mark a task delegation activity as assigned.
+    NOTE: Currently using localStorage on frontend for persistence.
+    This endpoint is kept for potential future database sync.
+
+    Request body:
+    {
+        "activity_id": "uuid",
+        "is_assigned": true,
+        "assigned_to": "User Name" (optional)
+    }
+
+    Returns: JSON with success status
+    """
+    body = request.get_json(force=True) or {}
+    activity_id = body.get("activity_id")
+    is_assigned = body.get("is_assigned", True)
+
+    if not activity_id:
+        return jsonify({"error": "activity_id is required"}), 400
+
+    try:
+        # Update the team_activity_feed record
+        result = sb_update("team_activity_feed", {
+            "id": f"eq.{activity_id}"
+        }, {
+            "is_assigned": is_assigned
+        })
+
+        return jsonify({
+            "success": True,
+            "message": "Activity marked as assigned"
+        }), 200
+
+    except Exception as e:
+        print(f"Error marking activity as assigned: {e}")
         return jsonify({"error": str(e)}), 500

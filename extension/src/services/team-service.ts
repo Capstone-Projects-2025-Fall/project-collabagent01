@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { getAuthContext } from './auth-service';
+import { insertParticipantStatusEvent } from './team-activity-service';
 import { ProjectInfo, getCurrentProjectInfo, validateCurrentProject, getProjectDescription } from './project-detection-service';
 import { verifyGitHubPushAccess, isGitHubRepository, promptGitHubVerification } from './github-verification-service';
 
@@ -20,14 +21,6 @@ export interface Team {
     verified_by?: string;
     verified_at?: string;
     github_repo_id?: string;
-}
-
-export interface TeamMembership {
-    id: string;
-    team_id: string;
-    user_id: string;
-    role: 'member' | 'admin';
-    joined_at: string;
 }
 
 export interface TeamWithMembership extends Team {
@@ -253,6 +246,13 @@ export async function joinTeam(joinCode: string): Promise<{ team?: Team; error?:
 
         if (joinErr) {
             return { error: `Failed to join team: ${joinErr.message}` };
+        }
+
+        // Emit participant status event (joined)
+        try {
+            await insertParticipantStatusEvent(teamData.id, authUser.id, [authUser.id], []);
+        } catch (e) {
+            console.warn('[joinTeam] Failed to insert participant status event:', e);
         }
 
         return { team: teamData };
@@ -599,6 +599,13 @@ export async function leaveTeam(teamId: string): Promise<{ success: boolean; err
             return { success: false, error: deleteErr?.message || 'Unable to leave team (no membership removed)' };
         }
 
+        // Emit participant status event (left)
+        try {
+            await insertParticipantStatusEvent(teamId, currentUser.user.id, [], [currentUser.user.id]);
+        } catch (e) {
+            console.warn('[leaveTeam] Failed to insert participant status event:', e);
+        }
+
         return { success: true };
     } catch (error) {
         return { success: false, error: `Leave team failed: ${error}` };
@@ -671,7 +678,7 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
             const userIds = fallbackData.map((m: any) => m.user_id);
             const { data: profilesData, error: profilesError } = await supabase
                 .from('user_profiles')
-                .select('user_id, name, strengths, interests')
+                .select('user_id, name, interests, custom_skills')
                 .in('user_id', userIds);
 
             console.log('[getTeamMembers] Profiles data fetched:', profilesData);
@@ -687,12 +694,13 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
                 const profile = profilesMap.get(membership.user_id) as any;
                 console.log('[getTeamMembers] Profile for user', membership.user_id, ':', profile);
 
-                // Try strengths first, then interests, handle both array and null
+                // Combine interests and custom_skills
                 let skills: string[] = [];
-                if (profile?.strengths && Array.isArray(profile.strengths) && profile.strengths.length > 0) {
-                    skills = profile.strengths;
-                } else if (profile?.interests && Array.isArray(profile.interests) && profile.interests.length > 0) {
-                    skills = profile.interests;
+                if (profile?.interests && Array.isArray(profile.interests) && profile.interests.length > 0) {
+                    skills = [...profile.interests];
+                }
+                if (profile?.custom_skills && Array.isArray(profile.custom_skills) && profile.custom_skills.length > 0) {
+                    skills = [...skills, ...profile.custom_skills];
                 }
 
                 console.log('[getTeamMembers] Skills for user', membership.user_id, ':', skills);
@@ -726,7 +734,13 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
             }
 
             // Get skills from user profile if available (from enhanced RPC)
-            const skills = row.strengths || row.interests || [];
+            let skills: string[] = [];
+            if (row.interests && Array.isArray(row.interests)) {
+                skills = [...row.interests];
+            }
+            if (row.custom_skills && Array.isArray(row.custom_skills)) {
+                skills = [...skills, ...row.custom_skills];
+            }
 
             return {
                 id: row.membership_id,
@@ -742,13 +756,13 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
         });
 
         // Fetch user profiles for skills if not already included in RPC response
-        if (members.length > 0 && !rpcData[0]?.strengths && !rpcData[0]?.interests) {
+        if (members.length > 0 && !rpcData[0]?.interests && !rpcData[0]?.custom_skills) {
             console.log('[getTeamMembers] RPC did not include skills, fetching from user_profiles...');
             const userIds = members.map(m => m.userId);
 
             const { data: profilesData, error: profilesError } = await supabase
                 .from('user_profiles')
-                .select('user_id, name, strengths, interests')
+                .select('user_id, name, interests, custom_skills')
                 .in('user_id', userIds);
 
             if (!profilesError && profilesData) {
@@ -758,7 +772,14 @@ export async function getTeamMembers(teamId: string): Promise<{ members?: TeamMe
                 members.forEach(member => {
                     const profile = profilesMap.get(member.userId) as any;
                     if (profile) {
-                        member.skills = profile.strengths || profile.interests || [];
+                        let skills: string[] = [];
+                        if (profile.interests && Array.isArray(profile.interests)) {
+                            skills = [...profile.interests];
+                        }
+                        if (profile.custom_skills && Array.isArray(profile.custom_skills)) {
+                            skills = [...skills, ...profile.custom_skills];
+                        }
+                        member.skills = skills;
                         if (!member.displayName && profile.name) {
                             member.displayName = profile.name;
                         }

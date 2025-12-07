@@ -164,8 +164,8 @@ export function createAuthStatusBarItem(context: vscode.ExtensionContext) {
         "statusBarItem.errorBackground"
       );
     } else {
-      authStatusBarItem.text = `$(key) Sign In / Sign Up`;
-  authStatusBarItem.tooltip = "Authenticate with Collab Agent";
+      authStatusBarItem.text = `$(key) Sign in with GitHub`;
+  authStatusBarItem.tooltip = "Authenticate with GitHub";
   authStatusBarItem.command = "collabAgent.signIn";
       authStatusBarItem.backgroundColor = new vscode.ThemeColor(
         "statusBarItem.warningBackground"
@@ -178,18 +178,22 @@ export function createAuthStatusBarItem(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     authStatusBarItem,
   vscode.commands.registerCommand("collabAgent.showAuthOptions", async () => {
-      const choice = await vscode.window.showQuickPick(
-        ["Sign In with GitHub", "Sign In with Email", "Sign Up"],
-        { placeHolder: "Select authentication method" }
-      );
+      // Temporarily commenting out email and sign-up options - only GitHub OAuth is active
+      // const choice = await vscode.window.showQuickPick(
+      //   ["Sign In with GitHub", "Sign In with Email", "Sign Up"],
+      //   { placeHolder: "Select authentication method" }
+      // );
 
-      if (choice === "Sign In with GitHub") {
-  vscode.commands.executeCommand("collabAgent.githubLogin");
-      } else if (choice === "Sign In with Email") {
-  vscode.commands.executeCommand("collabAgent.emailLogin");
-      } else if (choice === "Sign Up") {
-  vscode.commands.executeCommand("collabAgent.signUp");
-      }
+      // if (choice === "Sign In with GitHub") {
+      //   vscode.commands.executeCommand("collabAgent.githubLogin");
+      // } else if (choice === "Sign In with Email") {
+      //   vscode.commands.executeCommand("collabAgent.emailLogin");
+      // } else if (choice === "Sign Up") {
+      //   vscode.commands.executeCommand("collabAgent.signUp");
+      // }
+
+      // Directly call GitHub sign-in
+      vscode.commands.executeCommand("collabAgent.signIn");
     }),
 
     vscode.commands.registerCommand("collabAgent.authStateChanged", updateAuthStatus)

@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from ..database.db import sb_select, sb_insert, sb_update
+from ..database.db import sb_select, sb_insert
 
 notes_bp = Blueprint("notes", __name__, url_prefix="/api/notes")
 

@@ -15,6 +15,7 @@ export interface JiraIssue {
             name: string;
         };
         assignee?: {
+            accountId: string;
             displayName: string;
             emailAddress?: string;
         };
@@ -27,6 +28,7 @@ export interface JiraIssue {
             name: string;
         };
         sprint?: any;
+        customfield_10026?: number;
     };
 }
 
@@ -71,9 +73,9 @@ export class JiraService {
 
     private constructor() {
         // Use centralized backend configuration
-        // Note: Update BACKEND_URL in src/config/backend-config.ts after deploying to Render
-        const { BACKEND_URL } = require('../config/backend-config');
-        this.baseUrl = BACKEND_URL;
+        // Note: Update TESTING flag in src/api/types/endpoints.ts after deploying to Render
+        const { BASE_URL } = require('../api/types/endpoints');
+        this.baseUrl = BASE_URL;
     }
 
     public static getInstance(): JiraService {
@@ -393,11 +395,26 @@ export class JiraService {
                             'Authorization': `Basic ${config.access_token}`,
                             'Accept': 'application/json'
                         },
-                        params: {
-                            fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority'
-                        },
+                        // Request ALL fields to find story points
                         timeout: 10000
                     });
+                    
+                    // Debug: Log all custom fields for the first issue to find story points field
+                    if (issue.id === issueIds[0].id) {
+                        const allCustomFields = Object.keys(detailResponse.data.fields).filter(k => k.startsWith('customfield_'));
+                        console.log('[Jira Debug] All custom fields:', allCustomFields);
+                        
+                        // Log values of custom fields that have data
+                        const customFieldsWithData: any = {};
+                        allCustomFields.forEach(fieldKey => {
+                            const value = detailResponse.data.fields[fieldKey];
+                            if (value !== null && value !== undefined) {
+                                customFieldsWithData[fieldKey] = value;
+                            }
+                        });
+                        console.log('[Jira Debug] Custom fields with data:', JSON.stringify(customFieldsWithData, null, 2));
+                    }
+                    
                     return detailResponse.data;
                 } catch (error) {
                     console.error(`Failed to fetch details for issue ${issue.id}:`, error);
@@ -533,7 +550,7 @@ export class JiraService {
                         'Accept': 'application/json'
                     },
                     params: {
-                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,sprint'
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,sprint,customfield_10026'
                     },
                     timeout: 15000
                 }
@@ -569,7 +586,7 @@ export class JiraService {
                         'Accept': 'application/json'
                     },
                     params: {
-                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority'
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,customfield_10026'
                     },
                     timeout: 15000
                 }
@@ -645,6 +662,166 @@ export class JiraService {
     }
 
     /**
+     * Reassigns an issue to a different user.
+     * @param teamId
+     * @param issueKey
+     * @param accountId
+     */
+    public async reassignIssue(teamId: string, issueKey: string, accountId: string | null): Promise<void> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            const payload = accountId ? { accountId } : null;
+            
+            await axios.put(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}/assignee`,
+                payload,
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            console.log(`Successfully reassigned issue ${issueKey} to ${accountId || 'unassigned'}`);
+        } catch (error: any) {
+            console.error('Failed to reassign issue:', error);
+            throw new Error(`Failed to reassign issue: ${error.message}`);
+        }
+    }
+
+    /**
+     * Updates the story points for an issue.
+     * @param teamId
+     * @param issueKey
+     * @param storyPoints
+     */
+    public async updateStoryPoints(teamId: string, issueKey: string, storyPoints: number | null): Promise<void> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            await axios.put(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}`,
+                {
+                    fields: {
+                        customfield_10026: storyPoints
+                    }
+                },
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            console.log(`Successfully updated story points for ${issueKey} to ${storyPoints}`);
+        } catch (error: any) {
+            console.error('Failed to update story points:', error);
+            throw new Error(`Failed to update story points: ${error.message}`);
+        }
+    }
+
+    /**
+     * Updates the priority for an issue.
+     * @param teamId
+     * @param issueKey
+     * @param priorityName
+     */
+    public async updatePriority(teamId: string, issueKey: string, priorityName: string): Promise<void> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            await axios.put(
+                `${config.jira_url}/rest/api/3/issue/${issueKey}`,
+                {
+                    fields: {
+                        priority: {
+                            name: priorityName
+                        }
+                    }
+                },
+                {
+                    headers: {
+                        'Authorization': `Basic ${config.access_token}`,
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    timeout: 10000
+                }
+            );
+
+            console.log(`Successfully updated priority for ${issueKey} to ${priorityName}`);
+        } catch (error: any) {
+            console.error('Failed to update priority:', error);
+            throw new Error(`Failed to update priority: ${error.message}`);
+        }
+    }
+
+    /**
+     * Fetches assignable users for the project (for reassignment dropdown).
+     */
+    public async fetchAssignableUsers(teamId: string): Promise<Array<{accountId: string, displayName: string, emailAddress?: string}>> {
+        const config = await this.getJiraConfig(teamId);
+        if (!config) {
+            throw new Error('Jira not configured for this team');
+        }
+
+        try {
+            // First, get all issues to find users who are actually working on the project
+            const issues = await this.fetchTeamIssues(teamId);
+
+            // Collect unique users from assignee and reporter fields
+            const activeUsers = new Map<string, {accountId: string, displayName: string, emailAddress?: string}>();
+
+            issues.forEach(issue => {
+                // Add assignee if present
+                if (issue.fields.assignee) {
+                    activeUsers.set(issue.fields.assignee.accountId, {
+                        accountId: issue.fields.assignee.accountId,
+                        displayName: issue.fields.assignee.displayName,
+                        emailAddress: issue.fields.assignee.emailAddress
+                    });
+                }
+                // Add reporter if present (reporter only has displayName in the type)
+                if (issue.fields.reporter && issue.fields.reporter.displayName) {
+                    // Reporter type only guarantees displayName, so we need to check if other fields exist
+                    const reporter = issue.fields.reporter as any;
+                    if (reporter.accountId) {
+                        activeUsers.set(reporter.accountId, {
+                            accountId: reporter.accountId,
+                            displayName: reporter.displayName,
+                            emailAddress: reporter.emailAddress
+                        });
+                    }
+                }
+            });
+
+            // Convert to array and sort by display name
+            return Array.from(activeUsers.values()).sort((a, b) =>
+                a.displayName.localeCompare(b.displayName)
+            );
+        } catch (error: any) {
+            console.error('Failed to fetch assignable users:', error);
+            throw new Error(`Failed to fetch assignable users: ${error.message}`);
+        }
+    }
+
+    /**
      * Creates a new issue in Jira.
      */
     public async createIssue(teamId: string, taskData: any): Promise<JiraIssue> {
@@ -694,6 +871,37 @@ export class JiraService {
                 };
             }
 
+            // Add optional story points if provided
+            if (taskData.storypoints) {
+                const storyPointsValue = parseInt(taskData.storypoints, 10);
+                if (!isNaN(storyPointsValue) && storyPointsValue > 0) {
+                    // Story Points are typically stored in customfield_10026 (Scrum field)
+                    issuePayload.fields.customfield_10026 = storyPointsValue;
+                }
+            }
+
+            // Add optional assignee if provided
+            if (taskData.assignee) {
+                console.log('[createIssue] Assignee provided:', taskData.assignee);
+                // Fetch assignable users to get the accountId from displayName
+                try {
+                    const assignableUsers = await this.fetchAssignableUsers(teamId);
+                    console.log('[createIssue] Fetched assignable users:', assignableUsers.map(u => u.displayName));
+                    const user = assignableUsers.find(u => u.displayName === taskData.assignee);
+                    if (user) {
+                        console.log('[createIssue] Found matching user:', user);
+                        issuePayload.fields.assignee = {
+                            accountId: user.accountId
+                        };
+                    } else {
+                        console.warn(`[createIssue] Assignee "${taskData.assignee}" not found in assignable users. Available:`, assignableUsers.map(u => u.displayName));
+                    }
+                } catch (error) {
+                    console.error('[createIssue] Failed to fetch assignable users for assignee:', error);
+                    // Continue without assignee if fetch fails
+                }
+            }
+
             console.log('Creating Jira issue with payload:', JSON.stringify(issuePayload, null, 2));
 
             // Create the issue
@@ -722,7 +930,7 @@ export class JiraService {
                         'Accept': 'application/json'
                     },
                     params: {
-                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,description'
+                        fields: 'summary,status,assignee,updated,reporter,created,issuetype,priority,description,customfield_10026'
                     },
                     timeout: 10000
                 }

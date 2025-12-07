@@ -5,6 +5,7 @@
 	let isEndingSession = false;
 	let endingSessionTimer = null;
 	window.__collabAgentLastLink = '';
+	let currentSessionStatus = null; // Track current session status (null, 'hosting', 'joined')
 
 	function post(command, payload = {}) {
 		vscode.postMessage({ command, ...payload });
@@ -12,20 +13,31 @@
 
 	window.startLiveShare = () => post('startLiveShare');
 	window.joinLiveShare = () => post('joinLiveShare');
+	window.broadcastSnapshot = () => {
+		// Check if user is in an active Live Share session
+		if (currentSessionStatus === 'hosting' || currentSessionStatus === 'joined') {
+			// Show warning message via vscode
+			post('broadcastBlockedBySession');
+			return;
+		}
+		post('broadcastSnapshot');
+	};
 
 	// Home tab: Install Live Share and Login buttons
 	function setupHomePanelButtons() {
 		const installBtn = document.getElementById('installLiveShareBtn');
-		if (installBtn) {
+		if (installBtn && !installBtn.hasAttribute('data-listener-added')) {
 			installBtn.addEventListener('click', function() {
 				post('installLiveShare');
 			});
+			installBtn.setAttribute('data-listener-added', 'true');
 		}
 		const loginBtn = document.getElementById('loginBtn');
-		if (loginBtn) {
+		if (loginBtn && !loginBtn.hasAttribute('data-listener-added')) {
 			loginBtn.addEventListener('click', function() {
 				post('loginOrSignup');
 			});
+			loginBtn.setAttribute('data-listener-added', 'true');
 		}
 	}
 	// Agent tab: Team management buttons
@@ -139,6 +151,8 @@
 		setupSnapshotForm();
 		setupActivityFeed();
 		setupProfilePanel();
+		updateBroadcastButtonState(); // Initialize broadcast button state
+		updateTeamManagementButtonsState(); // Initialize team management buttons state
 	}
 
 	// Run on DOMContentLoaded or immediately if loaded
@@ -230,6 +244,12 @@
 					const u = document.getElementById('fs-userId');
 					if (u) u.value = '';
 				}
+				break;
+			case 'showAssignableUsersModal':
+				showAssignableUsersModal(message.users, message.taskKey, message.activityId);
+				break;
+			case 'taskAssignedFromTimeline':
+				handleTaskAssignedFromTimeline(message.activityId, message.success, message.displayName);
 				break;
 		}
 	});
@@ -355,6 +375,17 @@
 		if (fsTeamId) fsTeamId.value = team?.id || '';
 		if (fsUserId && userId) fsUserId.value = userId;
 		persistFsIds({ userId: (fsUserId && fsUserId.value) || '', teamId: (fsTeamId && fsTeamId.value) || '' });
+
+		// Refresh the activity feed when team context changes
+		try {
+			if (team?.id) {
+				requestActivityFeed();
+			} else {
+				// Clear list when no team
+				const list = document.getElementById('activityList');
+				if (list) list.innerHTML = '';
+			}
+		} catch (e) {}
 	}
 
 	// Toggle team members list
@@ -396,6 +427,64 @@
 		console.log('Activity update:', activity);
 	}
 
+	function updateBroadcastButtonState() {
+		const broadcastBtn = document.getElementById('broadcastBtn');
+		if (!broadcastBtn) return;
+
+		const inSession = currentSessionStatus === 'hosting' || currentSessionStatus === 'joined';
+
+		if (inSession) {
+			broadcastBtn.disabled = true;
+			broadcastBtn.style.opacity = '0.5';
+			broadcastBtn.style.cursor = 'not-allowed';
+			broadcastBtn.title = 'Cannot broadcast while in an active Live Share session';
+		} else {
+			broadcastBtn.disabled = false;
+			broadcastBtn.style.opacity = '1';
+			broadcastBtn.style.cursor = 'pointer';
+			broadcastBtn.title = 'Broadcast your changes to the team';
+		}
+	}
+
+	function updateTeamManagementButtonsState() {
+		const inSession = currentSessionStatus === 'hosting' || currentSessionStatus === 'joined';
+
+		// List of team management buttons to disable (excluding refreshTeamsBtn)
+		const teamButtons = [
+			{ id: 'createTeamBtn', title: 'Create a new team' },
+			{ id: 'joinTeamBtn', title: 'Join an existing team' },
+			{ id: 'switchTeamBtn', title: 'Switch to a different team' },
+			{ id: 'deleteTeamBtn', title: 'Delete your team' },
+			{ id: 'leaveTeamBtn', title: 'Leave your team' }
+		];
+
+		teamButtons.forEach(btnConfig => {
+			const btn = document.getElementById(btnConfig.id);
+			if (btn) {
+				if (inSession) {
+					btn.disabled = true;
+					btn.style.opacity = '0.5';
+					btn.style.cursor = 'not-allowed';
+					btn.title = 'Cannot manage teams while in an active Live Share session';
+				} else {
+					btn.disabled = false;
+					btn.style.opacity = '1';
+					btn.style.cursor = 'pointer';
+					btn.title = btnConfig.title;
+				}
+			}
+		});
+
+		// Refresh button should ALWAYS remain enabled
+		const refreshBtn = document.getElementById('refreshTeamsBtn');
+		if (refreshBtn) {
+			refreshBtn.disabled = false;
+			refreshBtn.style.opacity = '1';
+			refreshBtn.style.cursor = 'pointer';
+			refreshBtn.title = 'Refresh teams';
+		}
+	}
+
 	function updateSessionStatus(status, link, participants, role, duration) {
 		const statusDiv = document.getElementById('sessionStatus');
 		const btns = document.getElementById('sessionButtons');
@@ -413,6 +502,11 @@
 		if (isEndingSession && status === 'joined') {
 			return;
 		}
+
+		// Update current session status and broadcast button state
+		currentSessionStatus = status;
+		updateBroadcastButtonState();
+		updateTeamManagementButtonsState();
 
 		if (chatInput) {
 			if (status === 'hosting' || status === 'joined') {
@@ -450,12 +544,12 @@
 			} else {
 				const linkSection = effectiveLink ? `
 				<div class=\"session-link\" data-collab-link>Link: <code>${effectiveLink}</code>
-					<button class=\"button small\" onclick=\"copyManualLink()\">Copy</button>
+					<button class=\"button-modern\" onclick=\"copyManualLink()\">Copy</button>
 				</div>` : `
 				<div class=\"session-link manual-entry\" data-collab-link>
 					<div style=\"margin-bottom:4px; font-size:11px; opacity:0.8;\">Click to capture the current Live Share invite link from your clipboard.</div>
 					<div style=\"display:flex; gap:4px;\">
-						<button class=\"button small\" onclick=\"pasteManualLink()\">Capture From Clipboard</button>
+						<button class=\"button-modern\" onclick=\"pasteManualLink()\">Capture From Clipboard</button>
 					</div>
 					<div id=\"manualLinkFeedback\" style=\"margin-top:4px; font-size:11px; color: var(--vscode-descriptionForeground);\"></div>
 				</div>`;
@@ -467,7 +561,7 @@
 							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
 							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
 							${linkSection}
-							<button class=\"button end-session-btn\" onclick=\"endSession()\">End Session</button>
+							<button class=\"button-modern end-session-btn\" onclick=\"endSession()\">End Session</button>
 						</div>
 					</div>`;
 			}
@@ -491,7 +585,7 @@
 							<div>Participants: <span data-collab-participants>${participantCount}</span></div>
 							<div>Duration: <span data-collab-duration>${sessionDuration}</span></div>
 							<div>Role: Guest</div>
-							<button class="button leave-session-btn" onclick="leaveSession()">Leave Session</button>
+							<button class="button-modern leave-session-btn" onclick="leaveSession()">Leave Session</button>
 						</div>
 					</div>`;
 			}
@@ -707,19 +801,22 @@
 					</div>
 				</div>
 			</div>
-			<div style="display:flex; gap:6px; align-items:center; margin-bottom:6px;">
-				<button class="button" id="activityRefreshBtn" title="Reload feed">Refresh</button>
-				<select id="activityFilterDropdown" class="dropdown" title="Filter events by type" style="padding:4px 8px; font-size:12px; border:1px solid var(--vscode-input-border); background:var(--vscode-input-background); color:var(--vscode-input-foreground); border-radius:4px; cursor:pointer;">
-					<option value="all">All</option>
-					<option value="ai_task_recommendation">Task Delegation</option>
-					<option value="initial_snapshot">Initial Snapshot</option>
-					<option value="changes">Changes</option>
-					<option value="live_share_started">Started Live Share</option>
-					<option value="live_share_ended">Ended Live Share</option>
-				</select>
-				<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
+			<div class="activity-feed-container">
+				<div style="display:flex; gap:8px; align-items:center; margin-bottom:6px;">
+					<button class="button-modern" id="activityRefreshBtn" title="Reload feed">Refresh</button>
+					<select id="activityFilterDropdown" class="filter-dropdown" title="Filter events by type">
+						<option value="all">All</option>
+						<option value="ai_task_recommendation">Task Delegation</option>
+						<option value="initial_snapshot">Initial Snapshot</option>
+						<option value="changes">Changes</option>
+						<option value="live_share_started">Started Live Share</option>
+						<option value="live_share_ended">Ended Live Share</option>
+						<option value="participant_status">Participant Status</option>
+					</select>
+					<span id="activityFeedback" style="font-size:12px; color: var(--vscode-descriptionForeground);"></span>
+				</div>
+				<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
 			</div>
-			<div id="activityList" class="activity-list" style="display:flex; flex-direction:column; gap:8px;"></div>
 		`;
 		anchor.insertAdjacentElement('afterend', section);
 
@@ -791,6 +888,8 @@
 					return activityType === 'live_share_started';
 				} else if (filterValue === 'live_share_ended') {
 					return activityType === 'live_share_ended';
+				} else if (filterValue === 'participant_status') {
+					return activityType === 'participant_status';
 				}
 				return true;
 			});
@@ -823,9 +922,27 @@
 			if (activityType === 'live_share_started') {
 				// Bright green tag for session start
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; background-color:#4caf50; color:#ffffff; border-radius:4px; margin-right:6px;">Started Live Share</span>';
-				// Show View Initial Snapshot button for started events
+				// Show View Initial Snapshot button and Join Session button (if session link available)
+				const sessionLink = summary;  // Session link is stored in summary field for started events
+
+				// Check if this session has ended by looking for a corresponding ended event
+				const sessionId = it.file_path ? it.file_path.replace('session:', '') : null;
+				const hasEnded = sessionId && filteredItems.some(item =>
+					item.activity_type === 'live_share_ended' &&
+					item.file_path === `session:${sessionId}`
+				);
+
+				// Disable join button if session has ended
+				const joinButtonDisabled = hasEnded;
+				const joinButtonStyle = joinButtonDisabled
+					? 'background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); opacity: 0.5; cursor: not-allowed;'
+					: 'background-color: var(--vscode-button-background); color: var(--vscode-button-foreground);';
+				const joinButtonOnClick = joinButtonDisabled ? '' : `onclick="joinSessionFromActivity('${escapeHtml(sessionLink)}')"`;
+				const joinButtonTitle = joinButtonDisabled ? 'This session has ended' : 'Join this Live Share session';
+
 				buttons = `
-					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>
+					${hasSnapshot ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSnapshot('${it.id}')" title="View the initial file snapshot">View Initial Snapshot</button>` : ''}
+					${sessionLink ? `<button class="button small" style="${joinButtonStyle}" ${joinButtonOnClick} title="${joinButtonTitle}" ${joinButtonDisabled ? 'disabled' : ''}>Join Session</button>` : ''}
 				`;
 			} else if (activityType === 'live_share_ended') {
 				// Red tag for session end
@@ -835,12 +952,33 @@
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewChanges('${it.id}')" title="View the git diff changes">View Changes</button>
 					${summary ? `<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewSummary('${it.id}')" title="View AI-generated summary">View Summary</button>` : ''}
 				`;
+			} else if (activityType === 'participant_status') {
+				// Participant Status: membership changes (non-clickable informational event)
+				// Styled similar to Initial Snapshot (bordered) but using white instead of green
+				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid #ffffff; color:#ffffff; border-radius:4px; margin-right:6px;">Participant Status</span>';
+				// No buttons => non-clickable
 			} else if (activityType === 'ai_task_recommendation') {
 				// Purple badge for AI task recommendations
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';
-				// Show View Reason button
+
+				// Extract task key from file_path field
+				const taskKey = it.file_path || '';
+
+				// Check localStorage first for assignment info (most reliable)
+				const storedAssignment = getAssignmentFromStorage(it.id);
+				const isAssigned = storedAssignment || it.is_assigned === true;
+				const assignedTo = storedAssignment ? storedAssignment.assignedTo : '';
+
+				const assignButtonStyle = isAssigned
+					? 'background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); opacity: 0.5; cursor: not-allowed;'
+					: 'background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);';
+				const assignButtonDisabled = isAssigned ? 'disabled' : '';
+				const assignButtonText = isAssigned ? (assignedTo ? `Assigned to ${assignedTo}` : 'Assigned') : 'Assign';
+
+				// Show View Reason and Assign buttons
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewTaskReason('${it.id}')" title="View AI's reasoning for this recommendation">View Reason</button>
+					<button class="button small assign-task-btn" id="assign-btn-${it.id}" style="${assignButtonStyle}" onclick="assignTaskFromTimeline('${taskKey}', '${it.id}')" title="${isAssigned ? 'Task already assigned' : 'Assign this task'}" ${assignButtonDisabled}>${assignButtonText}</button>
 				`;
 			} else if (activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges)) {
 				// INITIAL SNAPSHOT: Has full snapshot, no changes
@@ -874,11 +1012,16 @@
 				</div>
 			` : '';
 
+			// Add pin indicator for pinned items
+			const isPinned = it.pinned === true;
+			const pinIndicator = isPinned ? '<span style="margin-right:4px; opacity:0.6;" title="Pinned to top">📌</span>' : '';
+			const pinnedBorder = isPinned ? 'border-left:3px solid var(--vscode-button-background);' : '';
+
 			return `
-				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); padding:12px; border-radius:6px; background: var(--vscode-editor-background);">
+				<div class="activity-item" style="border:1px solid var(--vscode-editorWidget-border); ${pinnedBorder} padding:12px; border-radius:6px; background: var(--vscode-editor-background);">
 					<div id="${itemId}" style="cursor:${buttons ? 'pointer' : 'default'}; user-select:none;" ${buttons ? `onclick="toggleActivityDetails('${detailsId}')"` : ''}>
 						<div style="font-size:11px; color: var(--vscode-descriptionForeground); opacity:0.8;">
-							${icon} ${when} • ${who}
+							${pinIndicator}${icon} ${when} • ${who}
 						</div>
 						<div style="margin-top:6px; font-size:13px; font-weight:500; line-height:1.4;">${escapeHtml(eventHeader)}</div>
 					</div>
@@ -934,8 +1077,8 @@
 
 		// Check if this activity has changes (from file_snapshots via source_snapshot_id)
 		if (activity.changes) {
-			// Show diff in a modal or panel
-			showDiffModal(activity.changes, 'Git Diff - ' + (activity.summary || 'Changes'));
+			// Show diff in a modal or panel (no summary, just "Git Diff")
+			showDiffModal(activity.changes, 'Git Diff');
 		} else {
 			console.log('No changes available for this activity');
 			console.log('Activity data:', activity);
@@ -982,6 +1125,35 @@
 		}
 	};
 
+	// Assign task from timeline (for AI task recommendations)
+	window.assignTaskFromTimeline = function(taskKey, activityId) {
+		console.log('Assign task from timeline:', taskKey, activityId);
+
+		if (!taskKey) {
+			console.error('No task key provided');
+			return;
+		}
+
+		// Send message to backend to fetch assignable users and show assignment modal
+		post('assignTaskFromTimeline', { taskKey, activityId });
+	};
+
+	// Join Live Share session from activity feed
+	window.joinSessionFromActivity = function(sessionLink) {
+		console.log('Join session from activity feed with link:', sessionLink);
+
+		if (!sessionLink) {
+			console.error('No session link provided');
+			return;
+		}
+
+		// Send message to backend to join the session
+		vscode.postMessage({
+			command: 'joinLiveShareWithLink',
+			link: sessionLink
+		});
+	};
+
 	function showDiffModal(diffContent, title) {
 		// Create modal overlay
 		const existingModal = document.getElementById('diffModal');
@@ -1005,6 +1177,9 @@
 			padding: 20px;
 		`;
 
+		// Format the diff content with syntax highlighting
+		const formattedDiff = formatGitDiff(diffContent);
+
 		modal.innerHTML = `
 			<div style="
 				background: var(--vscode-editor-background);
@@ -1027,14 +1202,14 @@
 					<button class="button" onclick="document.getElementById('diffModal').remove()">Close</button>
 				</div>
 				<div style="
-					padding: 16px;
+					padding: 8px;
 					overflow: auto;
 					flex: 1;
-					font-family: monospace;
-					font-size: 12px;
-					white-space: pre-wrap;
-					word-break: break-all;
-				">${escapeHtml(diffContent)}</div>
+					font-family: var(--vscode-editor-font-family, 'Courier New', monospace);
+					font-size: 13px;
+					line-height: 1.6;
+					background: var(--vscode-editor-background);
+				">${formattedDiff}</div>
 			</div>
 		`;
 
@@ -1159,14 +1334,17 @@
 			padding: 20px;
 		`;
 
+		// Format the snapshot content with file tree view
+		const formattedSnapshot = formatSnapshot(snapshotContent);
+
 		modal.innerHTML = `
 			<div style="
 				background: var(--vscode-editor-background);
 				border: 1px solid var(--vscode-editorWidget-border);
 				border-radius: 6px;
 				width: 90%;
-				max-width: 900px;
-				max-height: 80vh;
+				max-width: 1000px;
+				max-height: 85vh;
 				display: flex;
 				flex-direction: column;
 			">
@@ -1176,19 +1354,17 @@
 					display: flex;
 					justify-content: space-between;
 					align-items: center;
+					background: var(--vscode-titleBar-activeBackground);
 				">
-					<h3 style="margin: 0;">${escapeHtml(title)}</h3>
+					<h3 style="margin: 0; color: var(--vscode-titleBar-activeForeground);">${escapeHtml(title || 'Workspace Snapshot')}</h3>
 					<button class="button" onclick="document.getElementById('snapshotModal').remove()">Close</button>
 				</div>
 				<div style="
 					padding: 16px;
 					overflow: auto;
 					flex: 1;
-					font-family: monospace;
-					font-size: 12px;
-					white-space: pre-wrap;
-					word-break: break-all;
-				">${escapeHtml(snapshotContent)}</div>
+					background: var(--vscode-editor-background);
+				">${formattedSnapshot}</div>
 			</div>
 		`;
 
@@ -1212,6 +1388,268 @@
 			return ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[s]);
 		});
 	}
+
+	/**
+	 * Formats git diff content with proper line breaks and syntax highlighting
+	 * Converts escape sequences to actual whitespace and adds GitHub-style colors
+	 */
+	function formatGitDiff(diffContent) {
+		if (!diffContent || typeof diffContent !== 'string') {
+			return '<div style="color: var(--vscode-descriptionForeground);">No changes available</div>';
+		}
+
+		// Step 1: Decode escape sequences
+		// Handle various escape sequence formats that might be in the database
+		let decoded = diffContent
+			.replace(/\\r\\n/g, '\n')  // \r\n → newline
+			.replace(/\\n/g, '\n')      // \n → newline
+			.replace(/\\r/g, '\n')      // \r → newline
+			.replace(/\\t/g, '\t');     // \t → tab
+
+		// Step 2: Split into lines
+		const lines = decoded.split('\n');
+
+		// Step 3: Format each line with appropriate styling
+		const formattedLines = lines.map(line => {
+			const escapedLine = escapeHtml(line);
+
+			// File headers (diff --git, index, +++, ---)
+			if (line.startsWith('diff --git') || line.startsWith('index ') ||
+			    line.startsWith('---') || line.startsWith('+++')) {
+				return `<div style="color: var(--vscode-descriptionForeground); font-weight: bold;">${escapedLine}</div>`;
+			}
+			// Hunk headers (@@ ... @@)
+			else if (line.startsWith('@@')) {
+				return `<div style="color: var(--vscode-textPreformat-foreground); background: var(--vscode-textBlockQuote-background); padding: 2px 4px; margin: 4px 0;">${escapedLine}</div>`;
+			}
+			// Added lines (green)
+			else if (line.startsWith('+')) {
+				return `<div style="background: rgba(46, 160, 67, 0.2); color: var(--vscode-gitDecoration-addedResourceForeground, #46a043); padding: 1px 4px;">${escapedLine}</div>`;
+			}
+			// Deleted lines (red)
+			else if (line.startsWith('-')) {
+				return `<div style="background: rgba(248, 81, 73, 0.2); color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); padding: 1px 4px;">${escapedLine}</div>`;
+			}
+			// Context lines (unchanged)
+			else {
+				return `<div style="color: var(--vscode-editor-foreground); padding: 1px 4px;">${escapedLine}</div>`;
+			}
+		});
+
+		return formattedLines.join('');
+	}
+
+	/**
+	 * Builds a hierarchical tree structure from flat file paths
+	 * @param {Object} snapshot - Object with file paths as keys and content as values
+	 * @returns {Object} Tree structure
+	 */
+	function buildFileTree(snapshot) {
+		const tree = {};
+		const filePaths = Object.keys(snapshot).sort();
+
+		filePaths.forEach(filePath => {
+			// Normalize path separators (handle both / and \)
+			const normalizedPath = filePath.replace(/\\/g, '/');
+			const parts = normalizedPath.split('/');
+			let current = tree;
+
+			parts.forEach((part, index) => {
+				const isFile = index === parts.length - 1;
+
+				if (isFile) {
+					// This is a file
+					if (!current.__files) current.__files = [];
+					current.__files.push({
+						name: part,
+						fullPath: filePath,
+						content: snapshot[filePath]
+					});
+				} else {
+					// This is a folder
+					if (!current[part]) {
+						current[part] = {};
+					}
+					current = current[part];
+				}
+			});
+		});
+
+		return tree;
+	}
+
+	/**
+	 * Counts total files in a tree (recursively)
+	 */
+	function countFilesInTree(tree) {
+		let count = 0;
+
+		if (tree.__files) {
+			count += tree.__files.length;
+		}
+
+		Object.keys(tree).forEach(key => {
+			if (key !== '__files') {
+				count += countFilesInTree(tree[key]);
+			}
+		});
+
+		return count;
+	}
+
+	/**
+	 * Renders a file tree recursively
+	 * @param {Object} tree - Tree structure from buildFileTree
+	 * @param {Number} level - Indentation level
+	 * @param {String} path - Current path (for unique IDs)
+	 * @returns {String} HTML string
+	 */
+	function renderFileTree(tree, level, path) {
+		level = level || 0;
+		path = path || '';
+		let html = '';
+		const indent = level * 20;
+		let itemIndex = 0;
+
+		// Render folders first
+		const folders = Object.keys(tree).filter(key => key !== '__files').sort();
+
+		folders.forEach(folderName => {
+			const folderId = 'folder-' + path + '-' + itemIndex++;
+			const folderPath = path ? path + '/' + folderName : folderName;
+
+			// Count files in this folder (recursively)
+			const fileCount = countFilesInTree(tree[folderName]);
+
+			html += '<div style="margin-bottom: 4px;">';
+			html += '<div style="padding: 6px 8px; cursor: pointer; display: flex; align-items: center; gap: 8px; padding-left: ' + (indent + 8) + 'px; border-radius: 4px; transition: background 0.1s;" ';
+			html += 'onmouseover="this.style.background=\'var(--vscode-list-hoverBackground)\'" ';
+			html += 'onmouseout="this.style.background=\'transparent\'" ';
+			html += 'onclick="toggleFolder(\'' + folderId + '\')">';
+			html += '<span id="' + folderId + '-icon" style="color: var(--vscode-descriptionForeground); font-size: 10px;">▶</span>';
+			html += '<span style="color: var(--vscode-icon-foreground); margin-right: 4px;">📁</span>';
+			html += '<strong style="color: var(--vscode-foreground);">' + escapeHtml(folderName) + '/</strong>';
+			html += '<span style="color: var(--vscode-descriptionForeground); font-size: 11px; margin-left: auto;">(' + fileCount + ' file' + (fileCount !== 1 ? 's' : '') + ')</span>';
+			html += '</div>';
+			html += '<div id="' + folderId + '" style="display: none;">';
+			html += renderFileTree(tree[folderName], level + 1, folderPath);
+			html += '</div>';
+			html += '</div>';
+		});
+
+		// Render files
+		const files = tree.__files || [];
+		files.forEach(function(file) {
+			const fileId = 'file-' + path + '-' + itemIndex++;
+
+			// Decode escape sequences in file content
+			const decodedContent = (file.content || '')
+				.replace(/\\r\\n/g, '\n')
+				.replace(/\\n/g, '\n')
+				.replace(/\\r/g, '\n')
+				.replace(/\\t/g, '\t');
+
+			const lineCount = decodedContent.split('\n').length;
+
+			html += '<div style="margin-bottom: 8px; border: 1px solid var(--vscode-editorWidget-border); border-radius: 4px; overflow: hidden; margin-left: ' + indent + 'px;">';
+			html += '<div style="background: var(--vscode-textBlockQuote-background); padding: 6px 10px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--vscode-editorWidget-border);" onclick="toggleFile(\'' + fileId + '\')">';
+			html += '<div style="display: flex; align-items: center; gap: 8px;">';
+			html += '<span id="' + fileId + '-icon" style="color: var(--vscode-descriptionForeground); font-size: 10px;">▶</span>';
+			html += '<span style="color: var(--vscode-icon-foreground); margin-right: 4px;">📄</span>';
+			html += '<strong style="color: var(--vscode-textLink-foreground); font-family: var(--vscode-editor-font-family, monospace);">' + escapeHtml(file.name) + '</strong>';
+			html += '</div>';
+			html += '<span style="color: var(--vscode-descriptionForeground); font-size: 11px;">' + lineCount + ' lines</span>';
+			html += '</div>';
+			html += '<div id="' + fileId + '" style="display: none; padding: 0; background: var(--vscode-editor-background);">';
+			html += '<pre style="margin: 0; padding: 12px; overflow-x: auto; color: var(--vscode-editor-foreground); font-size: 13px; line-height: 1.6; font-family: var(--vscode-editor-font-family, \'Courier New\', monospace);">' + escapeHtml(decodedContent) + '</pre>';
+			html += '</div>';
+			html += '</div>';
+		});
+
+		return html;
+	}
+
+	/**
+	 * Formats snapshot content (initial workspace snapshot) with proper formatting
+	 * Displays files in a hierarchical folder tree with syntax-highlighted content
+	 */
+	function formatSnapshot(snapshotContent) {
+		// Handle different snapshot formats
+		let snapshot = snapshotContent;
+
+		// If it's a string, try to parse as JSON
+		if (typeof snapshotContent === 'string') {
+			try {
+				snapshot = JSON.parse(snapshotContent);
+			} catch (e) {
+				// If parsing fails, treat as raw text and decode escape sequences
+				const decoded = snapshotContent
+					.replace(/\\r\\n/g, '\n')
+					.replace(/\\n/g, '\n')
+					.replace(/\\r/g, '\n')
+					.replace(/\\t/g, '\t');
+
+				return '<pre style="margin: 0; color: var(--vscode-editor-foreground);">' + escapeHtml(decoded) + '</pre>';
+			}
+		}
+
+		// If snapshot is not an object, return error
+		if (!snapshot || typeof snapshot !== 'object') {
+			return '<div style="color: var(--vscode-descriptionForeground);">No snapshot available</div>';
+		}
+
+		// Get all file paths
+		const filePaths = Object.keys(snapshot);
+
+		if (filePaths.length === 0) {
+			return '<div style="color: var(--vscode-descriptionForeground);">Empty snapshot</div>';
+		}
+
+		// Build hierarchical tree structure
+		const tree = buildFileTree(snapshot);
+
+		// Add file count header
+		let html = '<div style="padding: 8px; background: var(--vscode-textBlockQuote-background); border-radius: 4px; margin-bottom: 12px; color: var(--vscode-descriptionForeground);">';
+		html += '<strong>' + filePaths.length + '</strong> file' + (filePaths.length !== 1 ? 's' : '') + ' captured';
+		html += '</div>';
+
+		// Render the tree
+		html += renderFileTree(tree, 0, '');
+
+		return html;
+	}
+
+	// Add toggle function to global scope for file expansion
+	window.toggleFile = function(fileId) {
+		const content = document.getElementById(fileId);
+		const icon = document.getElementById(fileId + '-icon');
+
+		if (content && icon) {
+			if (content.style.display === 'none') {
+				content.style.display = 'block';
+				icon.textContent = '▼';
+			} else {
+				content.style.display = 'none';
+				icon.textContent = '▶';
+			}
+		}
+	};
+
+	// Add toggle function for folders
+	window.toggleFolder = function(folderId) {
+		const content = document.getElementById(folderId);
+		const icon = document.getElementById(folderId + '-icon');
+
+		if (content && icon) {
+			if (content.style.display === 'none') {
+				content.style.display = 'block';
+				icon.textContent = '▼';
+			} else {
+				content.style.display = 'none';
+				icon.textContent = '▶';
+			}
+		}
+	};
 
 	function collectSnapshotPayload(){
 		const id = document.getElementById('fs-id')?.value?.trim();
@@ -1305,23 +1743,26 @@
 		const customInterests = document.getElementById('custom-interests')?.value || '';
 		if (customInterests) {
 			const customArray = customInterests.split(',').map(s => s.trim()).filter(s => s);
-			interests.push(...customArray);
-		}
-		
-		const weaknessesCheckboxes = document.querySelectorAll('input[name="weaknesses"]:checked');
-		const weaknesses = Array.from(weaknessesCheckboxes).map(cb => cb.value);
-		
-		const customWeaknesses = document.getElementById('custom-weaknesses')?.value || '';
-		if (customWeaknesses) {
-			const customArray = customWeaknesses.split(',').map(s => s.trim()).filter(s => s);
-			weaknesses.push(...customArray);
+
+			// Limit to 18 custom skills max, each max 30 characters
+			const limitedCustom = customArray
+				.slice(0, 18)  // Max 18 custom skills
+				.map(skill => skill.substring(0, 30));  // Max 30 chars per skill
+
+			if (customArray.length > 18) {
+				const statusEl = document.getElementById('profile-status');
+				if (statusEl) {
+					statusEl.textContent = `⚠️ Limited to first 18 custom interests (you entered ${customArray.length})`;
+					statusEl.className = 'status-message warning';
+				}
+			}
+
+			interests.push(...limitedCustom);
 		}
 
 		const profileData = {
 			name,
 			interests,
-			strengths: interests,
-			weaknesses,
 			custom_skills: []
 		};
 
@@ -1420,29 +1861,247 @@
 				}
 			}
 		}
-		
-		if (profile.weaknesses && Array.isArray(profile.weaknesses)) {
-			profile.weaknesses.forEach(weakness => {
-				const checkbox = document.querySelector(`input[name="weaknesses"][value="${weakness}"]`);
-				if (checkbox) {
-					checkbox.checked = true;
-				}
-			});
-	
-			const predefinedWeaknesses = ['Java', 'Python', 'TypeScript', 'JavaScript', 'C++', 'C#', 'Swift',
-				'Frontend', 'Backend', 'Database', 'UI/UX', 'DevOps', 'Cloud', 'Security', 'Testing',
-				'API', 'Documentation', 'Debugging'];
-			const customWeaknesses = profile.weaknesses.filter(w => !predefinedWeaknesses.includes(w));
-			if (customWeaknesses.length > 0) {
-				const customInput = document.getElementById('custom-weaknesses');
-				if (customInput) {
-					customInput.value = customWeaknesses.join(', ');
-				}
-			}
-		}
 	}
 
 	function handleProfileLoadError(message) {
 		console.error('Failed to load profile:', message.error);
+	}
+
+	// Show dropdown with assignable users for task assignment from timeline
+	function showAssignableUsersModal(users, taskKey, activityId) {
+		// Remove any existing dropdown
+		const existingDropdown = document.querySelector('.timeline-assign-dropdown');
+		if (existingDropdown) {
+			existingDropdown.remove();
+		}
+
+		// Find the assign button that triggered this
+		const buttonElement = document.getElementById(`assign-btn-${activityId}`);
+		if (!buttonElement) {
+			console.error('Could not find assign button for activity:', activityId);
+			return;
+		}
+
+		// Create the dropdown
+		const dropdown = document.createElement('div');
+		dropdown.className = 'timeline-assign-dropdown';
+
+		let dropdownHtml = '<div class="timeline-assign-dropdown-header">Assign to:</div>';
+
+		// Build user options
+		if (!users || users.length === 0) {
+			dropdownHtml += '<div class="timeline-assign-option disabled" style="font-style: italic; opacity: 0.6;">No assignable users found</div>';
+		} else {
+			users.forEach(function(user) {
+				const displayName = user.displayName || user.emailAddress || 'Unknown User';
+				const accountId = user.accountId || '';
+
+				dropdownHtml += `
+					<div class="timeline-assign-option" data-account-id="${escapeHtml(accountId)}" data-task-key="${escapeHtml(taskKey)}" data-activity-id="${activityId}">
+						<span class="timeline-assignee-icon">👤</span>
+						<span class="timeline-assignee-name">${escapeHtml(displayName)}</span>
+					</div>
+				`;
+			});
+		}
+
+		dropdown.innerHTML = dropdownHtml;
+
+		// Add dropdown to DOM first so we can measure its height
+		dropdown.style.position = 'fixed';
+		dropdown.style.visibility = 'hidden';
+		document.body.appendChild(dropdown);
+
+		// Calculate optimal position using smart positioning
+		const position = getOptimalDropdownPosition(buttonElement, dropdown, 300);
+		dropdown.style.top = position.top;
+		dropdown.style.left = position.left;
+		dropdown.style.visibility = 'visible';
+
+		// Add click handlers to options
+		dropdown.querySelectorAll('.timeline-assign-option:not(.disabled)').forEach(function(option) {
+			option.addEventListener('click', function() {
+				const accountId = this.getAttribute('data-account-id');
+				const taskKey = this.getAttribute('data-task-key');
+				const activityId = this.getAttribute('data-activity-id');
+				const displayName = this.querySelector('.timeline-assignee-name').textContent;
+
+				// Immediately disable the button and update text
+				const assignBtn = document.getElementById(`assign-btn-${activityId}`);
+				if (assignBtn) {
+					assignBtn.disabled = true;
+					assignBtn.style.opacity = '0.5';
+					assignBtn.style.cursor = 'not-allowed';
+					assignBtn.style.backgroundColor = 'var(--vscode-button-secondaryBackground)';
+					assignBtn.style.color = 'var(--vscode-descriptionForeground)';
+					assignBtn.textContent = `Assigning to ${displayName}...`;
+				}
+
+				selectAssignee(accountId, taskKey, activityId, displayName);
+				dropdown.remove();
+			});
+		});
+
+		// Close dropdown when clicking outside or scrolling
+		setTimeout(function() {
+			function closeDropdown(e) {
+				if (!dropdown.contains(e.target) && e.target !== buttonElement) {
+					dropdown.remove();
+					document.removeEventListener('click', closeDropdown);
+					document.removeEventListener('scroll', onScroll, true);
+				}
+			}
+
+			function onScroll() {
+				dropdown.remove();
+				document.removeEventListener('click', closeDropdown);
+				document.removeEventListener('scroll', onScroll, true);
+			}
+
+			document.addEventListener('click', closeDropdown);
+			document.addEventListener('scroll', onScroll, true);
+		}, 100);
+	}
+
+	// Helper function to calculate optimal dropdown position (prevents cutoff)
+	function getOptimalDropdownPosition(triggerElement, dropdownElement, estimatedHeight) {
+		const triggerRect = triggerElement.getBoundingClientRect();
+		const dropdownHeight = dropdownElement.offsetHeight || estimatedHeight || 300;
+		const viewportHeight = window.innerHeight;
+
+		// Calculate space above and below the trigger element
+		const spaceBelow = viewportHeight - triggerRect.bottom;
+		const spaceAbove = triggerRect.top;
+
+		// Add a small buffer (8px) to prevent touching viewport edges
+		const buffer = 8;
+
+		let top;
+
+		if (spaceBelow >= dropdownHeight + buffer) {
+			// Enough space below - open downward (default behavior)
+			top = triggerRect.bottom + 'px';
+		} else if (spaceAbove >= dropdownHeight + buffer) {
+			// Not enough space below, but enough space above - open upward
+			top = (triggerRect.top - dropdownHeight) + 'px';
+		} else if (spaceBelow >= spaceAbove) {
+			// Neither has enough space, use the larger space (below)
+			top = triggerRect.bottom + 'px';
+		} else {
+			// Neither has enough space, use the larger space (above)
+			top = (triggerRect.top - dropdownHeight) + 'px';
+		}
+
+		return {
+			top: top,
+			left: triggerRect.left + 'px'
+		};
+	}
+
+	// Handle user selection from the assignable users dropdown
+	window.selectAssignee = function(accountId, taskKey, activityId, displayName) {
+		console.log('Selected assignee:', accountId, 'for task:', taskKey);
+
+		// Send message to backend to reassign the task
+		post('reassignIssueFromTimeline', {
+			issueKey: taskKey,
+			accountId: accountId,
+			activityId: activityId,
+			displayName: displayName
+		});
+	};
+
+	// Handle the response after task assignment from timeline
+	function handleTaskAssignedFromTimeline(activityId, success, displayName) {
+		const assignBtn = document.getElementById(`assign-btn-${activityId}`);
+		if (assignBtn) {
+			if (success) {
+				// Update button to show successful assignment
+				assignBtn.disabled = true;
+				assignBtn.style.opacity = '0.5';
+				assignBtn.style.cursor = 'not-allowed';
+				assignBtn.style.backgroundColor = 'var(--vscode-button-secondaryBackground)';
+				assignBtn.style.color = 'var(--vscode-descriptionForeground)';
+				assignBtn.textContent = displayName ? `Assigned to ${displayName}` : 'Assigned';
+
+				// Store assignment in localStorage for persistence
+				saveAssignmentToStorage(activityId, displayName);
+			} else {
+				// Re-enable button on failure
+				assignBtn.disabled = false;
+				assignBtn.style.opacity = '1';
+				assignBtn.style.cursor = 'pointer';
+				assignBtn.style.backgroundColor = 'var(--vscode-button-secondaryBackground)';
+				assignBtn.style.color = 'var(--vscode-button-secondaryForeground)';
+				assignBtn.textContent = 'Assign';
+			}
+		}
+	}
+
+	// Save assignment to localStorage
+	function saveAssignmentToStorage(activityId, displayName) {
+		try {
+			const assignments = JSON.parse(localStorage.getItem('taskAssignments') || '{}');
+			assignments[activityId] = {
+				assignedTo: displayName,
+				timestamp: new Date().toISOString()
+			};
+			localStorage.setItem('taskAssignments', JSON.stringify(assignments));
+			console.log('Saved assignment to storage:', activityId, displayName);
+		} catch (e) {
+			console.error('Failed to save assignment to storage:', e);
+		}
+	}
+
+	// Get assignment from localStorage
+	function getAssignmentFromStorage(activityId) {
+		try {
+			const assignments = JSON.parse(localStorage.getItem('taskAssignments') || '{}');
+			return assignments[activityId];
+		} catch (e) {
+			console.error('Failed to get assignment from storage:', e);
+			return null;
+		}
+	}
+
+	// Tooltip positioning - ensure tooltips stay within viewport
+	function positionTooltips() {
+		const iconWrappers = document.querySelectorAll('.info-icon-wrapper');
+
+		iconWrappers.forEach(wrapper => {
+			const tooltip = wrapper.querySelector('.tooltip');
+			if (!tooltip) return;
+
+			wrapper.addEventListener('mouseenter', function() {
+				const wrapperRect = wrapper.getBoundingClientRect();
+				const tooltipRect = tooltip.getBoundingClientRect();
+				const viewportWidth = window.innerWidth;
+
+				// Calculate how far from the right edge of the icon the tooltip should be positioned
+				// to ensure it stays within the viewport
+				const spaceOnRight = viewportWidth - wrapperRect.right;
+				const tooltipWidth = tooltipRect.width || 320; // fallback to max-width
+
+				// If there's not enough space on the right, position tooltip to the left
+				if (spaceOnRight < tooltipWidth + 20) {
+					// Position tooltip to extend to the left
+					tooltip.style.left = 'auto';
+					tooltip.style.right = '0';
+					tooltip.style.transform = 'translateX(0) translateY(-4px)';
+				} else {
+					// Center the tooltip below the icon
+					tooltip.style.left = '50%';
+					tooltip.style.right = 'auto';
+					tooltip.style.transform = 'translateX(-50%) translateY(-4px)';
+				}
+			});
+		});
+	}
+
+	// Run tooltip positioning after DOM is ready
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', positionTooltips);
+	} else {
+		positionTooltips();
 	}
 })();

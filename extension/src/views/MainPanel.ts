@@ -4,6 +4,8 @@ import { AgentPanelProvider } from './AgentPanel';
 import { HomeScreenPanel } from './HomeScreenPanel';
 import { TasksPanel } from './TasksPanel';
 import { ProfilePanel } from './ProfilePanel';
+import { BASE_URL } from '../api/types/endpoints';
+import { getAuthContext, setAuthContext, handleSignOut, signInOrUpMenu } from '../services/auth-service';
 
 /**
  * Main orchestrator panel that manages and displays five sub-panels:
@@ -137,7 +139,8 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
     private isLiveShareCommand(command: string): boolean {
         return [
             'startLiveShare',
-            'joinLiveShare', 
+            'joinLiveShare',
+            'joinLiveShareWithLink',
             'endLiveShare',
             'leaveLiveShare',
             'sendTeamMessage',
@@ -160,7 +163,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'aiQuery',
             'addFileSnapshot',
             // 'generateSummary' removed - edge function now handles automatic summarization
-            'loadActivityFeed'
+            'loadActivityFeed',
+            'broadcastSnapshot',
+            'broadcastBlockedBySession'
         ].includes(command);
     }
 
@@ -176,8 +181,14 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             'loadSprint',
             'loadBacklog',
             'transitionIssue',
+            'reassignIssue',
+            'updateStoryPoints',
+            'updatePriority',
+            'fetchAssignableUsers',
             'createTask',
-            'getAISuggestions'
+            'getAISuggestions',
+            'assignTaskFromTimeline',
+            'reassignIssueFromTimeline'
         ].includes(command);
     }
 
@@ -198,6 +209,9 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 break;
             case 'joinLiveShare':
                 this._liveShareManager.joinLiveShareSession();
+                break;
+            case 'joinLiveShareWithLink':
+                this._liveShareManager.joinLiveShareSessionWithLink(message.link);
                 break;
             case 'endLiveShare':
                 this._liveShareManager.endLiveShareSession();
@@ -264,6 +278,12 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             case 'loadActivityFeed':
                 await (this._agentPanel as any).loadActivityFeed?.(message.teamId, message.limit);
                 break;
+            case 'broadcastSnapshot':
+                await (this._agentPanel as any).broadcastSnapshot?.();
+                break;
+            case 'broadcastBlockedBySession':
+                vscode.window.showWarningMessage('Cannot broadcast changes while in an active Live Share session. Please end the session first.');
+                break;
             default:
                 console.log('Unknown agent command:', message.command);
         }
@@ -302,11 +322,29 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             case 'transitionIssue':
                 await this._tasksPanel.handleTransitionIssue(message.issueKey, message.targetStatus);
                 break;
+            case 'reassignIssue':
+                await this._tasksPanel.handleReassignIssue(message.issueKey, message.accountId);
+                break;
+            case 'updateStoryPoints':
+                await this._tasksPanel.handleUpdateStoryPoints(message.issueKey, message.storyPoints);
+                break;
+            case 'updatePriority':
+                await this._tasksPanel.handleUpdatePriority(message.issueKey, message.priorityName);
+                break;
+            case 'fetchAssignableUsers':
+                await this._tasksPanel.handleFetchAssignableUsers();
+                break;
             case 'createTask':
                 await this._tasksPanel.handleCreateTask(message.taskData);
                 break;
             case 'getAISuggestions':
                 await this._tasksPanel.handleGetAISuggestions();
+                break;
+            case 'assignTaskFromTimeline':
+                await this.handleAssignTaskFromTimeline(message.taskKey, message.activityId);
+                break;
+            case 'reassignIssueFromTimeline':
+                await this.handleReassignIssueFromTimeline(message.issueKey, message.accountId, message.activityId, message.displayName);
                 break;
             default:
                 console.log('Unknown tasks command:', message.command);
@@ -334,7 +372,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
     private async handleSaveProfile(profileData: any) {
         try {
-            const { getAuthContext } = require('../services/auth-service');
             const authResult = await getAuthContext();
 
             if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
@@ -343,15 +380,21 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
 
             const user = authResult.context;
-            const { BASE_URL } = require('../api/types/endpoints');
+
+            // Sanitize and limit skills to prevent abuse
+            const sanitizeSkillArray = (arr: string[], maxCount: number = 18, maxLength: number = 30): string[] => {
+                if (!Array.isArray(arr)) return [];
+                return arr
+                    .slice(0, maxCount)  // Max 18 skills
+                    .map(skill => String(skill).trim().substring(0, maxLength))  // Max 30 chars each
+                    .filter(skill => skill.length > 0);  // Remove empty strings
+            };
 
             const payload = {
                 user_id: user.id,
-                name: profileData.name || '',
-                interests: profileData.interests || [],
-                strengths: profileData.strengths || [],
-                weaknesses: profileData.weaknesses || [],
-                custom_skills: profileData.custom_skills || []
+                name: (profileData.name || '').substring(0, 100),  // Max 100 chars for name
+                interests: sanitizeSkillArray(profileData.interests || []),
+                custom_skills: sanitizeSkillArray(profileData.custom_skills || [])
             };
 
             const token = user.auth_token || user.id || 'no-token-available';
@@ -395,7 +438,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
     private async handleLoadProfile() {
         try {
-            const { getAuthContext, setAuthContext } = require('../services/auth-service');
             const authResult = await getAuthContext();
 
             if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
@@ -444,8 +486,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 }
             }
 
-            const { BASE_URL } = require('../api/types/endpoints');
-
             const response = await fetch(`${BASE_URL}/api/profile?user_id=${user.id}`, {
                 method: 'GET',
                 headers: {
@@ -479,7 +519,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
 
     private async handleDeleteAccount() {
         try {
-            const { getAuthContext } = require('../services/auth-service');
+            console.log('[DELETE ACCOUNT] Starting deletion');
             const authResult = await getAuthContext();
 
             if (!authResult || !authResult.context || !authResult.context.isAuthenticated) {
@@ -490,46 +530,55 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             const user = authResult.context;
             const { getSupabase } = require('../auth/supabaseClient');
             const supabase = getSupabase();
+            const { data: sessionData } = await supabase.auth.getSession();
+            const token = sessionData?.session?.access_token;
 
-            // Delete the user from auth.users table (Supabase Admin API)
-            const { error } = await supabase.auth.admin.deleteUser(user.id);
+            if (!token) {
+                vscode.window.showErrorMessage('Authentication token missing. Please sign out and sign in again.');
+                return;
+            }
 
-            if (error) {
-                console.error('Error deleting account:', error);
-                vscode.window.showErrorMessage(`Failed to delete account: ${error.message}`);
-                this._view?.webview.postMessage({
-                    command: 'accountDeleted',
-                    success: false,
-                    error: error.message
-                });
-            } else {
-                // Sign out the user locally
-                await supabase.auth.signOut();
+            console.log('[DELETE ACCOUNT] Calling backend:', `${BASE_URL}/api/account/delete`);
 
+            const response = await fetch(`${BASE_URL}/api/account/delete`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                console.log('[DELETE ACCOUNT] Success:', result);
+                await handleSignOut();
                 vscode.window.showInformationMessage('Your account has been successfully deleted.');
-                this._view?.webview.postMessage({
-                    command: 'accountDeleted',
-                    success: true
-                });
-
-                // Refresh the panel to show logged-out state
-                await vscode.commands.executeCommand('collabAgent.refreshPanel');
+                this._view?.webview.postMessage({ command: 'accountDeleted', success: true });
+                await new Promise(resolve => setTimeout(resolve, 500));
+                if (this._view) {
+                    this._view.webview.html = await this._getHtmlForWebview(this._view.webview);
+                }
+            } else {
+                const errorData = await response.text();
+                console.error('[DELETE ACCOUNT] Error:', errorData);
+                let errorMessage = 'Failed to delete account.';
+                try {
+                    const errorJson = JSON.parse(errorData);
+                    errorMessage = errorJson.error || errorMessage;
+                } catch { }
+                vscode.window.showErrorMessage(`Failed to delete account: ${errorMessage}`);
+                this._view?.webview.postMessage({ command: 'accountDeleted', success: false, error: errorMessage });
             }
         } catch (err) {
-            console.error('Error deleting account:', err);
+            console.error('[DELETE ACCOUNT] Exception:', err);
             vscode.window.showErrorMessage('Error deleting account. Please try again.');
-            this._view?.webview.postMessage({
-                command: 'accountDeleted',
-                success: false,
-                error: String(err)
-            });
+            this._view?.webview.postMessage({ command: 'accountDeleted', success: false, error: String(err) });
         }
     }
 
     /** Handle login/signup authentication */
     private async handleLoginOrSignup() {
         try {
-            const { signInOrUpMenu } = require('../services/auth-service');
             await signInOrUpMenu();
             // Small delay to allow auth state to persist
             await new Promise(resolve => setTimeout(resolve, 300));
@@ -552,6 +601,102 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         }
     }
 
+    /** Handle assign task from timeline - fetch assignable users and show modal */
+    private async handleAssignTaskFromTimeline(taskKey: string, activityId: string) {
+        try {
+            // Get current team ID
+            const currentTeamId = this._context.globalState.get<string>('collabAgent.currentTeam');
+
+            if (!currentTeamId) {
+                vscode.window.showErrorMessage('No team selected. Please select a team first.');
+                return;
+            }
+
+            // Fetch assignable users from Jira
+            const { JiraService } = require('../services/jira-service');
+            const jiraService = JiraService.getInstance();
+            const users = await jiraService.fetchAssignableUsers(currentTeamId);
+
+            // Send users to webview to show modal
+            this._view?.webview.postMessage({
+                command: 'showAssignableUsersModal',
+                users: users,
+                taskKey: taskKey,
+                activityId: activityId
+            });
+
+        } catch (error) {
+            console.error('Failed to fetch assignable users from timeline:', error);
+            vscode.window.showErrorMessage(
+                `Failed to fetch assignable users: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
+    /** Handle reassign issue from timeline - reassign task and update UI */
+    private async handleReassignIssueFromTimeline(issueKey: string, accountId: string, activityId: string, displayName?: string) {
+        try {
+            // Get current team ID
+            const currentTeamId = this._context.globalState.get<string>('collabAgent.currentTeam');
+
+            if (!currentTeamId) {
+                vscode.window.showErrorMessage('No team selected. Please select a team first.');
+                return;
+            }
+
+            // Call the Tasks Panel's reassign handler
+            await this._tasksPanel.handleReassignIssue(issueKey, accountId);
+
+            // Update the activity feed record to mark it as assigned
+            const authResult = await getAuthContext();
+
+            if (authResult?.context?.isAuthenticated) {
+                try {
+                    const response = await fetch(`${BASE_URL}/api/activity/mark-assigned`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            activity_id: activityId,
+                            is_assigned: true,
+                            assigned_to: displayName || 'Unknown User'
+                        })
+                    });
+
+                    if (!response.ok) {
+                        console.error('Failed to update activity feed assignment status');
+                    }
+                } catch (dbError) {
+                    console.error('Error updating activity feed:', dbError);
+                    // Don't fail the whole operation if this fails
+                }
+            }
+
+            // Notify webview that assignment was successful
+            this._view?.webview.postMessage({
+                command: 'taskAssignedFromTimeline',
+                activityId: activityId,
+                success: true,
+                displayName: displayName
+            });
+
+        } catch (error) {
+            console.error('Failed to reassign issue from timeline:', error);
+
+            // Notify webview that assignment failed
+            this._view?.webview.postMessage({
+                command: 'taskAssignedFromTimeline',
+                activityId: activityId,
+                success: false
+            });
+
+            vscode.window.showErrorMessage(
+                `Failed to assign task: ${error instanceof Error ? error.message : 'Unknown error'}`
+            );
+        }
+    }
+
     /** Handle Live Share extension installation */
     private async handleInstallLiveShare() {
         await vscode.commands.executeCommand('workbench.extensions.installExtension', 'ms-vsliveshare.vsliveshare');
@@ -568,7 +713,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
         this.stopAuthMonitor();
         this._authMonitorInterval = setInterval(async () => {
             try {
-                const { getAuthContext } = require('../services/auth-service');
                 const result = await getAuthContext();
                 const isAuthed = !!(result && result.context && result.context.isAuthenticated);
                 if (this._lastAuthState === undefined) {
@@ -640,7 +784,6 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             let loggedIn = false;
             let userInfo = undefined;
             try {
-                const { getAuthContext } = require('../services/auth-service');
                 const result = await getAuthContext();
                 if (result && result.context && result.context.isAuthenticated) {
                     loggedIn = true;
@@ -666,6 +809,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
             }
             
             const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.js'));
+            const tasksScriptUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'tasksPanel.js'));
             const mainStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'mainPanel.css'));
             const liveShareStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'liveSharePanel.css'));
             const agentStyleUri = webview.asWebviewUri(vscode.Uri.joinPath(this._extensionUri, 'media', 'agentPanel.css'));
@@ -690,6 +834,7 @@ export class CollabAgentPanelProvider implements vscode.WebviewViewProvider {
                 .replace('{{TASKS_STYLE_URI}}', tasksStyleUri.toString())
                 .replace('{{PROFILE_STYLE_URI}}', profileStyleUri.toString())
                 .replace('{{SCRIPT_URI}}', scriptUri.toString())
+                .replace('{{TASKS_SCRIPT_URI}}', tasksScriptUri.toString())
                 .replace(/\{\{NONCE\}\}/g, nonce)
                 .replace('{{IS_AUTHENTICATED}}', loggedIn.toString())
                 .replace('{{LIVESHARE_INSTALLED}}', liveShareInstalled.toString())

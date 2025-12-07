@@ -4,7 +4,8 @@ const LOCAL_ENDPOINT_URL = "http://127.0.0.1:5000";
 // Production backend URL - UPDATE THIS after deploying to Render
 const PRODUCTION_ENDPOINT_URL = process.env.BACKEND_URL || "https://project-collabagent01.onrender.com";
 
-const TESTING: boolean = false;
+// Set to true for local development, false for production
+const TESTING: boolean = true;
 
 const BASE_URL = TESTING ? LOCAL_ENDPOINT_URL : PRODUCTION_ENDPOINT_URL;
 
@@ -31,6 +32,15 @@ const LOG_ENDPOINT = `${BASE_URL}/logs`;
 const USER_ENDPOINT = `${BASE_URL}/users`;
 
 const ANSWER_ENDPOINT = `${BASE_URL}/suggestion/answer`;
+
+/**
+ * Helper function to get full API endpoint URL
+ * @param endpoint - API endpoint path (e.g., "/api/ai/feed")
+ * @returns Full URL with backend URL prepended
+ */
+export function getApiUrl(endpoint: string): string {
+    return `${BASE_URL}${endpoint}`;
+}
 
 export {
   BASE_URL,
