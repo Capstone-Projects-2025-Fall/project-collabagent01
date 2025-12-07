@@ -4,7 +4,7 @@ const production = process.argv.includes('--production');
 const watch = process.argv.includes('--watch');
 // From https://code.visualstudio.com/api/working-with-extensions/bundling-extension#using-esbuild
 async function main() {
-  const ctx = await esbuild.context({
+  const buildOptions = {
     entryPoints: ['src/extension.ts'],
     bundle: true,
     format: 'cjs',
@@ -19,12 +19,13 @@ async function main() {
       /* add to the end of plugins array */
       esbuildProblemMatcherPlugin
     ]
-  });
+  };
+
   if (watch) {
+    const ctx = await esbuild.context(buildOptions);
     await ctx.watch();
   } else {
-    await ctx.rebuild();
-    await ctx.dispose();
+    await esbuild.build(buildOptions);
   }
 }
 
