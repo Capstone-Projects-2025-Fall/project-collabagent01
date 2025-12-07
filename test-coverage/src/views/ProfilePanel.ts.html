@@ -23,16 +23,16 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">32.35% </span>
+                <span class="strong">85.29% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>11/34</span>
+                <span class='fraction'>29/34</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>2/2</span>
+                <span class='fraction'>3/3</span>
             </div>
         
             
@@ -44,9 +44,9 @@
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">32.35% </span>
+                <span class="strong">85.29% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>11/34</span>
+                <span class='fraction'>29/34</span>
             </div>
         
             
@@ -61,7 +61,7 @@
             </div>
         </template>
     </div>
-    <div class='status-line low'></div>
+    <div class='status-line high'></div>
     <pre><table class="coverage">
 <tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
 <a name='L2'></a><a href='#L2'>2</a>
@@ -100,71 +100,71 @@
 <a name='L35'></a><a href='#L35'>35</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
-<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-yes">7x</span>
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import * as vscode from 'vscode';
 import * as fs from 'fs';
 &nbsp;
-export class ProfilePanel {
-    constructor(
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >export class ProfilePanel {</span></span>
+<span class="cstat-no" title="statement not covered" >    constructor(</span>
         private readonly extensionUri: vscode.Uri, 
         private readonly context: vscode.ExtensionContext
     ) {}
+<span class="cstat-no" title="statement not covered" ></span>
+<span class="cstat-no" title="statement not covered" >    public async getHtml(webview: vscode.Webview): Promise&lt;string&gt; {</span>
+        const profileStyleUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'media', 'profilePanel.css')
+        );
 &nbsp;
-    public <span class="fstat-no" title="function not covered" >async getHtml(webview: vscode.Webview): Promise&lt;string&gt; {</span>
-<span class="cstat-no" title="statement not covered" >        const profileStyleUri = webview.asWebviewUri(</span>
-<span class="cstat-no" title="statement not covered" >            vscode.Uri.joinPath(this.extensionUri, 'media', 'profilePanel.css')</span>
-<span class="cstat-no" title="statement not covered" >        );</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >        const templatePath = vscode.Uri.joinPath(</span>
-<span class="cstat-no" title="statement not covered" >            this.extensionUri, </span>
-<span class="cstat-no" title="statement not covered" >            'media', </span>
-<span class="cstat-no" title="statement not covered" >            'profilePanel.html'</span>
-<span class="cstat-no" title="statement not covered" >        ).fsPath;</span>
-<span class="cstat-no" title="statement not covered" >        </span>
-<span class="cstat-no" title="statement not covered" >        let htmlTemplate = '';</span>
-<span class="cstat-no" title="statement not covered" >        try {</span>
-<span class="cstat-no" title="statement not covered" >            htmlTemplate = fs.readFileSync(templatePath, 'utf8');</span>
-<span class="cstat-no" title="statement not covered" >        } catch (e) {</span>
-<span class="cstat-no" title="statement not covered" >            console.error('Failed to read profilePanel.html:', e);</span>
-<span class="cstat-no" title="statement not covered" >            return '&lt;div&gt;Failed to load profile panel.&lt;/div&gt;';</span>
-<span class="cstat-no" title="statement not covered" >        }</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >        const html = htmlTemplate</span>
-<span class="cstat-no" title="statement not covered" >            .replace('{{PROFILE_STYLE_URI}}', profileStyleUri.toString());</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >        return html;</span>
-<span class="cstat-no" title="statement not covered" >    }</span>
-}
+        const templatePath = vscode.Uri.joinPath(
+            this.extensionUri, 
+            'media', 
+            'profilePanel.html'
+        ).fsPath;
+        
+        let htmlTemplate = '';
+        try {
+            htmlTemplate = fs.readFileSync(templatePath, 'utf8');
+        } catch (e) {
+            console.error('Failed to read profilePanel.html:', e);
+            return '&lt;div&gt;Failed to load profile panel.&lt;/div&gt;';
+        }
+&nbsp;
+        const html = htmlTemplate
+            .replace('{{PROFILE_STYLE_URI}}', profileStyleUri.toString());
+&nbsp;
+        return html;
+    }
+<span class="cstat-no" title="statement not covered" >}</span>
 &nbsp;</pre></td></tr></table></pre>
 
                 <div class='push'></div><!-- for sticky footer -->
@@ -172,7 +172,7 @@ export class ProfilePanel {
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-07T01:57:21.030Z
+                at 2025-12-07T14:23:12.916Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

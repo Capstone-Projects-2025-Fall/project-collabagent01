@@ -23,30 +23,30 @@
         <div class='clearfix'>
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">17.28% </span>
+                <span class="strong">35.8% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>14/81</span>
+                <span class='fraction'>29/81</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">11.11% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>0/0</span>
+                <span class='fraction'>1/9</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">0% </span>
+                <span class="strong">20% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>0/2</span>
+                <span class='fraction'>1/5</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">17.28% </span>
+                <span class="strong">35.8% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>14/81</span>
+                <span class='fraction'>29/81</span>
             </div>
         
             
@@ -152,23 +152,23 @@
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
-<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
+<span class="cline-any cline-yes">2x</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
 <span class="cline-any cline-no">&nbsp;</span>
@@ -232,23 +232,23 @@ let client: SupabaseClient | null = null;
 /**
  * Returns a singleton Supabase client with VS Code globalState storage.
  */
-<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >export function getSupabase(): SupabaseClient {</span></span>
-<span class="cstat-no" title="statement not covered" >  if (client) return client;</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >  const url = (</span>
-<span class="cstat-no" title="statement not covered" >    vscode.workspace.getConfiguration().get&lt;string&gt;('collabAgent.supabase.url') ||</span>
-<span class="cstat-no" title="statement not covered" >    process.env.SUPABASE_URL ||</span>
+export function getSupabase(): SupabaseClient {
+  if (client) <span class="branch-0 cbranch-no" title="branch not covered" >return client;</span>
+&nbsp;
+  const url = (
+    vscode.workspace.getConfiguration().get&lt;string&gt;('collabAgent.supabase.url')<span class="branch-0 cbranch-no" title="branch not covered" > ||</span>
+    process.env.SUPABASE_URL<span class="branch-0 cbranch-no" title="branch not covered" > ||</span>
 <span class="cstat-no" title="statement not covered" >    ''</span>
-<span class="cstat-no" title="statement not covered" >  ).trim();</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >  const anonKey = (</span>
-<span class="cstat-no" title="statement not covered" >    vscode.workspace.getConfiguration().get&lt;string&gt;('collabAgent.supabase.anonKey') ||</span>
-<span class="cstat-no" title="statement not covered" >    process.env.SUPABASE_ANON_KEY ||</span>
-<span class="cstat-no" title="statement not covered" >    process.env.SUPABASE_KEY ||</span>
+  ).trim();
+&nbsp;
+  const anonKey = (
+    vscode.workspace.getConfiguration().get&lt;string&gt;('collabAgent.supabase.anonKey')<span class="branch-0 cbranch-no" title="branch not covered" > ||</span>
+    process.env.SUPABASE_ANON_KEY<span class="branch-0 cbranch-no" title="branch not covered" > ||</span>
+    process.env.SUPABASE_KEY<span class="branch-0 cbranch-no" title="branch not covered" > ||</span>
 <span class="cstat-no" title="statement not covered" >    ''</span>
-<span class="cstat-no" title="statement not covered" >  ).trim();</span>
-<span class="cstat-no" title="statement not covered" ></span>
-<span class="cstat-no" title="statement not covered" >  if (!url || !anonKey) {</span>
+  ).trim();
+&nbsp;
+  if (!url<span class="branch-0 cbranch-no" title="branch not covered" > || !anonKey)</span> <span class="branch-0 cbranch-no" title="branch not covered" >{</span>
 <span class="cstat-no" title="statement not covered" >    throw new Error(</span>
 <span class="cstat-no" title="statement not covered" >      'Supabase not configured. Set collabAgent.supabase.url &amp; collabAgent.supabase.anonKey in Settings or export SUPABASE_URL and SUPABASE_ANON_KEY/SUPABASE_KEY environment variables.'</span>
 <span class="cstat-no" title="statement not covered" >    );</span>
@@ -261,17 +261,17 @@ let client: SupabaseClient | null = null;
 <span class="cstat-no" title="statement not covered" >  const memoryStorage: Record&lt;string, string&gt; = {};</span>
 <span class="cstat-no" title="statement not covered" ></span>
 <span class="cstat-no" title="statement not covered" >  const storage = {</span>
-<span class="cstat-no" title="statement not covered" >    getItem(key: string) {</span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >    getItem(key: string) {</span></span>
 <span class="cstat-no" title="statement not covered" >      if (memoryStorage[key]) return memoryStorage[key];</span>
 <span class="cstat-no" title="statement not covered" >      const val = globalContext?.globalState.get&lt;string&gt;(key) ?? null;</span>
 <span class="cstat-no" title="statement not covered" >      if (val) memoryStorage[key] = val;</span>
 <span class="cstat-no" title="statement not covered" >      return val;</span>
 <span class="cstat-no" title="statement not covered" >    },</span>
-<span class="cstat-no" title="statement not covered" >    setItem(key: string, value: string) {</span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >    setItem(key: string, value: string) {</span></span>
 <span class="cstat-no" title="statement not covered" >      memoryStorage[key] = value;</span>
 <span class="cstat-no" title="statement not covered" >      globalContext?.globalState.update(key, value);</span>
 <span class="cstat-no" title="statement not covered" >    },</span>
-<span class="cstat-no" title="statement not covered" >    removeItem(key: string) {</span>
+<span class="cstat-no" title="statement not covered" ><span class="fstat-no" title="function not covered" >    removeItem(key: string) {</span></span>
 <span class="cstat-no" title="statement not covered" >      delete memoryStorage[key];</span>
 <span class="cstat-no" title="statement not covered" >      globalContext?.globalState.update(key, undefined);</span>
 <span class="cstat-no" title="statement not covered" >    },</span>
@@ -310,7 +310,7 @@ export <span class="fstat-no" title="function not covered" >async function getCu
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2025-12-07T01:57:21.030Z
+                at 2025-12-07T14:23:12.916Z
             </div>
         <script src="../../prettify.js"></script>
         <script>
