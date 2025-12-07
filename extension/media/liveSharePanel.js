@@ -245,6 +245,12 @@
 					if (u) u.value = '';
 				}
 				break;
+			case 'showAssignableUsersModal':
+				showAssignableUsersModal(message.users, message.taskKey, message.activityId);
+				break;
+			case 'taskAssignedFromTimeline':
+				handleTaskAssignedFromTimeline(message.activityId, message.success, message.displayName);
+				break;
 		}
 	});
 
@@ -954,9 +960,25 @@
 			} else if (activityType === 'ai_task_recommendation') {
 				// Purple badge for AI task recommendations
 				icon = '<span style="display:inline-block; padding:2px 8px; font-size:10px; font-weight:600; border:1.5px solid var(--vscode-charts-purple); color:var(--vscode-charts-purple); border-radius:4px; margin-right:6px;">Task Delegation</span>';
-				// Show View Reason button
+
+				// Extract task key from file_path field
+				const taskKey = it.file_path || '';
+
+				// Check localStorage first for assignment info (most reliable)
+				const storedAssignment = getAssignmentFromStorage(it.id);
+				const isAssigned = storedAssignment || it.is_assigned === true;
+				const assignedTo = storedAssignment ? storedAssignment.assignedTo : '';
+
+				const assignButtonStyle = isAssigned
+					? 'background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-descriptionForeground); opacity: 0.5; cursor: not-allowed;'
+					: 'background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);';
+				const assignButtonDisabled = isAssigned ? 'disabled' : '';
+				const assignButtonText = isAssigned ? (assignedTo ? `Assigned to ${assignedTo}` : 'Assigned') : 'Assign';
+
+				// Show View Reason and Assign buttons
 				buttons = `
 					<button class="button small" style="background-color: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground);" onclick="viewTaskReason('${it.id}')" title="View AI's reasoning for this recommendation">View Reason</button>
+					<button class="button small assign-task-btn" id="assign-btn-${it.id}" style="${assignButtonStyle}" onclick="assignTaskFromTimeline('${taskKey}', '${it.id}')" title="${isAssigned ? 'Task already assigned' : 'Assign this task'}" ${assignButtonDisabled}>${assignButtonText}</button>
 				`;
 			} else if (activityType === 'initial_snapshot' || (hasSnapshot && !hasChanges)) {
 				// INITIAL SNAPSHOT: Has full snapshot, no changes
@@ -1101,6 +1123,19 @@
 			console.log('No reason available for this task recommendation');
 			console.log('Activity data:', activity);
 		}
+	};
+
+	// Assign task from timeline (for AI task recommendations)
+	window.assignTaskFromTimeline = function(taskKey, activityId) {
+		console.log('Assign task from timeline:', taskKey, activityId);
+
+		if (!taskKey) {
+			console.error('No task key provided');
+			return;
+		}
+
+		// Send message to backend to fetch assignable users and show assignment modal
+		post('assignTaskFromTimeline', { taskKey, activityId });
 	};
 
 	// Join Live Share session from activity feed
@@ -1830,6 +1865,203 @@
 
 	function handleProfileLoadError(message) {
 		console.error('Failed to load profile:', message.error);
+	}
+
+	// Show dropdown with assignable users for task assignment from timeline
+	function showAssignableUsersModal(users, taskKey, activityId) {
+		// Remove any existing dropdown
+		const existingDropdown = document.querySelector('.timeline-assign-dropdown');
+		if (existingDropdown) {
+			existingDropdown.remove();
+		}
+
+		// Find the assign button that triggered this
+		const buttonElement = document.getElementById(`assign-btn-${activityId}`);
+		if (!buttonElement) {
+			console.error('Could not find assign button for activity:', activityId);
+			return;
+		}
+
+		// Create the dropdown
+		const dropdown = document.createElement('div');
+		dropdown.className = 'timeline-assign-dropdown';
+
+		let dropdownHtml = '<div class="timeline-assign-dropdown-header">Assign to:</div>';
+
+		// Build user options
+		if (!users || users.length === 0) {
+			dropdownHtml += '<div class="timeline-assign-option disabled" style="font-style: italic; opacity: 0.6;">No assignable users found</div>';
+		} else {
+			users.forEach(function(user) {
+				const displayName = user.displayName || user.emailAddress || 'Unknown User';
+				const accountId = user.accountId || '';
+
+				dropdownHtml += `
+					<div class="timeline-assign-option" data-account-id="${escapeHtml(accountId)}" data-task-key="${escapeHtml(taskKey)}" data-activity-id="${activityId}">
+						<span class="timeline-assignee-icon">👤</span>
+						<span class="timeline-assignee-name">${escapeHtml(displayName)}</span>
+					</div>
+				`;
+			});
+		}
+
+		dropdown.innerHTML = dropdownHtml;
+
+		// Add dropdown to DOM first so we can measure its height
+		dropdown.style.position = 'fixed';
+		dropdown.style.visibility = 'hidden';
+		document.body.appendChild(dropdown);
+
+		// Calculate optimal position using smart positioning
+		const position = getOptimalDropdownPosition(buttonElement, dropdown, 300);
+		dropdown.style.top = position.top;
+		dropdown.style.left = position.left;
+		dropdown.style.visibility = 'visible';
+
+		// Add click handlers to options
+		dropdown.querySelectorAll('.timeline-assign-option:not(.disabled)').forEach(function(option) {
+			option.addEventListener('click', function() {
+				const accountId = this.getAttribute('data-account-id');
+				const taskKey = this.getAttribute('data-task-key');
+				const activityId = this.getAttribute('data-activity-id');
+				const displayName = this.querySelector('.timeline-assignee-name').textContent;
+
+				// Immediately disable the button and update text
+				const assignBtn = document.getElementById(`assign-btn-${activityId}`);
+				if (assignBtn) {
+					assignBtn.disabled = true;
+					assignBtn.style.opacity = '0.5';
+					assignBtn.style.cursor = 'not-allowed';
+					assignBtn.style.backgroundColor = 'var(--vscode-button-secondaryBackground)';
+					assignBtn.style.color = 'var(--vscode-descriptionForeground)';
+					assignBtn.textContent = `Assigning to ${displayName}...`;
+				}
+
+				selectAssignee(accountId, taskKey, activityId, displayName);
+				dropdown.remove();
+			});
+		});
+
+		// Close dropdown when clicking outside or scrolling
+		setTimeout(function() {
+			function closeDropdown(e) {
+				if (!dropdown.contains(e.target) && e.target !== buttonElement) {
+					dropdown.remove();
+					document.removeEventListener('click', closeDropdown);
+					document.removeEventListener('scroll', onScroll, true);
+				}
+			}
+
+			function onScroll() {
+				dropdown.remove();
+				document.removeEventListener('click', closeDropdown);
+				document.removeEventListener('scroll', onScroll, true);
+			}
+
+			document.addEventListener('click', closeDropdown);
+			document.addEventListener('scroll', onScroll, true);
+		}, 100);
+	}
+
+	// Helper function to calculate optimal dropdown position (prevents cutoff)
+	function getOptimalDropdownPosition(triggerElement, dropdownElement, estimatedHeight) {
+		const triggerRect = triggerElement.getBoundingClientRect();
+		const dropdownHeight = dropdownElement.offsetHeight || estimatedHeight || 300;
+		const viewportHeight = window.innerHeight;
+
+		// Calculate space above and below the trigger element
+		const spaceBelow = viewportHeight - triggerRect.bottom;
+		const spaceAbove = triggerRect.top;
+
+		// Add a small buffer (8px) to prevent touching viewport edges
+		const buffer = 8;
+
+		let top;
+
+		if (spaceBelow >= dropdownHeight + buffer) {
+			// Enough space below - open downward (default behavior)
+			top = triggerRect.bottom + 'px';
+		} else if (spaceAbove >= dropdownHeight + buffer) {
+			// Not enough space below, but enough space above - open upward
+			top = (triggerRect.top - dropdownHeight) + 'px';
+		} else if (spaceBelow >= spaceAbove) {
+			// Neither has enough space, use the larger space (below)
+			top = triggerRect.bottom + 'px';
+		} else {
+			// Neither has enough space, use the larger space (above)
+			top = (triggerRect.top - dropdownHeight) + 'px';
+		}
+
+		return {
+			top: top,
+			left: triggerRect.left + 'px'
+		};
+	}
+
+	// Handle user selection from the assignable users dropdown
+	window.selectAssignee = function(accountId, taskKey, activityId, displayName) {
+		console.log('Selected assignee:', accountId, 'for task:', taskKey);
+
+		// Send message to backend to reassign the task
+		post('reassignIssueFromTimeline', {
+			issueKey: taskKey,
+			accountId: accountId,
+			activityId: activityId,
+			displayName: displayName
+		});
+	};
+
+	// Handle the response after task assignment from timeline
+	function handleTaskAssignedFromTimeline(activityId, success, displayName) {
+		const assignBtn = document.getElementById(`assign-btn-${activityId}`);
+		if (assignBtn) {
+			if (success) {
+				// Update button to show successful assignment
+				assignBtn.disabled = true;
+				assignBtn.style.opacity = '0.5';
+				assignBtn.style.cursor = 'not-allowed';
+				assignBtn.style.backgroundColor = 'var(--vscode-button-secondaryBackground)';
+				assignBtn.style.color = 'var(--vscode-descriptionForeground)';
+				assignBtn.textContent = displayName ? `Assigned to ${displayName}` : 'Assigned';
+
+				// Store assignment in localStorage for persistence
+				saveAssignmentToStorage(activityId, displayName);
+			} else {
+				// Re-enable button on failure
+				assignBtn.disabled = false;
+				assignBtn.style.opacity = '1';
+				assignBtn.style.cursor = 'pointer';
+				assignBtn.style.backgroundColor = 'var(--vscode-button-secondaryBackground)';
+				assignBtn.style.color = 'var(--vscode-button-secondaryForeground)';
+				assignBtn.textContent = 'Assign';
+			}
+		}
+	}
+
+	// Save assignment to localStorage
+	function saveAssignmentToStorage(activityId, displayName) {
+		try {
+			const assignments = JSON.parse(localStorage.getItem('taskAssignments') || '{}');
+			assignments[activityId] = {
+				assignedTo: displayName,
+				timestamp: new Date().toISOString()
+			};
+			localStorage.setItem('taskAssignments', JSON.stringify(assignments));
+			console.log('Saved assignment to storage:', activityId, displayName);
+		} catch (e) {
+			console.error('Failed to save assignment to storage:', e);
+		}
+	}
+
+	// Get assignment from localStorage
+	function getAssignmentFromStorage(activityId) {
+		try {
+			const assignments = JSON.parse(localStorage.getItem('taskAssignments') || '{}');
+			return assignments[activityId];
+		} catch (e) {
+			console.error('Failed to get assignment from storage:', e);
+			return null;
+		}
 	}
 
 	// Tooltip positioning - ensure tooltips stay within viewport

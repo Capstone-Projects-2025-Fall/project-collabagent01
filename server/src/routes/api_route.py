@@ -692,3 +692,44 @@ def task_recommendations():
     except Exception as e:
         print(f"Error in task_recommendations: {e}")
         return jsonify({"error": str(e)}), 500
+
+
+@ai_bp.post("/activity/mark-assigned")
+def mark_activity_assigned():
+    """
+    Mark a task delegation activity as assigned.
+    NOTE: Currently using localStorage on frontend for persistence.
+    This endpoint is kept for potential future database sync.
+
+    Request body:
+    {
+        "activity_id": "uuid",
+        "is_assigned": true,
+        "assigned_to": "User Name" (optional)
+    }
+
+    Returns: JSON with success status
+    """
+    body = request.get_json(force=True) or {}
+    activity_id = body.get("activity_id")
+    is_assigned = body.get("is_assigned", True)
+
+    if not activity_id:
+        return jsonify({"error": "activity_id is required"}), 400
+
+    try:
+        # Update the team_activity_feed record
+        result = sb_update("team_activity_feed", {
+            "id": f"eq.{activity_id}"
+        }, {
+            "is_assigned": is_assigned
+        })
+
+        return jsonify({
+            "success": True,
+            "message": "Activity marked as assigned"
+        }), 200
+
+    except Exception as e:
+        print(f"Error marking activity as assigned: {e}")
+        return jsonify({"error": str(e)}), 500
