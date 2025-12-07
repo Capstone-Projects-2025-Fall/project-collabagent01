@@ -35,10 +35,48 @@ Good for VS Code extension testing (webviews, commands, extension lifecycle).
 
 Easy to use in CI/CD pipelines.
 
-## Overall Coverage Summary
+## Running Frontend Testing
+
+To run all frontend (extension) test cases:
+
+1. Navigate to the extension folder:
+```bash
+cd extension
+```
+
+2. Run the test command:
+```bash
+npm run test
+```
+
+This will run all Jest test suites for the VS Code extension, including:
+- Extension tests (25 test suites)
+- 343+ unit tests covering services, API calls, and components
+
+## Running Backend Testing
+
+To run all backend (server) test cases:
+
+1. Navigate to the server folder:
+```bash
+cd server
+```
+
+2. Run the pytest command:
+```bash
+python -m pytest
+```
+
+This will run all pytest test suites for the Flask backend, including:
+- API route tests
+- Database tests
+- Authentication tests
+- 86+ unit tests covering all backend functionality
+
+## Frontend Coverage Summary
 
 <CoverageSummary />
 
-<a href={useBaseUrl('/test-coverage/index.html')} target="_blank" rel="noopener noreferrer">View Detailed Coverage Report</a>
+<a href={useBaseUrl('/test-coverage/index.html')} target="_blank" rel="noopener noreferrer">View Detailed Frontend Coverage Report</a>
 
 <!-- [View Detailed Coverage Report](/test-coverage/index.html) -->
