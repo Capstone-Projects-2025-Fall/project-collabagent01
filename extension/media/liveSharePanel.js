@@ -1077,8 +1077,8 @@
 
 		// Check if this activity has changes (from file_snapshots via source_snapshot_id)
 		if (activity.changes) {
-			// Show diff in a modal or panel
-			showDiffModal(activity.changes, 'Git Diff - ' + (activity.summary || 'Changes'));
+			// Show diff in a modal or panel (no summary, just "Git Diff")
+			showDiffModal(activity.changes, 'Git Diff');
 		} else {
 			console.log('No changes available for this activity');
 			console.log('Activity data:', activity);
