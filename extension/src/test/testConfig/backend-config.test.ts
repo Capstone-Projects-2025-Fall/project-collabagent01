@@ -5,9 +5,9 @@ describe("backend-config (endpoints.ts)", () => {
         delete process.env.BACKEND_URL;
     });
 
-    test("BASE_URL uses LOCAL_ENDPOINT_URL when TESTING = true", () => {
+    test("BASE_URL uses production URL when TESTING = false", () => {
         const { BASE_URL } = require("../../api/types/endpoints");
-        expect(BASE_URL).toBe("http://127.0.0.1:5000");
+        expect(BASE_URL).toBe("https://project-collabagent01.onrender.com");
     });
 
     test("BASE_URL falls back to production URL when TESTING = false", () => {
@@ -39,11 +39,11 @@ describe("backend-config (endpoints.ts)", () => {
 
     test("getApiUrl correctly joins BASE_URL with endpoint", () => {
         const { getApiUrl } = require("../../api/types/endpoints");
-        expect(getApiUrl("/api/test")).toBe("http://127.0.0.1:5000/api/test");
+        expect(getApiUrl("/api/test")).toBe("https://project-collabagent01.onrender.com/api/test");
     });
 
     test("getApiUrl handles endpoints without leading slash", () => {
         const { getApiUrl } = require("../../api/types/endpoints");
-        expect(getApiUrl("health")).toBe("http://127.0.0.1:5000health");
+        expect(getApiUrl("health")).toBe("https://project-collabagent01.onrender.comhealth");
     });
 });
