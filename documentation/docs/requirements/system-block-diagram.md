@@ -15,24 +15,22 @@ sidebar_position: 2
 
 
 # Description
-The workflow begins when the user interacts with the VS Code IDE, where the extension’s internal components including authentication modules, views, commands, and services process these initial actions locally. To handle more complex logic, the extension’s services communicate with a central Flask backend via secure HTTP requests. Upon receiving these requests, the backend acts as a coordinator, querying the Supabase database for persistent storage and calling the Gemini AI API to generate intelligent features. Throughout this entire process, secure access is managed through GitHub OAuth and Supabase authentication, while real-time team collaboration is seamlessly enabled through an integration with VS Code Live Share.
 
-## 1. VS Code Extension Layer (Light Colors)
+**Collab Agent** is a collaborative development platform that integrates seamlessly with VS Code through an extension layer. The system architecture consists of the following key components:
 
-Light Green: Entry Point & Authentication (Handles extension initialization and user login via GitHub OAuth/Supabase).
+**Frontend**: Users interact with the system through VS Code IDE, where the Extension Layer provides the primary interface via a webview UI. The VS Code Live Share API (Microsoft's extension) enables real-time collaboration capabilities.
 
-Light Blue: Views (The 6 webview panels including Agent, Tasks, and Snapshot Manager).
+**Core Services**: The Flask API Backend Server acts as the central hub, orchestrating all business logic and data flows. It processes API requests and manages communication with external services and databases.
 
-Light Orange: Commands (Handlers for triggers like Jira integration and GitHub tokens).
+**Data Flow**:
+- **Requests (Yellow)**: Users send collaboration API calls and HTTP requests through the Extension Layer to the Flask backend. The backend forwards requests to the Gemini API for AI-powered features and to the Jira API for task tracking. Live Share data is handled both directly by the Extension Layer and through the backend for session tracking.
+- **Responses (Purple)**: External services return AI-generated responses and task data to the Flask backend, which then sends results to the Extension Layer for user presentation.
 
-Light Purple: Services (The 9 core internal services managing teams, git operations, and session synchronization).
+**Authentication**: When users log in through the Extension Layer, a login request is sent to Supabase’s OAuth service. Supabase manages GitHub OAuth authentication and returns an Auth Token to the user, which is then used for secure API requests to the Flask backend.
 
-## 2. Flask Backend Server (Dark Colors)
+**External Services** (Black square boxes with icons):
+- **Gemini API**: Provides AI capabilities for intelligent assistance
+- **Jira API**: Integrates project management and issue tracking
+- **Live Share Tracking**: Enables real-time collaborative editing with dual-path integration (direct Extension Layer connection and Flask backend session tracking)
 
-Dark Blue: API & Routes (The central REST endpoints and route organization receiving HTTP requests).
-
-Dark Green: Backend Logic & Database (The business logic services and database layer that handle queries and external interactions).
-
-## 3. External Services (Gray)
-
-Gray: Represents all third-party integrations and storage, including Supabase DB, GitHub OAuth, Jira API, Live Share, and Gemini AI.
+**Data Storage**: The Supabase PostgreSQL Database stores all persistent data, including user profiles, teams, team configurations, Jira integrations, activity logs, and session information.
