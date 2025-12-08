@@ -5,259 +5,119 @@ description: What should be in this section.
 
 Design Document - Part II API
 =============================
+## Authentication API
 
-## Purpose
-- This Design Document gives the complete design of the software implementation. This information should be in structured comments (e.g. Javadoc) in the source files. We encourage the use of a documentation generation tool to generate a draft of your API that you can augment to include the following details.
+### signIn Function
+Defined in api/auth-api.ts:31
 
----
+Signs in a user using their email and password credentials.
 
-## 1. Class: CollabAgentPanelProvider (views/CollabAgentPanel.ts)
+**Parameters:**
+- `email: string` - The user's email address
+- `password: string` - The user's password
 
-#### **Purpose:**
+**Returns:** `Promise<{ token?: string; error?: string }>`
+- `token`: Authentication token for the user session (on success)
+- `error`: Error message describing why sign-in failed
 
-- This class controls the Collab Agent sidebar inside VS Code. It creates the panel, shows the interface, and keeps it updated with Live Share info.
-   It also handles how the panel talks to the rest of the extension (sending and receiving messages).
+**Example:** 
+```typescript
+`const result = await signIn('user@example.com', 'password123');
+if (result.error) {
+  vscode.window.showErrorMessage(`Sign in failed: ${result.error}`);
+} else {
+  console.log(`Signed in successfully, token: ${result.token}`);
+}
+```
 
+### signOut Function
+Defined in api/auth-api.ts:69
 
-#### **Data Fields**
+Signs out a user by invalidating their session on the backend.
 
-`extensionUri` (*vscode.Uri*) -  main folder where the extension’s files are stored, it helps the panel find things like its HTML, CSS, and scripts
+**Parameters:**
+- `userID: string` - The user's unique ID.
 
-`context` (*vscode.ExtensionContext*) - keeps track of what the extension is doing and stores small bits of info between uses, helps the extension remember things or clean up when closed.
+**Returns:** `Promise<{ error?: string }>`
+- An object indicating success or containing an error message.
 
-`viewType` (*collabAgent.teamActivity*) - A special name that VS Code uses to tell panels apart, It’s like this panel’s “ID tag
+***
 
+## User API
 
----
+### getUserByID Function
+Defined in api/user-api.ts:10
 
-#### **Constructor**
+Fetches detailed user information by their unique ID.
 
-`constructor (_extensionUri: Uri, _context: ExtensionContext)`
+**Parameters:**
+- `userID: string` - The user's unique identifier.
 
-##### **Purpose:**
+**Returns:** `Promise<{ user?: User; error?: string }>`
+- An object containing the user data or an error message.
 
-Starts up a new panel manager and gets it ready to show the sidebar.
+***
 
-##### **Parameters:**
+## Supabase Client API
 
-- `extensionUri`: The main folder of the extension.
+### getSupabase Function
 
-- `context`: The extension’s “memory”, keeps track of state and events.
+Defined in **auth/supabaseClient.ts:44**
 
-##### **Returns:**
+Returns a **singleton Supabase client** configured for the VS Code environment, handling session persistence and token refresh using VS Code's global state.
 
-- A working CollabAgentPanelProvider ready to use.
+**Returns:** `SupabaseClient`
+* The configured **SupabaseClient** instance ready for database operations and authentication.
 
-##### **Before it runs (Pre-conditions):**
+**Throws:**
+* `Error` - If the Supabase URL or API key is not configured.
 
-- The extension must already be active.
+**Remarks:**
+* **Singleton Pattern:** The client is created only once and reused across the extension.
+* **Configuration:** Uses VS Code settings (`collabAgent.supabase.url`, `collabAgent.supabase.anonKey`) or Environment Variables (`SUPABASE_URL`, `SUPABASE_ANON_KEY`) for credentials.
+* **Storage:** Auth tokens are stored in VS Code's **globalState** for persistence across sessions via a custom storage adapter.
+* **Session Management:** Sessions persist (`persistSession: true`) and tokens are automatically refreshed (`autoRefreshToken: true`).
 
-- You must give it a valid URI and context.
+**Example:**
+```typescript
+const supabase = getSupabase();
+const { data, error } = await supabase.from('teams').select('*');
 
-##### **After it runs (Post-conditions):**
+if (error) {
+  console.error('Failed to fetch teams:', error.message);
+} else {
+  console.log('Teams data:', data);
+}
+```
 
-- The provider is ready to make the sidebar panel appear.
+### getCurrentUser Function
 
-##### **Errors:**
+Defined in **auth/supabaseClient.ts:129**
 
-- If something’s wrong with the inputs, it throws an error saying the data is invalid.
+Retrieves the currently authenticated user from Supabase using the active session. Returns `null` if no user is signed in.
 
----
+**Returns:** `Promise<null | User>`
+* A Promise that resolves to the authenticated **User** object, or `null` if no user is authenticated.
 
-## Method: 
-### resolveWebviewView ()
-- resolveWebviewView (webviewView, context, _token)
+**Remarks:**
+* This function **does not throw** an error on failure; it logs errors to the console.
+* Check the return value for `null` to determine the user's authentication status.
 
-##### **Purpose:**
+**Example:**
+```typescript
+const user = await getCurrentUser();
 
-- Runs when the sidebar panel shows up. Also, builds the HTML page, connects buttons and messages, and starts Live Share.
+if (user) {
+  console.log(`Logged in as: ${user.email}`);
+  // Use user.id, user.user_metadata, etc.
+} else {
+  console.log('No user signed in');
+}
+```
 
-##### **Parameters:**
 
-- webviewView: The panel that will show the page.
 
-- context: Info about how and where the panel is being created.
 
-- token: A cancel switch (not used here).
-
-##### **Returns:**
-
-`- Nothing right away, but finishes setting up everything (Promise<void>).`
-
-### updateTeamActivity ()
-- updateTeamActivity (activity)
-
-##### **Purpose:**
-
-- Updates the sidebar to show what people on your team are doing (like who’s editing what).
-
-##### **Parameters:**
-
-- activity: Info about what happened, like edits or status updates.
-
-##### **Returns:**
-
-- Nothing (void)
-
-### dispose ()
-- dispose()
-
-##### **Purpose:**
-
-- Cleans up everything when the sidebar panel closes. Stops timers, removes event listeners, and frees up memory.
-
-##### **Returns:**
-
-- Nothing (void)
-
----
-
-## 2. Class: OAuth (api/auth-api.ts)
-
-## Methods:
-
-##### **signIn**
-
-`signIn(email: string, password: string): Promise<{ token?: string; error?: string }>`
-
-##### **Purpose:**
-Logs a user into the system using their email and password.
-
-Sends a POST request to the authentication endpoint to check if the credentials are valid.
-
-##### **Parameters:**
-
-`email (string)` - The user’s email address.
-
-`password (string)` - The user’s password.
-
-##### **Returns:**
-
-`Promise<{ token?: string; error?: string }> - Returns an object that includes either, a token when the login is successful, or an error message if the login fails.`
-
-
-##### **signOut**
-
-`signOut(userID: string): Promise<{ error?: string }>`
-
-##### **Purpose:**
-Logs a user out by ending their session on the backend.
-Sends a POST request to the signout endpoint with the user’s unique ID.
-
-##### **Parameters:**
-`userID (string)` - The ID of the user to sign out.
-
-##### **Returns:**
-`Promise<{ error?: string }> - Returns an object indicating success or containing an error message if something goes wrong.`
-
-##### **signUp**
-
-`signUp(email: string, password: string, firstName: string, lastName: string): Promise<{ token?: string; error?: string }>`
-
-##### **Purpose:**
-Registers a new user account using their email, password, and name.
-Sends a POST request to the signup endpoint to create the account.
-
-##### **Parameters:**
-
-`email (string)` - The user’s email address.
-
-`password (string)` - The user’s chosen password.
-
-`firstName (string)` - The user’s first name.
-
-`lastName (string)` - The user’s last name.
-
-##### **Returns:**
-
-`Promise<{ token?: string; error?: string }> - Returns an object that includes either: a token when registration is successful, or
-an error message if registration fails.`
-
----
-
-## 3. Class: Supabase (auth/supabaseClient.ts)
-
-## Methods:
-##### **getSupabase**
-
-`getSupabase(): SupabaseClient`
-
-##### **Purpose:**
-
-Creates or retrieves a Supabase client instance for handling authentication and database actions.
-It reads the configuration from VS Code settings or environment variables to connect properly.
-
-##### **Returns:**
-
-SupabaseClient - The initialized Supabase client instance ready for use.
-
-##### Throws:
-
-`Error - If the Supabase configuration (URL or API key) is missing or invalid.`
-
-
-
-##### **getCurrentUser**
-
-`getCurrentUser(): Promise<null | User>`
-
-##### **Purpose:**
-Fetches the currently signed-in user from Supabase.
-Used to check authentication status or retrieve the user’s profile information.
-
-##### **Returns:**
-
-`Promise<null | User> - Resolves with the current user object if authenticated, or null if no user is signed in.`
-
----
-
-## 4. Collab Agent REST API Endpoints
-
-##### **Purpose:**
-
-The Collab Agent extension connects to a Flask backend through several REST API endpoints.
-These endpoints handle authentication, user management, and Live Share session activity.
-
-#### **Authentication Endpoints**
-
-POST /auth/login?provider=email
-
-##### **Purpose:**
-Logs a user into Collab Agent using their email and password.
-
-##### **Request Details:**
-
-Method: POST
-
-`URL: {BASE_URL}/auth/login?provider=email`
-
-#### **User Management Endpoints**
-
-`GET /users/{userID}`
-
-##### **Purpose:**
-Fetches user information to track Live Share participants.
-
-##### **Request Details:**
-
-Method: GET
-
-`URL: {BASE_URL}/users/{userID}`
-
----
-
-`PUT /users/{userID}/status`
-
-##### **Purpose:**
-Updates a user’s activity status during a Live Share session.
-
-##### **Request Details:**
-
-Method: PUT
-
-`URL: {BASE_URL}/users/{userID}/status`
-
----
 
 
 
