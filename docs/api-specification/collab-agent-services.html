@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="en" dir="ltr" class="docs-wrapper plugin-docs plugin-id-default docs-version-current docs-doc-page docs-doc-id-api-specification/collab-agent-services" data-has-hydrated="false">
+<head>
+<meta charset="UTF-8">
+<meta name="generator" content="Docusaurus v3.8.1">
+<title data-rh="true">Collab Agent Services | Team Collab Agent</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:url" content="https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/api-specification/collab-agent-services"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Collab Agent Services | Team Collab Agent"><meta data-rh="true" name="description" content="Auto-generated TypeDoc for Collab Agent Services"><meta data-rh="true" property="og:description" content="Auto-generated TypeDoc for Collab Agent Services"><link data-rh="true" rel="icon" href="/project-collabagent01/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/api-specification/collab-agent-services"><link data-rh="true" rel="alternate" href="https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/api-specification/collab-agent-services" hreflang="en"><link data-rh="true" rel="alternate" href="https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/api-specification/collab-agent-services" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"API Specification","item":"https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/category/api-specification"},{"@type":"ListItem","position":2,"name":"Collab Agent Services","item":"https://Capstone-Projects-2025-Fall.github.io/project-collabagent01/docs/api-specification/collab-agent-services"}]}</script><script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script><link rel="stylesheet" href="/project-collabagent01/assets/css/styles.31bdd754.css">
+<script src="/project-collabagent01/assets/js/runtime~main.32e19d82.js" defer="defer"></script>
+<script src="/project-collabagent01/assets/js/main.61e8dc96.js" defer="defer"></script>
+</head>
+<body class="navigation-with-keyboard">
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;"><defs>
+<symbol id="theme-svg-external-link" viewBox="0 0 24 24"><path fill="currentColor" d="M21 13v10h-21v-19h12v2h-10v15h17v-8h2zm3-12h-10.988l4.035 4-6.977 7.07 2.828 2.828 6.977-7.07 4.125 4.172v-11z"/></symbol>
+</defs></svg>
+<script>!function(){var t="light";var e=function(){try{return new URLSearchParams(window.location.search).get("docusaurus-theme")}catch(t){}}()||function(){try{return window.localStorage.getItem("theme")}catch(t){}}();document.documentElement.setAttribute("data-theme",e||t),document.documentElement.setAttribute("data-theme-choice",e||t)}(),function(){try{const c=new URLSearchParams(window.location.search).entries();for(var[t,e]of c)if(t.startsWith("docusaurus-data-")){var a=t.replace("docusaurus-data-","data-");document.documentElement.setAttribute(a,e)}}catch(t){}}()</script><div id="__docusaurus"><div role="region" aria-label="Skip to main content"><a class="skipToContent_fXgn" href="#__docusaurus_skipToContent_fallback">Skip to main content</a></div><nav aria-label="Main" class="theme-layout-navbar navbar navbar--fixed-top"><div class="navbar__inner"><div class="theme-layout-navbar-left navbar__items"><button aria-label="Toggle navigation bar" aria-expanded="false" class="navbar__toggle clean-btn" type="button"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><path stroke="currentColor" stroke-linecap="round" stroke-miterlimit="10" stroke-width="2" d="M4 7h22M4 15h22M4 23h22"></path></svg></button><a class="navbar__brand" href="/project-collabagent01/"><div class="navbar__logo"><img src="/project-collabagent01/img/CollabAgentImg.png" alt="My Site Logo" class="themedComponent_mlkZ themedComponent--light_NVdE"><img src="/project-collabagent01/img/CollabAgentImg.png" alt="My Site Logo" class="themedComponent_mlkZ themedComponent--dark_xIcU"></div><b class="navbar__title text--truncate">Project Collabagent01</b></a><a aria-current="page" class="navbar__item navbar__link navbar__link--active" href="/project-collabagent01/docs/intro">Documentation</a><a class="navbar__item navbar__link" href="/project-collabagent01/tutorial/Intro">Docusaurus Tutorial</a></div><div class="theme-layout-navbar-right navbar__items navbar__items--right"><a href="https://github.com/Capstone-Projects-2025-Fall/project-collabagent01" target="_blank" rel="noopener noreferrer" class="navbar__item navbar__link">GitHub<svg width="13.5" height="13.5" aria-hidden="true" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a><div class="toggle_vylO colorModeToggle_DEke"><button class="clean-btn toggleButton_gllP toggleButtonDisabled_aARS" type="button" disabled="" title="system mode" aria-label="Switch between dark and light mode (currently system mode)"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP lightToggleIcon_pyhR"><path fill="currentColor" d="M12,9c1.65,0,3,1.35,3,3s-1.35,3-3,3s-3-1.35-3-3S10.35,9,12,9 M12,7c-2.76,0-5,2.24-5,5s2.24,5,5,5s5-2.24,5-5 S14.76,7,12,7L12,7z M2,13l2,0c0.55,0,1-0.45,1-1s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S1.45,13,2,13z M20,13l2,0c0.55,0,1-0.45,1-1 s-0.45-1-1-1l-2,0c-0.55,0-1,0.45-1,1S19.45,13,20,13z M11,2v2c0,0.55,0.45,1,1,1s1-0.45,1-1V2c0-0.55-0.45-1-1-1S11,1.45,11,2z M11,20v2c0,0.55,0.45,1,1,1s1-0.45,1-1v-2c0-0.55-0.45-1-1-1C11.45,19,11,19.45,11,20z M5.99,4.58c-0.39-0.39-1.03-0.39-1.41,0 c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0s0.39-1.03,0-1.41L5.99,4.58z M18.36,16.95 c-0.39-0.39-1.03-0.39-1.41,0c-0.39,0.39-0.39,1.03,0,1.41l1.06,1.06c0.39,0.39,1.03,0.39,1.41,0c0.39-0.39,0.39-1.03,0-1.41 L18.36,16.95z M19.42,5.99c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06c-0.39,0.39-0.39,1.03,0,1.41 s1.03,0.39,1.41,0L19.42,5.99z M7.05,18.36c0.39-0.39,0.39-1.03,0-1.41c-0.39-0.39-1.03-0.39-1.41,0l-1.06,1.06 c-0.39,0.39-0.39,1.03,0,1.41s1.03,0.39,1.41,0L7.05,18.36z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP darkToggleIcon_wfgR"><path fill="currentColor" d="M9.37,5.51C9.19,6.15,9.1,6.82,9.1,7.5c0,4.08,3.32,7.4,7.4,7.4c0.68,0,1.35-0.09,1.99-0.27C17.45,17.19,14.93,19,12,19 c-3.86,0-7-3.14-7-7C5,9.07,6.81,6.55,9.37,5.51z M12,3c-4.97,0-9,4.03-9,9s4.03,9,9,9s9-4.03,9-9c0-0.46-0.04-0.92-0.1-1.36 c-0.98,1.37-2.58,2.26-4.4,2.26c-2.98,0-5.4-2.42-5.4-5.4c0-1.81,0.89-3.42,2.26-4.4C12.92,3.04,12.46,3,12,3L12,3z"></path></svg><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" class="toggleIcon_g3eP systemToggleIcon_QzmC"><path fill="currentColor" d="m12 21c4.971 0 9-4.029 9-9s-4.029-9-9-9-9 4.029-9 9 4.029 9 9 9zm4.95-13.95c1.313 1.313 2.05 3.093 2.05 4.95s-0.738 3.637-2.05 4.95c-1.313 1.313-3.093 2.05-4.95 2.05v-14c1.857 0 3.637 0.737 4.95 2.05z"></path></svg></button></div><div class="navbarSearchContainer_Bca1"></div></div></div><div role="presentation" class="navbar-sidebar__backdrop"></div></nav><div id="__docusaurus_skipToContent_fallback" class="theme-layout-main main-wrapper mainWrapper_z2l0"><div class="docsWrapper_hBAB"><button aria-label="Scroll back to top" class="clean-btn theme-back-to-top-button backToTopButton_sjWU" type="button"></button><div class="docRoot_UBD9"><aside class="theme-doc-sidebar-container docSidebarContainer_YfHR"><div class="sidebarViewport_aRkj"><div class="sidebar_njMd"><nav aria-label="Docs sidebar" class="menu thin-scrollbar menu_SIkG"><ul class="theme-doc-sidebar-menu menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-1 menu__list-item"><a class="menu__link" href="/project-collabagent01/docs/intro">CollabAgent</a></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/project-collabagent01/docs/category/requirements-specification">Requirements Specification</a><button aria-label="Expand sidebar category &#x27;Requirements Specification&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/project-collabagent01/docs/category/system-architecture">System Architecture</a><button aria-label="Expand sidebar category &#x27;System Architecture&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist menu__link--active" href="/project-collabagent01/docs/category/api-specification">API Specification</a><button aria-label="Collapse sidebar category &#x27;API Specification&#x27;" aria-expanded="true" type="button" class="clean-btn menu__caret"></button></div><ul class="menu__list"><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/project-collabagent01/docs/api-specification/collab-agent-apis">Collab Agent APIs</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link menu__link--active" aria-current="page" tabindex="0" href="/project-collabagent01/docs/api-specification/collab-agent-services">Collab Agent Services</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/project-collabagent01/docs/api-specification/openapi-spec">API 1 - Collab Agent</a></li><li class="theme-doc-sidebar-item-link theme-doc-sidebar-item-link-level-2 menu__list-item"><a class="menu__link" tabindex="0" href="/project-collabagent01/docs/api-specification/collab-agent-views">Collab Agent Views</a></li></ul></li><li class="theme-doc-sidebar-item-category theme-doc-sidebar-item-category-level-1 menu__list-item menu__list-item--collapsed"><div class="menu__list-item-collapsible"><a class="menu__link menu__link--sublist" href="/project-collabagent01/docs/category/test-procedures">Test Procedures</a><button aria-label="Expand sidebar category &#x27;Test Procedures&#x27;" aria-expanded="false" type="button" class="clean-btn menu__caret"></button></div></li></ul></nav></div></div></aside><main class="docMainContainer_TBSr"><div class="container padding-top--md padding-bottom--lg"><div class="row"><div class="col docItemCol_VOVn"><div class="docItemContainer_Djhp"><article><nav class="theme-doc-breadcrumbs breadcrumbsContainer_Z_bl" aria-label="Breadcrumbs"><ul class="breadcrumbs"><li class="breadcrumbs__item"><a aria-label="Home page" class="breadcrumbs__link" href="/project-collabagent01/"><svg viewBox="0 0 24 24" class="breadcrumbHomeIcon_YNFT"><path d="M10 19v-5h4v5c0 .55.45 1 1 1h3c.55 0 1-.45 1-1v-7h1.7c.46 0 .68-.57.33-.87L12.67 3.6c-.38-.34-.96-.34-1.34 0l-8.36 7.53c-.34.3-.13.87.33.87H5v7c0 .55.45 1 1 1h3c.55 0 1-.45 1-1z" fill="currentColor"></path></svg></a></li><li class="breadcrumbs__item"><a class="breadcrumbs__link" href="/project-collabagent01/docs/category/api-specification"><span>API Specification</span></a></li><li class="breadcrumbs__item breadcrumbs__item--active"><span class="breadcrumbs__link">Collab Agent Services</span></li></ul></nav><div class="tocCollapsible_ETCw theme-doc-toc-mobile tocMobile_ITEo"><button type="button" class="clean-btn tocCollapsibleButton_TO0P">On this page</button></div><div class="theme-doc-markdown markdown"><header><h1>Collab Agent Services</h1></header>
+<h2 class="anchor anchorWithStickyNavbar_LWe7" id="auth-service">Auth Service<a href="#auth-service" class="hash-link" aria-label="Direct link to Auth Service" title="Direct link to Auth Service">​</a></h2>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="setauthcontext-function">setAuthContext Function<a href="#setauthcontext-function" class="hash-link" aria-label="Direct link to setAuthContext Function" title="Direct link to setAuthContext Function">​</a></h3>
+<p>Defined in <strong>services/auth-service.ts:16</strong></p>
+<p>Stores the current user&#x27;s authentication context in VS Code&#x27;s global state for persistence across sessions.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>user: User | undefined</code> - The authenticated user object or undefined to clear auth context</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ error?: string }&gt;</code></p>
+<ul>
+<li>Empty object on success, or object with error message</li>
+</ul>
+<p><strong>Pre-conditions:</strong></p>
+<ul>
+<li>globalContext must be initialized</li>
+</ul>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>User context is saved to global state and persists across VS Code sessions</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="getauthcontext-function">getAuthContext Function<a href="#getauthcontext-function" class="hash-link" aria-label="Direct link to getAuthContext Function" title="Direct link to getAuthContext Function">​</a></h3>
+<p>Defined in <strong>services/auth-service.ts:34</strong></p>
+<p>Retrieves the currently authenticated user from VS Code&#x27;s global state.</p>
+<p><strong>Returns:</strong> <code>Promise&lt;{ context?: User; error?: string }&gt;</code></p>
+<ul>
+<li>Object containing user context or error message</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="checkusersignin-function">checkUserSignIn Function<a href="#checkusersignin-function" class="hash-link" aria-label="Direct link to checkUserSignIn Function" title="Direct link to checkUserSignIn Function">​</a></h3>
+<p>Defined in <strong>services/auth-service.ts:50</strong></p>
+<p>Validates user session on extension startup. Refreshes user data from Supabase and displays welcome notification if authenticated.</p>
+<p><strong>Returns:</strong> <code>Promise&lt;void&gt;</code></p>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>User data is refreshed from backend</li>
+<li>Welcome notification shown if user is authenticated</li>
+<li>Auth notification shown if user is not signed in</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="signinwithgithub-function">signInWithGithub Function<a href="#signinwithgithub-function" class="hash-link" aria-label="Direct link to signInWithGithub Function" title="Direct link to signInWithGithub Function">​</a></h3>
+<p>Defined in <strong>services/auth-service.ts:333</strong></p>
+<p>Initiates GitHub OAuth sign-in flow using Supabase authentication. Opens external browser for GitHub authorization.</p>
+<p><strong>Returns:</strong> <code>Promise&lt;void&gt;</code></p>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>Process:</strong> Generates dynamic deep link callback URL based on extension ID, creates Supabase OAuth URL with GitHub provider, opens authorization URL in user&#x27;s default browser</li>
+<li><strong>Post-conditions:</strong> User is redirected to GitHub OAuth consent screen; on success, auth callback triggers user session creation</li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="language-typescript codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-typescript codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#bfc7d5"><span class="token keyword" style="font-style:italic">await</span><span class="token plain"> </span><span class="token function" style="color:rgb(130, 170, 255)">signInWithGithub</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token comment" style="color:rgb(105, 112, 152);font-style:italic">// User is redirected to GitHub OAuth consent page</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token comment" style="color:rgb(105, 112, 152);font-style:italic">// After authorization, callback handler completes sign-in</span><br></span></code></pre></div></div>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="handlesignin-function">handleSignIn Function<a href="#handlesignin-function" class="hash-link" aria-label="Direct link to handleSignIn Function" title="Direct link to handleSignIn Function">​</a></h3>
+<p>Defined in <strong>services/auth-service.ts:148</strong></p>
+<p>Handles email/password sign-in flow with interactive VS Code input prompts.</p>
+<p><strong>Returns:</strong> <code>Promise&lt;void&gt;</code></p>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>Process:</strong> Prompts user for email and password, calls authentication API, stores Supabase session for persistence, fetches and stores user profile data</li>
+<li><strong>Post-conditions:</strong> User is authenticated and session is stored; auth context is set with user data; <code>collabAgent.authStateChanged</code> command is triggered</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="handlesignout-function">handleSignOut Function<a href="#handlesignout-function" class="hash-link" aria-label="Direct link to handleSignOut Function" title="Direct link to handleSignOut Function">​</a></h3>
+<p>Defined in <strong>services/auth-service.ts:251</strong></p>
+<p>Signs out the current user, clearing all stored authentication data and tokens.</p>
+<p><strong>Returns:</strong> <code>Promise&lt;void&gt;</code></p>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>Process:</strong> Validates user is currently authenticated, clears auth context from global state, clears GitHub access token if present</li>
+<li><strong>Post-conditions:</strong> User context is removed from global state; GitHub token is cleared; sign out notification displayed; UI refreshes to unauthenticated state</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="getcurrentuserid-function">getCurrentUserId Function<a href="#getcurrentuserid-function" class="hash-link" aria-label="Direct link to getCurrentUserId Function" title="Direct link to getCurrentUserId Function">​</a></h3>
+<p>Defined in <strong>services/auth-service.ts:367</strong></p>
+<p>Gets the current Supabase auth user ID from the active session.</p>
+<p><strong>Returns:</strong> <code>Promise&lt;string | null&gt;</code></p>
+<ul>
+<li>Supabase user ID or null if no active session</li>
+</ul>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li>Attempts to get session user ID, falls back to explicit user fetch if session not found</li>
+</ul>
+<hr>
+<h2 class="anchor anchorWithStickyNavbar_LWe7" id="profile-service">Profile Service<a href="#profile-service" class="hash-link" aria-label="Direct link to Profile Service" title="Direct link to Profile Service">​</a></h2>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="getuserprofile-function">getUserProfile Function<a href="#getuserprofile-function" class="hash-link" aria-label="Direct link to getUserProfile Function" title="Direct link to getUserProfile Function">​</a></h3>
+<p>Defined in <strong>services/profile-service.ts</strong></p>
+<p>Retrieves user profile information for display in team views.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>userId: string</code> - Supabase auth user ID</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ profile?: UserProfile; error?: string }&gt;</code></p>
+<ul>
+<li>User profile data</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="updateuserprofile-function">updateUserProfile Function<a href="#updateuserprofile-function" class="hash-link" aria-label="Direct link to updateUserProfile Function" title="Direct link to updateUserProfile Function">​</a></h3>
+<p>Defined in <strong>services/profile-service.ts</strong></p>
+<p>Updates user profile fields like display name, interests, and skills.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>userId: string</code> - Supabase auth user ID</li>
+<li><code>updates: Partial&lt;UserProfile&gt;</code> - Fields to update</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ success: boolean; error?: string }&gt;</code></p>
+<ul>
+<li>Update status</li>
+</ul>
+<hr>
+<h2 class="anchor anchorWithStickyNavbar_LWe7" id="team-service">Team Service<a href="#team-service" class="hash-link" aria-label="Direct link to Team Service" title="Direct link to Team Service">​</a></h2>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="createteam-function">createTeam Function<a href="#createteam-function" class="hash-link" aria-label="Direct link to createTeam Function" title="Direct link to createTeam Function">​</a></h3>
+<p>Defined in <strong>services/team-service.ts:176</strong></p>
+<p>Creates a new team with authenticated user as admin, linking it to the current Git project.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>lobbyName: string</code> - Display name for the team lobby</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ team?: Team; joinCode?: string; error?: string }&gt;</code></p>
+<ul>
+<li><code>team</code>: The created Team object with all metadata</li>
+<li><code>joinCode</code>: The generated 6-character join code for inviting members</li>
+<li><code>error</code>: Error message if creation failed</li>
+</ul>
+<p><strong>Pre-conditions:</strong></p>
+<ul>
+<li>User must be authenticated via Supabase</li>
+<li>A Git repository with remote origin must be initialized in the workspace</li>
+<li>User must have permissions to create teams in the database</li>
+</ul>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>Team is created in Supabase <code>teams</code> table</li>
+<li>User is automatically added to <code>team_membership</code> table as admin</li>
+<li>Project information (Git URL, hash, name) is stored with the team</li>
+<li>If GitHub repository, verification status is recorded</li>
+<li>Unique 6-character join code is generated and returned</li>
+</ul>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>GitHub Verification:</strong> If the remote URL is a GitHub repository, the function attempts silent verification by checking if user has stored GitHub access token and verifying user has push access to the repository</li>
+<li><strong>Process:</strong> Validates user authentication → Checks workspace is Git repository with remote → Attempts silent GitHub verification if applicable → Calls <code>create_team</code> RPC to create team and add admin → Updates verification metadata if verified</li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="language-typescript codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-typescript codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#bfc7d5"><span class="token keyword" style="font-style:italic">const</span><span class="token plain"> result </span><span class="token operator" style="color:rgb(137, 221, 255)">=</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">await</span><span class="token plain"> </span><span class="token function" style="color:rgb(130, 170, 255)">createTeam</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token string" style="color:rgb(195, 232, 141)">&#x27;Backend Development Squad&#x27;</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token keyword" style="font-style:italic">if</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">error</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  vscode</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">window</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">showErrorMessage</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">error</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">else</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  vscode</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">window</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">showInformationMessage</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">    </span><span class="token template-string template-punctuation string" style="color:rgb(195, 232, 141)">`</span><span class="token template-string string" style="color:rgb(195, 232, 141)">Team created! Share this code: </span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">${</span><span class="token template-string interpolation">result</span><span class="token template-string interpolation punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token template-string interpolation">joinCode</span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token template-string template-punctuation string" style="color:rgb(195, 232, 141)">`</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  </span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><br></span></code></pre></div></div>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="jointeam-function">joinTeam Function<a href="#jointeam-function" class="hash-link" aria-label="Direct link to joinTeam Function" title="Direct link to joinTeam Function">​</a></h3>
+<p>Defined in <strong>services/team-service.ts:340</strong></p>
+<p>Joins a team using a 6-character join code with strict project validation.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>joinCode: string</code> - The 6-character team join code (case-insensitive)</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ team?: Team; error?: string; alreadyMember?: boolean }&gt;</code></p>
+<ul>
+<li><code>team</code>: The Team object the user joined</li>
+<li><code>alreadyMember</code>: Boolean indicating if user was already a member</li>
+<li><code>error</code>: Error message if join failed</li>
+</ul>
+<p><strong>Pre-conditions:</strong></p>
+<ul>
+<li>User must be authenticated</li>
+<li>User must have the team&#x27;s Git repository cloned locally</li>
+<li>Current workspace must match the team&#x27;s project (validated by Git remote URL and project hash)</li>
+</ul>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>User is added to <code>team_membership</code> table with &#x27;member&#x27; role</li>
+<li>Team activity event is logged to track the join action</li>
+<li>User can now access team features and see team activity</li>
+</ul>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>Project Validation:</strong> The function performs strict validation to ensure team members work on the same codebase by comparing Git remote URLs (must match) and verifying project identifier hash (must match)</li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="language-typescript codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-typescript codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#bfc7d5"><span class="token keyword" style="font-style:italic">const</span><span class="token plain"> result </span><span class="token operator" style="color:rgb(137, 221, 255)">=</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">await</span><span class="token plain"> </span><span class="token function" style="color:rgb(130, 170, 255)">joinTeam</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token string" style="color:rgb(195, 232, 141)">&#x27;ABC123&#x27;</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token keyword" style="font-style:italic">if</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">error</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  vscode</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">window</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">showErrorMessage</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">error</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">else</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">if</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">alreadyMember</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  vscode</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">window</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">showInformationMessage</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token string" style="color:rgb(195, 232, 141)">&#x27;You are already a member of this team&#x27;</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">else</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  vscode</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">window</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">showInformationMessage</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token template-string template-punctuation string" style="color:rgb(195, 232, 141)">`</span><span class="token template-string string" style="color:rgb(195, 232, 141)">Joined team: </span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">${</span><span class="token template-string interpolation">result</span><span class="token template-string interpolation punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token template-string interpolation">team</span><span class="token template-string interpolation punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token template-string interpolation">lobby_name</span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token template-string template-punctuation string" style="color:rgb(195, 232, 141)">`</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><br></span></code></pre></div></div>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="getuserteams-function">getUserTeams Function<a href="#getuserteams-function" class="hash-link" aria-label="Direct link to getUserTeams Function" title="Direct link to getUserTeams Function">​</a></h3>
+<p>Defined in <strong>services/team-service.ts:471</strong></p>
+<p>Gets all teams the current user is a member of.</p>
+<p><strong>Returns:</strong> <code>Promise&lt;{ teams?: TeamWithMembership[]; error?: string }&gt;</code></p>
+<ul>
+<li><code>teams</code>: Array of TeamWithMembership objects (team data + user&#x27;s role)</li>
+<li><code>error</code>: Error message if retrieval failed</li>
+</ul>
+<p><strong>Pre-conditions:</strong></p>
+<ul>
+<li>User must be authenticated with valid Supabase session</li>
+</ul>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>Returns array of teams with user&#x27;s membership role included</li>
+<li>Empty array returned if user is not a member of any teams</li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="language-typescript codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-typescript codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#bfc7d5"><span class="token keyword" style="font-style:italic">const</span><span class="token plain"> result </span><span class="token operator" style="color:rgb(137, 221, 255)">=</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">await</span><span class="token plain"> </span><span class="token function" style="color:rgb(130, 170, 255)">getUserTeams</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token keyword" style="font-style:italic">if</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">error</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  vscode</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">window</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">showErrorMessage</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">error</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">else</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">teams</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">forEach</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">team </span><span class="token operator" style="color:rgb(137, 221, 255)">=&gt;</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">    </span><span class="token builtin" style="color:rgb(130, 170, 255)">console</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">log</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token template-string template-punctuation string" style="color:rgb(195, 232, 141)">`</span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">${</span><span class="token template-string interpolation">team</span><span class="token template-string interpolation punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token template-string interpolation">lobby_name</span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token template-string string" style="color:rgb(195, 232, 141)"> - Role: </span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">${</span><span class="token template-string interpolation">team</span><span class="token template-string interpolation punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token template-string interpolation">role</span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token template-string template-punctuation string" style="color:rgb(195, 232, 141)">`</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  </span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><br></span></code></pre></div></div>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="getteammembers-function">getTeamMembers Function<a href="#getteammembers-function" class="hash-link" aria-label="Direct link to getTeamMembers Function" title="Direct link to getTeamMembers Function">​</a></h3>
+<p>Defined in <strong>services/team-service.ts:928</strong></p>
+<p>Gets all members of a team with their profile information.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>teamId: string</code> - Unique team identifier (UUID)</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ members?: TeamMember[]; error?: string }&gt;</code></p>
+<ul>
+<li><code>members</code>: Array of TeamMember objects with profile data</li>
+<li><code>error</code>: Error message if retrieval failed</li>
+</ul>
+<p><strong>Pre-conditions:</strong></p>
+<ul>
+<li>User must be authenticated</li>
+<li>User must be a member of the team (enforced by security check)</li>
+</ul>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>Returns list of all team members with profile data</li>
+<li>Members are sorted by role (admins first) then by join date</li>
+<li>Skills array combines interests and custom_skills from user_profiles</li>
+</ul>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>Data Sources:</strong> Primary - RPC function <code>get_team_members_with_users</code> (accesses auth.users); Fallback - Direct queries to team_membership and user_profiles tables</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="deleteteam-function">deleteTeam Function<a href="#deleteteam-function" class="hash-link" aria-label="Direct link to deleteTeam Function" title="Direct link to deleteTeam Function">​</a></h3>
+<p>Defined in <strong>services/team-service.ts:746</strong></p>
+<p>Deletes a team (admin only). Removes memberships first, then deletes the team.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>teamId: string</code> - Unique team identifier (UUID)</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ success: boolean; error?: string }&gt;</code></p>
+<ul>
+<li><code>success</code>: Boolean indicating if deletion was successful</li>
+<li><code>error</code>: Error message if deletion failed</li>
+</ul>
+<p><strong>Pre-conditions:</strong></p>
+<ul>
+<li>User must be authenticated</li>
+<li>User must be team admin</li>
+</ul>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>Team record deleted from database</li>
+<li>All team memberships removed</li>
+<li>Associated activity data cleaned up</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="leaveteam-function">leaveTeam Function<a href="#leaveteam-function" class="hash-link" aria-label="Direct link to leaveTeam Function" title="Direct link to leaveTeam Function">​</a></h3>
+<p>Defined in <strong>services/team-service.ts:791</strong></p>
+<p>Leaves a team (member only): removes the current user&#x27;s membership row for the team.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>teamId: string</code> - Unique team identifier (UUID)</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ success: boolean; error?: string }&gt;</code></p>
+<ul>
+<li><code>success</code>: Boolean indicating if leave was successful</li>
+<li><code>error</code>: Error message if leave failed</li>
+</ul>
+<p><strong>Pre-conditions:</strong></p>
+<ul>
+<li>User must be authenticated</li>
+<li>User must be team member (not admin)</li>
+</ul>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>User&#x27;s membership record removed</li>
+<li>Participant status event logged for leave action</li>
+</ul>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li>Team admins cannot leave the team they administer. They must transfer admin role or delete the team.</li>
+</ul>
+<hr>
+<h2 class="anchor anchorWithStickyNavbar_LWe7" id="project-detection-service">Project Detection Service<a href="#project-detection-service" class="hash-link" aria-label="Direct link to Project Detection Service" title="Direct link to Project Detection Service">​</a></h2>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="getcurrentprojectinfo-function">getCurrentProjectInfo Function<a href="#getcurrentprojectinfo-function" class="hash-link" aria-label="Direct link to getCurrentProjectInfo Function" title="Direct link to getCurrentProjectInfo Function">​</a></h3>
+<p>Defined in <strong>services/project-detection-service.ts</strong></p>
+<p>Gets comprehensive information about the currently open workspace project.</p>
+<p><strong>Returns:</strong> <code>ProjectInfo | null</code></p>
+<ul>
+<li>Project information or null if no workspace open</li>
+</ul>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>Process:</strong> Gets active workspace folder path → Checks if directory is Git repository → Extracts Git remote origin URL → Generates unique project hash from path and remote</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="validatecurrentproject-function">validateCurrentProject Function<a href="#validatecurrentproject-function" class="hash-link" aria-label="Direct link to validateCurrentProject Function" title="Direct link to validateCurrentProject Function">​</a></h3>
+<p>Defined in <strong>services/project-detection-service.ts</strong></p>
+<p>Validates that current workspace matches expected project by comparing hash and remote URL.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>projectHash: string</code> - Expected project hash to validate against</li>
+<li><code>remoteUrl?: string</code> - Optional expected Git remote URL</li>
+</ul>
+<p><strong>Returns:</strong> <code>{ isMatch: boolean; reason?: string; currentProject?: ProjectInfo }</code></p>
+<ul>
+<li>Object with <code>isMatch</code> boolean and validation reason</li>
+</ul>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>Use Cases:</strong> Validating user can join team (project must match); Checking if user switched to different project; Ensuring team members work on same codebase</li>
+</ul>
+<hr>
+<h2 class="anchor anchorWithStickyNavbar_LWe7" id="file-snapshot-service">File Snapshot Service<a href="#file-snapshot-service" class="hash-link" aria-label="Direct link to File Snapshot Service" title="Direct link to File Snapshot Service">​</a></h2>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="addfilesnapshot-function">addFileSnapshot Function<a href="#addfilesnapshot-function" class="hash-link" aria-label="Direct link to addFileSnapshot Function" title="Direct link to addFileSnapshot Function">​</a></h3>
+<p>Defined in <strong>services/file-snapshot-service.ts:104</strong></p>
+<p>Inserts a new file snapshot record into the Supabase database.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>input: FileSnapshotInput</code> - Object containing file path, content, and change description</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ success: boolean; id?: string; error?: string }&gt;</code></p>
+<ul>
+<li><code>success</code>: Boolean indicating if snapshot was created successfully</li>
+<li><code>id</code>: UUID of the created snapshot record</li>
+<li><code>error</code>: Error message if creation failed</li>
+</ul>
+<p><strong>Pre-conditions:</strong></p>
+<ul>
+<li>User must be authenticated with Supabase</li>
+<li>An active team must be selected (or team_id provided in input)</li>
+<li>Supabase client must be properly configured</li>
+</ul>
+<p><strong>Post-conditions:</strong></p>
+<ul>
+<li>New record inserted into <code>file_snapshots</code> table</li>
+<li>Snapshot is associated with user_id and team_id</li>
+<li>AI summarization may be triggered asynchronously (handled by edge function)</li>
+</ul>
+<p><strong>Remarks:</strong></p>
+<ul>
+<li><strong>Automatic Field Resolution:</strong> <code>user_id</code> - Resolved from current auth context by matching email with auth.users; <code>team_id</code> - Retrieved from global state (<code>collabAgent.currentTeam</code>); <code>id</code> - Auto-generated UUID if not provided; <code>updated_at</code> - Set to current timestamp if not provided</li>
+</ul>
+<p><strong>Example:</strong></p>
+<div class="language-typescript codeBlockContainer_Ckt0 theme-code-block" style="--prism-color:#bfc7d5;--prism-background-color:#292d3e"><div class="codeBlockContent_QJqH"><pre tabindex="0" class="prism-code language-typescript codeBlock_bY9V thin-scrollbar" style="color:#bfc7d5;background-color:#292d3e"><code class="codeBlockLines_e6Vv"><span class="token-line" style="color:#bfc7d5"><span class="token keyword" style="font-style:italic">const</span><span class="token plain"> result </span><span class="token operator" style="color:rgb(137, 221, 255)">=</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">await</span><span class="token plain"> </span><span class="token function" style="color:rgb(130, 170, 255)">addFileSnapshot</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  file_path</span><span class="token operator" style="color:rgb(137, 221, 255)">:</span><span class="token plain"> </span><span class="token string" style="color:rgb(195, 232, 141)">&#x27;src/services/auth-service.ts&#x27;</span><span class="token punctuation" style="color:rgb(199, 146, 234)">,</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  snapshot</span><span class="token operator" style="color:rgb(137, 221, 255)">:</span><span class="token plain"> </span><span class="token string" style="color:rgb(195, 232, 141)">&#x27;...file content...&#x27;</span><span class="token punctuation" style="color:rgb(199, 146, 234)">,</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  changes</span><span class="token operator" style="color:rgb(137, 221, 255)">:</span><span class="token plain"> </span><span class="token string" style="color:rgb(195, 232, 141)">&#x27;Added new signIn function with OAuth support&#x27;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain" style="display:inline-block"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token keyword" style="font-style:italic">if</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">success</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  </span><span class="token builtin" style="color:rgb(130, 170, 255)">console</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">log</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token template-string template-punctuation string" style="color:rgb(195, 232, 141)">`</span><span class="token template-string string" style="color:rgb(195, 232, 141)">Snapshot created with ID: </span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">${</span><span class="token template-string interpolation">result</span><span class="token template-string interpolation punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token template-string interpolation">id</span><span class="token template-string interpolation interpolation-punctuation punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token template-string template-punctuation string" style="color:rgb(195, 232, 141)">`</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><span class="token plain"> </span><span class="token keyword" style="font-style:italic">else</span><span class="token plain"> </span><span class="token punctuation" style="color:rgb(199, 146, 234)">{</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain">  vscode</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">window</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token function" style="color:rgb(130, 170, 255)">showErrorMessage</span><span class="token punctuation" style="color:rgb(199, 146, 234)">(</span><span class="token plain">result</span><span class="token punctuation" style="color:rgb(199, 146, 234)">.</span><span class="token plain">error</span><span class="token punctuation" style="color:rgb(199, 146, 234)">)</span><span class="token punctuation" style="color:rgb(199, 146, 234)">;</span><span class="token plain"></span><br></span><span class="token-line" style="color:#bfc7d5"><span class="token plain"></span><span class="token punctuation" style="color:rgb(199, 146, 234)">}</span><br></span></code></pre></div></div>
+<hr>
+<h2 class="anchor anchorWithStickyNavbar_LWe7" id="jira-service">Jira Service<a href="#jira-service" class="hash-link" aria-label="Direct link to Jira Service" title="Direct link to Jira Service">​</a></h2>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="connectjira-function">connectJira Function<a href="#connectjira-function" class="hash-link" aria-label="Direct link to connectJira Function" title="Direct link to connectJira Function">​</a></h3>
+<p>Defined in <strong>services/jira-service.ts</strong></p>
+<p>Establishes connection to JIRA workspace using API credentials.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>domain: string</code> - JIRA workspace domain</li>
+<li><code>email: string</code> - JIRA account email</li>
+<li><code>apiToken: string</code> - JIRA API token</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ success: boolean; error?: string }&gt;</code></p>
+<ul>
+<li>Connection status</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="fetchjiraissues-function">fetchJiraIssues Function<a href="#fetchjiraissues-function" class="hash-link" aria-label="Direct link to fetchJiraIssues Function" title="Direct link to fetchJiraIssues Function">​</a></h3>
+<p>Defined in <strong>services/jira-service.ts</strong></p>
+<p>Retrieves issues from a JIRA project for team task tracking.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>projectKey: string</code> - JIRA project key</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ issues?: any[]; error?: string }&gt;</code></p>
+<ul>
+<li>Array of JIRA issues or error</li>
+</ul>
+<hr>
+<h2 class="anchor anchorWithStickyNavbar_LWe7" id="session-sync-service">Session Sync Service<a href="#session-sync-service" class="hash-link" aria-label="Direct link to Session Sync Service" title="Direct link to Session Sync Service">​</a></h2>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="startsessionsync-function">startSessionSync Function<a href="#startsessionsync-function" class="hash-link" aria-label="Direct link to startSessionSync Function" title="Direct link to startSessionSync Function">​</a></h3>
+<p>Defined in <strong>services/session-sync-service.ts</strong></p>
+<p>Begins real-time synchronization of team session activity.</p>
+<p><strong>Parameters:</strong></p>
+<ul>
+<li><code>teamId: string</code> - Team identifier for session</li>
+</ul>
+<p><strong>Returns:</strong> <code>Promise&lt;{ success: boolean; error?: string }&gt;</code></p>
+<ul>
+<li>Sync start status</li>
+</ul>
+<h3 class="anchor anchorWithStickyNavbar_LWe7" id="stopsessionsync-function">stopSessionSync Function<a href="#stopsessionsync-function" class="hash-link" aria-label="Direct link to stopSessionSync Function" title="Direct link to stopSessionSync Function">​</a></h3>
+<p>Defined in <strong>services/session-sync-service.ts</strong></p>
+<p>Stops active session synchronization and cleans up resources.</p>
+<p><strong>Returns:</strong> <code>Promise&lt;void&gt;</code></p></div><footer class="theme-doc-footer docusaurus-mt-lg"><div class="row margin-top--sm theme-doc-footer-edit-meta-row"><div class="col"><a href="https://github.com/Capstone-Projects-2025-Fall/project-collabagent01/edit/main/documentation/docs/api-specification/collab-agent-services.md" target="_blank" rel="noopener noreferrer" class="theme-edit-this-page"><svg fill="currentColor" height="20" width="20" viewBox="0 0 40 40" class="iconEdit_Z9Sw" aria-hidden="true"><g><path d="m34.5 11.7l-3 3.1-6.3-6.3 3.1-3q0.5-0.5 1.2-0.5t1.1 0.5l3.9 3.9q0.5 0.4 0.5 1.1t-0.5 1.2z m-29.5 17.1l18.4-18.5 6.3 6.3-18.4 18.4h-6.3v-6.2z"></path></g></svg>Edit this page</a></div><div class="col lastUpdated_JAkA"><details><summary>Revision History</summary><table><thead><tr><th scope="row">Author</th><th scope="row">Revision</th><th scope="row">Date</th></tr></thead><tbody>nothing</tbody></table></details><span class="theme-last-updated">Last updated<!-- --> by <b>Alphin Shajan</b></span></div></div></footer></article><nav class="docusaurus-mt-lg pagination-nav" aria-label="Docs pages"><a class="pagination-nav__link pagination-nav__link--prev" href="/project-collabagent01/docs/api-specification/collab-agent-apis"><div class="pagination-nav__sublabel">Previous</div><div class="pagination-nav__label">Collab Agent APIs</div></a><a class="pagination-nav__link pagination-nav__link--next" href="/project-collabagent01/docs/api-specification/openapi-spec"><div class="pagination-nav__sublabel">Next</div><div class="pagination-nav__label">API 1 - Collab Agent</div></a></nav></div></div><div class="col col--3"><div class="tableOfContents_bqdL thin-scrollbar theme-doc-toc-desktop"><ul class="table-of-contents table-of-contents__left-border"><li><a href="#auth-service" class="table-of-contents__link toc-highlight">Auth Service</a><ul><li><a href="#setauthcontext-function" class="table-of-contents__link toc-highlight">setAuthContext Function</a></li><li><a href="#getauthcontext-function" class="table-of-contents__link toc-highlight">getAuthContext Function</a></li><li><a href="#checkusersignin-function" class="table-of-contents__link toc-highlight">checkUserSignIn Function</a></li><li><a href="#signinwithgithub-function" class="table-of-contents__link toc-highlight">signInWithGithub Function</a></li><li><a href="#handlesignin-function" class="table-of-contents__link toc-highlight">handleSignIn Function</a></li><li><a href="#handlesignout-function" class="table-of-contents__link toc-highlight">handleSignOut Function</a></li><li><a href="#getcurrentuserid-function" class="table-of-contents__link toc-highlight">getCurrentUserId Function</a></li></ul></li><li><a href="#profile-service" class="table-of-contents__link toc-highlight">Profile Service</a><ul><li><a href="#getuserprofile-function" class="table-of-contents__link toc-highlight">getUserProfile Function</a></li><li><a href="#updateuserprofile-function" class="table-of-contents__link toc-highlight">updateUserProfile Function</a></li></ul></li><li><a href="#team-service" class="table-of-contents__link toc-highlight">Team Service</a><ul><li><a href="#createteam-function" class="table-of-contents__link toc-highlight">createTeam Function</a></li><li><a href="#jointeam-function" class="table-of-contents__link toc-highlight">joinTeam Function</a></li><li><a href="#getuserteams-function" class="table-of-contents__link toc-highlight">getUserTeams Function</a></li><li><a href="#getteammembers-function" class="table-of-contents__link toc-highlight">getTeamMembers Function</a></li><li><a href="#deleteteam-function" class="table-of-contents__link toc-highlight">deleteTeam Function</a></li><li><a href="#leaveteam-function" class="table-of-contents__link toc-highlight">leaveTeam Function</a></li></ul></li><li><a href="#project-detection-service" class="table-of-contents__link toc-highlight">Project Detection Service</a><ul><li><a href="#getcurrentprojectinfo-function" class="table-of-contents__link toc-highlight">getCurrentProjectInfo Function</a></li><li><a href="#validatecurrentproject-function" class="table-of-contents__link toc-highlight">validateCurrentProject Function</a></li></ul></li><li><a href="#file-snapshot-service" class="table-of-contents__link toc-highlight">File Snapshot Service</a><ul><li><a href="#addfilesnapshot-function" class="table-of-contents__link toc-highlight">addFileSnapshot Function</a></li></ul></li><li><a href="#jira-service" class="table-of-contents__link toc-highlight">Jira Service</a><ul><li><a href="#connectjira-function" class="table-of-contents__link toc-highlight">connectJira Function</a></li><li><a href="#fetchjiraissues-function" class="table-of-contents__link toc-highlight">fetchJiraIssues Function</a></li></ul></li><li><a href="#session-sync-service" class="table-of-contents__link toc-highlight">Session Sync Service</a><ul><li><a href="#startsessionsync-function" class="table-of-contents__link toc-highlight">startSessionSync Function</a></li><li><a href="#stopsessionsync-function" class="table-of-contents__link toc-highlight">stopSessionSync Function</a></li></ul></li></ul></div></div></div></div></main></div></div></div><footer class="theme-layout-footer footer"><div class="container container-fluid"><div class="row footer__links"><div class="theme-layout-footer-column col footer__col"><div class="footer__title">Docs</div><ul class="footer__items clean-list"><li class="footer__item"><a class="footer__link-item" href="/project-collabagent01/docs/intro">Documentation</a></li></ul></div><div class="theme-layout-footer-column col footer__col"><div class="footer__title">More</div><ul class="footer__items clean-list"><li class="footer__item"><a href="https://github.com/Capstone-Projects-2025-Fall/project-collabagent01" target="_blank" rel="noopener noreferrer" class="footer__link-item">GitHub<svg width="13.5" height="13.5" aria-hidden="true" class="iconExternalLink_nPIU"><use href="#theme-svg-external-link"></use></svg></a></li></ul></div></div><div class="footer__bottom text--center"><div class="margin-bottom--sm"><img src="/project-collabagent01/img/CollabAgentImg.png" alt="My Site Logo" class="footer__logo themedComponent_mlkZ themedComponent--light_NVdE"><img src="/project-collabagent01/img/CollabAgentImg.png" alt="My Site Logo" class="footer__logo themedComponent_mlkZ themedComponent--dark_xIcU"></div><div class="footer__copyright">Copyright © 2025 Project Collabagent01, Inc. Built with Docusaurus.</div></div></div></footer></div>
+</body>
+</html>
