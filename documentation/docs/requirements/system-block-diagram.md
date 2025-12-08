@@ -23,14 +23,14 @@ sidebar_position: 2
 **Core Services**: The Flask API Backend Server acts as the central hub, orchestrating all business logic and data flows. It processes API requests and manages communication with external services and databases.
 
 **Data Flow**:
-- **Requests (Yellow)**: Users send collaboration API calls and HTTP requests through the Extension Layer to the Flask backend. The backend forwards requests to the GitHub OAuth service for authentication, to the Gemini API for AI-powered features, and to Jira API for task tracking. 
-- **Responses (Purple)**: External services return authentication tokens, AI-generated responses, and task data back to the Flask backend, which then sends results to the Extension Layer for user presentation.
+- **Requests (Yellow)**: Users send collaboration API calls and HTTP requests through the Extension Layer to the Flask backend. The backend forwards requests to the Gemini API for AI-powered features and to the Jira API for task tracking. Live Share data is handled both directly by the Extension Layer and through the backend for session tracking.
+- **Responses (Purple)**: External services return AI-generated responses and task data to the Flask backend, which then sends results to the Extension Layer for user presentation.
 
-**Authentication**: When users log in through the Extension Layer, a login request is sent to Supabase's OAuth service. Supabase handles GitHub OAuth authentication and returns an Auth Token to the user, which is then used for subsequent API requests to the Flask backend.
+**Authentication**: When users log in through the Extension Layer, a login request is sent to Supabase’s OAuth service. Supabase manages GitHub OAuth authentication and returns an Auth Token to the user, which is then used for secure API requests to the Flask backend.
 
 **External Services** (Black square boxes with icons):
 - **Gemini API**: Provides AI capabilities for intelligent assistance
 - **Jira API**: Integrates project management and issue tracking
-- **LIve Share Tracking**: Enables real-time collaborative editing with dual-path integration (direct Extension Layer connection and Flask backend session tracking)
+- **Live Share Tracking**: Enables real-time collaborative editing with dual-path integration (direct Extension Layer connection and Flask backend session tracking)
 
 **Data Storage**: The Supabase PostgreSQL Database stores all persistent data, including user profiles, teams, team configurations, Jira integrations, activity logs, and session information.
