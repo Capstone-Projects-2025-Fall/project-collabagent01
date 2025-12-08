@@ -3,17 +3,17 @@ sidebar_position: 5
 ---
 
 # Version Control
-	This project is managed over Git and GitHub, which will use the following components
-Extention
-Docusarious Documentation
-Branching Strategy
-	Main Branch
-Main will hold the most up-to-date and stable version of the project.
-Changes will be merged via pull requests
-		Sprint Branch
-At the start of each sprint there will be new branches created to ensure that what gets updated won’t immediately be pushed to main to safeguard any unforeseen errors
-Will accumulate any new features added during the sprint
-		End of Sprint Merging
-At the end of each sprint will review the sprint and push the approved features
-Ensures anything added or updated is stable before merge
+## Project Management & Workflow
+
+This project is managed via Git and GitHub and utilizes **Docusaurus** for documentation.
+
+### Branching Strategy
+
+We adhere to the following workflow to maintain code stability:
+
+- **Main Branch** This branch holds the most up-to-date and stable version of the project. All changes will be merged into `main` via pull requests.
+
+- **Sprint Branching** At the start of each sprint, new branches will be created. This ensures that updates are not immediately pushed to `main`, safeguarding against unforeseen errors. These branches will accumulate any new features added during the sprint.
+
+- **End of Sprint Merging** At the end of each sprint, we will review the sprint and push the approved features to `main`. This step ensures that anything added or updated is stable before the final merge.
 
