@@ -3,7 +3,7 @@ sidebar_position: 1
 description: What should be in this section.
 ---
 
-Design Document - Part II API
+Collab Agent APIs
 =============================
 ## Authentication API
 
@@ -20,9 +20,9 @@ Signs in a user using their email and password credentials.
 - `token`: Authentication token for the user session (on success)
 - `error`: Error message describing why sign-in failed
 
-**Example:** 
+**Example:**
 ```typescript
-`const result = await signIn('user@example.com', 'password123');
+const result = await signIn('user@example.com', 'password123');
 if (result.error) {
   vscode.window.showErrorMessage(`Sign in failed: ${result.error}`);
 } else {
