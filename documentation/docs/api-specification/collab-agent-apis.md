@@ -3,7 +3,7 @@ sidebar_position: 1
 description: What should be in this section.
 ---
 
-Design Document - Part II API
+Collab Agent APIs
 =============================
 ## Authentication API
 
