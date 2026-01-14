@@ -161,6 +161,7 @@ This section provides detailed instructions on how to use each feature, what to 
 <div align="center">
 
 [//]: # (Replace with your collaborators)
-[Alphin Shajan](https://github.com/alphin-08) • [Andrew Rush](https://github.com/tuj55961) • [Nicholas Phillips](https://github.com/vidderr) • [Jaryn Hernandez](https://github.com/JaHe03) • [Benjamin Shawn O'Neill](https://github.com/Ben-O1) • [Ian Tyler Applebaum](https://github.com/ApplebaumIan) • [Kyle Dragon Lee](https://github.com/leekd99)
+[Alphin Shajan](https://github.com/alphin-08) • [Andrew Rush](https://github.com/tuj55961) • [Nicholas Phillips](https://github.com/vidderr) • [Jaryn Hernandez](https://github.com/JaHe03) • [Benjamin Shawn O'Neill](https://github.com/Ben-O1) • [Ian Tyler Applebaum](https://github.com/ApplebaumIan) • [Kyle Dragon Lee](https://github.com/leekd99)•- [Han Wang](https://github.com/hanwang001)
+
 
 </div>
